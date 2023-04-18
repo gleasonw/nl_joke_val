@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -26,11 +25,6 @@ type SeriesData struct {
 }
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
 	connStr := os.Getenv("DATABASE_URL")
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -183,10 +177,6 @@ type ChatCounts struct {
 }
 
 func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("Error loading .env file")
-	}
 	auth := os.Getenv("AUTH_TOKEN")
 	nick := os.Getenv("NICK")
 	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth)))
@@ -244,7 +234,6 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 				counter.Twos -= delta
 			}
 		case <-post_count_ticker.C:
-			fmt.Println(counter)
 			db.Exec("INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs) VALUES ($1, $2, $3, $4, $5, $6, $7)", counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs)
 			counter = ChatCounts{}
 		}
