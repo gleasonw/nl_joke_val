@@ -19,23 +19,41 @@ ChartJS.register(
   Tooltip,
   Legend
 )
+
 interface SeriesData {
-  x: number;
-  y: number;
+  twos: number;
+  lol: number;
+  cereal: number;
+  monkas: number;
+  joel: number;
+  pogs: number;
+  huhs: number;
+  time: number;
 }
 
-const series_calc = ref<'rolling_sum' | 'instant'>('rolling_sum');
-const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '1 day' | '1 week' | '1 month' | '1 year'>('5 minutes');
-const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('second');
+const series_calc = ref<'rolling_sum' | 'instant'>('instant');
+const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '1 day' | '1 week' | '1 month' | '1 year'>('30 minutes');
+const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('minute');
+const currentTime = ref(new Date().getTime());
 
-const url = computed(() => `http://localhost:8080/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}`);
+const url = computed(() => `http://localhost:8080/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}&time=${currentTime.value}`);
 
-const { data, refresh } = await useFetch<SeriesData[]>(url);
+const { data } = await useFetch<SeriesData[]>(url);
 
-// every 5 seconds, refresh the data
+
+const colors = {
+  twos: "#7cb5ec",
+  lol: "#434348",
+  cereal: "#90ed7d",
+  monkas: "#f7a35c",
+  joel: "#8085e9",
+  pogs: "#f15c80",
+  huhs: "#e4d354",
+}
+
 setInterval(() => {
-  refresh();
-}, 5000);
+  currentTime.value = new Date().getTime();
+}, 10000);
 </script>
 
 <template>
@@ -64,11 +82,13 @@ setInterval(() => {
   </select>
 
   <Line v-if="data" :data="{
-    labels: data.map(d => (new Date(d.x * 1000)).toUTCString()),
-    datasets: [{
-      backgroundColor: '#f87979',
-      label: 'test',
-      data,
-    }]
+    labels: data.map(d => (new Date(d.time * 1000)).toUTCString()),
+    datasets: Object.keys(data[0]).filter(k => k !== 'time').map((k) => ({
+      label: k,
+      data: data.map(d => d[k]),
+      borderColor: colors[k],
+      fill: false,
+      tension: 0.1
+    }))
   }" />
 </template>
