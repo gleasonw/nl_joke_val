@@ -31,7 +31,8 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	db, err := sql.Open("postgres", "user=will password=postgres dbname=nl_jokes sslmode=disable")
+	connStr := os.Getenv("DATABASE_URL")
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -40,8 +41,6 @@ func main() {
 	go connect_to_nl_chat(db)
 	http.HandleFunc("/api/sum", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("interval")
-		// cast interval to int
-
 		var total int
 		db.QueryRow("SELECT SUM(count) FROM counts WHERE created > NOW() - $1::interval", span).Scan(&total)
 		if err != nil {
