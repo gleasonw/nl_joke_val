@@ -60,7 +60,7 @@ func main() {
 		return
 	}
 	defer db.Close()
-	// go connect_to_nl_chat(db)
+	go connect_to_nl_chat(db)
 
 	http.HandleFunc("/api/sum", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("interval")
