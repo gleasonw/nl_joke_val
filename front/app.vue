@@ -35,10 +35,16 @@ const series_calc = ref<'rolling_sum' | 'instant'>('instant');
 const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '1 day' | '1 week' | '1 month' | '1 year'>('30 minutes');
 const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('minute');
 const currentTime = ref(new Date().getTime());
+const clickedTime = ref(new Date().getTime());
 
 const url = computed(() => `https://nljokeval-production.up.railway.app/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}&time=${currentTime.value}`);
 
 const { data } = await useFetch<SeriesData[]>(url);
+console.log(data.value)
+
+function handleGraphClick(e: MouseEvent) {
+
+}
 
 
 const colors = {
@@ -91,4 +97,5 @@ setInterval(() => {
       tension: 0.1
     }))
   }" />
+  <ClipViewer :time="clickedTime" />
 </template>

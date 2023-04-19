@@ -60,7 +60,8 @@ func main() {
 		return
 	}
 	defer db.Close()
-	go connect_to_nl_chat(db)
+	// go connect_to_nl_chat(db)
+
 	http.HandleFunc("/api/sum", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("interval")
 		var total int
@@ -71,9 +72,11 @@ func main() {
 		}
 		marshal_json_and_write(w, total)
 	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
 	})
+
 	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
@@ -108,6 +111,7 @@ func main() {
 		}
 		marshal_json_and_write(w, data)
 	})
+
 	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
@@ -140,6 +144,7 @@ func main() {
 		}
 		marshal_json_and_write(w, data)
 	})
+
 	http.HandleFunc("/api/max", func(w http.ResponseWriter, r *http.Request) {
 		var max int
 		var time float64
@@ -150,6 +155,7 @@ func main() {
 		}
 		marshal_json_and_write(w, SeriesData{Twos: max, Time: time})
 	})
+
 	http.HandleFunc("/api/min", func(w http.ResponseWriter, r *http.Request) {
 		var min int
 		var time float64
@@ -160,6 +166,23 @@ func main() {
 		}
 		marshal_json_and_write(w, SeriesData{Twos: min, Time: time})
 
+	})
+
+	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
+		t := r.URL.Query().Get("time")
+		var clipID string
+		db.QueryRow(`
+		SELECT clip_id 
+		FROM counts 
+		WHERE EXTRACT(epoch from created) > $1::float - 30
+		AND EXTRACT(epoch from created) < $1::float + 10
+		LIMIT 1`, t).Scan(&clipID)
+		fmt.Println(clipID)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		marshal_json_and_write(w, clipID)
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
