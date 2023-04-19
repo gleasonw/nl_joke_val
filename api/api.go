@@ -174,8 +174,8 @@ func main() {
 		db.QueryRow(`
 		SELECT clip_id 
 		FROM counts 
-		WHERE EXTRACT(epoch from created) > $1::float - 60
-		AND EXTRACT(epoch from created) < $1::float - 10
+		WHERE EXTRACT(epoch from created) > $1::float - 10
+		AND EXTRACT(epoch from created) < $1::float
 		LIMIT 1`, t).Scan(&clipID)
 		if err != nil {
 			fmt.Println(err)
@@ -320,6 +320,7 @@ func create_clip(db *sql.DB, unix_timestamp time.Time) {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
+		"duration":       "90",
 	}
 
 	// Convert the request body to a JSON string
