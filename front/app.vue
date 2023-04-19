@@ -36,7 +36,7 @@ const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '1 day' | 
 const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('minute');
 const currentTime = ref(new Date().getTime());
 
-const url = computed(() => `http://localhost:8080/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}&time=${currentTime.value}`);
+const url = computed(() => `https://nljokeval-production.up.railway.app/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}&time=${currentTime.value}`);
 
 const { data } = await useFetch<SeriesData[]>(url);
 
