@@ -85,8 +85,8 @@ setInterval(() => {
     labels: data.map(d => (new Date(d.time * 1000)).toUTCString()),
     datasets: Object.keys(data[0]).filter(k => k !== 'time').map((k) => ({
       label: k,
-      data: data.map(d => d[k]),
-      borderColor: colors[k],
+      data: data?.map(d => d[k as keyof SeriesData]) ?? [],
+      borderColor: colors[k as keyof typeof colors],
       fill: false,
       tension: 0.1
     }))
