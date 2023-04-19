@@ -43,6 +43,10 @@ func main() {
 		}
 		marshal_json_and_write(w, total)
 	})
+	// hello route
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello World!"))
+	})
 	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
