@@ -174,10 +174,9 @@ func main() {
 		db.QueryRow(`
 		SELECT clip_id 
 		FROM counts 
-		WHERE EXTRACT(epoch from created) > $1::float - 30
-		AND EXTRACT(epoch from created) < $1::float + 10
+		WHERE EXTRACT(epoch from created) > $1::float - 60
+		AND EXTRACT(epoch from created) < $1::float - 10
 		LIMIT 1`, t).Scan(&clipID)
-		fmt.Println(clipID)
 		if err != nil {
 			fmt.Println(err)
 			return
