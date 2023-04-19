@@ -135,7 +135,10 @@ func main() {
 
 	// })
 
-	http.ListenAndServe(os.Getenv("PORT"), nil)
+	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
+	fmt.Println("Listening on port", port)
+
+	http.ListenAndServe(port, nil)
 
 }
 
