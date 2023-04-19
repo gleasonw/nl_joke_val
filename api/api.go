@@ -116,13 +116,13 @@ func main() {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
 		rows, err := db.Query(`
-			SELECT SUM(count) OVER (ORDER BY created RANGE $1::interval PRECEDING),
-				SUM(lol) OVER (ORDER BY created RANGE $1::interval PRECEDING),
-				SUM(cereal) OVER (ORDER BY created RANGE $1::interval PRECEDING),
-				SUM(monkas) OVER (ORDER BY created RANGE $1::interval PRECEDING),
-				SUM(joel) OVER (ORDER BY created RANGE $1::interval PRECEDING),
-				SUM(pogs) OVER (ORDER BY created RANGE $1::interval PRECEDING),
-				SUM(huhs) OVER (ORDER BY created RANGE $1::interval PRECEDING),
+			SELECT SUM(count) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
+				SUM(lol) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
+				SUM(cereal) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
+				SUM(monkas) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
+				SUM(joel) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
+				SUM(pogs) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
+				SUM(huhs) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
 			EXTRACT(epoch from date_trunc('minute', created)) AS created_epoch
  			FROM counts
  			WHERE created > NOW() - $2::interval; 
