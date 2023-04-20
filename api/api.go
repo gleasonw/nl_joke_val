@@ -229,6 +229,8 @@ func connect_to_nl_chat(db *sql.DB) {
 		select {
 		case err := <-chat_closed:
 			fmt.Println("Chat closed:", err)
+			time.Sleep(30 * time.Second)
+			go connect_to_nl_chat(db)
 			return
 		default:
 			time.Sleep(100 * time.Millisecond)
