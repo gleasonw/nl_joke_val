@@ -1,7 +1,4 @@
 <script lang="ts" setup>
-import { Chart} from "highcharts-vue";
-
-
 
 interface SeriesData {
     twos: number;
@@ -26,8 +23,28 @@ const url = computed(() => `https://nljokeval-production.up.railway.app/api/${se
 const {
     data
 } = await useFetch < SeriesData[] > (url);
+const keys = computed(() => data.value && data.value.length > 0 && Object.keys(data.value?.[0]).filter(k => k !== "time") || ([] as string[]));
+const selectedKeys = ref(new Set(["twos"]))
+const nuxtApp = useNuxtApp();
+const Chart = nuxtApp.$Chart;
 
-const chartOptions = computed(() => ({
+const seriesColors = {
+  twos: "#7cb5ec",
+  lol: "#434348",
+  cereal: "#90ed7d",
+  monkas: "#f7a35c",
+  joel: "#8085e9",
+  pogs: "#f15c80",
+  huhs: "#e4d354",
+};
+
+// "#2b908f",
+//   "#f45b5b",
+//   "#91e8e1",
+
+
+
+const chartOptions = computed((): Highcharts.Options => ({
     plotOptions: {
         series: {
             marker: {
@@ -40,7 +57,10 @@ const chartOptions = computed(() => ({
     },
     chart: {
         type: "line",
-        zoomType: "x",
+        height: 600,
+        zooming: {
+            type: "x",
+        }        ,
         events: {
             click: function (e: any) {
                 const xVal = e?.xAxis?.[0]?.value;
@@ -51,12 +71,17 @@ const chartOptions = computed(() => ({
         },
     },
     title: {
-        text: "Joke Value",
+        text: "",
     },
     xAxis: {
         type: "datetime",
         title: {
             text: "Time",
+        },
+        labels: {
+            formatter: function (x) {
+                return new Date(x.value).toLocaleString();
+            },
         },
     },
     yAxis: {
@@ -64,9 +89,10 @@ const chartOptions = computed(() => ({
             text: "Joke Value",
         },
     },
-    series: data.value && data.value.length > 0 && Object.keys(data.value?.[0]).filter(k => k !== "time").map((key) => ({
+    series: [...selectedKeys.value].map((key) => ({
         name: key,
         data: data.value?.map((d) => [d.time * 1000, d[key as keyof SeriesData]]),
+        color: seriesColors[key as keyof typeof seriesColors],
         events: {
             click: function (e: any) {
                 console.log(e.point.x);
@@ -76,6 +102,13 @@ const chartOptions = computed(() => ({
     })) || ([] as Highcharts.SeriesOptionsType[]),
 }));
 
+function handleSeriesButton(key: string) {
+    if (selectedKeys.value.has(key)) {
+        selectedKeys.value.delete(key);
+    } else {
+        selectedKeys.value.add(key);
+    }
+}
 setInterval(() => {
     currentTime.value = new Date().getTime();
 }, 10000);
@@ -105,6 +138,7 @@ setInterval(() => {
     <option value="month">month</option>
     <option value="year">year</option>
 </select>
+<button v-for="key in keys" @click="() => handleSeriesButton(key)">{{key}}</button>
 <Chart :options="chartOptions" ref="lineChart" />
 <ClipViewer :time="clickedUnixSeconds" />
 </template>

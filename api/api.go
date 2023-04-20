@@ -117,11 +117,11 @@ func main() {
 		grouping := r.URL.Query().Get("grouping")
 		rows, err := db.Query(`
 		SELECT SUM(count) OVER(ORDER BY created), 
-		SUM(lol) OVER (ORDER BY created), 
-		SUM(cereal) OVER (ORDER BY created), 
+		SUM(lol) OVER (ORDER BY created),
+		SUM(cereal) OVER (ORDER BY created),
 		SUM(monkas) OVER (ORDER BY created), 
-		SUM(joel) OVER (ORDER BY created), 
-		SUM(pogs) OVER (ORDER BY created), 
+		SUM(joel) OVER (ORDER BY created),
+		SUM(pogs) OVER (ORDER BY created),
 		SUM(huhs) OVER (ORDER BY created),
 		EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
 	FROM counts 
