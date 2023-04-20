@@ -23,8 +23,5 @@ const {
         </p>
         </p>
         <TwitchClip v-if="data" :clipId="data.clip_id" />
-
-        
-
     </div>
 </template>

@@ -14,5 +14,24 @@ const vidSource = computed(() => `https://clips.twitch.tv/embed?clip=${props.cli
 <template>
 
 <iframe :src="vidSource" v-if="vidSource && parent" frameborder="0" allowfullscreen="true" scrolling="no"
-            height="378" width="620" />
+            height="378" width="620" 
+            class="twitch-clip"
+            />
 </template>
+
+<style>
+/* Default styles for Twitch clip iframe */
+.twitch-clip {
+  width: 620;
+  height: 378px; /* Default height */
+}
+
+/* Media query for screens smaller than 768px */
+@media (max-width: 767px) {
+  .twitch-clip {
+    height: 200px; /* Adjust height for mobile screens */
+    width: 310px;
+  }
+}
+
+</style>
