@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -144,26 +145,36 @@ func main() {
 		marshal_json_and_write(w, data)
 	})
 
-	http.HandleFunc("/api/max", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/max_clip", func(w http.ResponseWriter, r *http.Request) {
 		var max int
 		var time float64
-		err := db.QueryRow("SELECT count, EXTRACT(epoch from created) FROM counts WHERE count=(SELECT max(count) from counts)").Scan(&max, &time)
+		var clip_id string
+		err := db.QueryRow("SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT max(count) from counts)").Scan(&max, &time, &clip_id)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		marshal_json_and_write(w, SeriesData{Twos: max, Time: time})
+		marshal_json_and_write(w, map[string]string{
+			"clip_id": clip_id,
+			"twos":    strconv.Itoa(max),
+			"time":    strconv.FormatFloat(time, 'f', 0, 64),
+		})
 	})
 
-	http.HandleFunc("/api/min", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/min_clip", func(w http.ResponseWriter, r *http.Request) {
 		var min int
 		var time float64
-		err := db.QueryRow("SELECT count, EXTRACT(epoch from created) FROM counts WHERE count=(SELECT min(count) from counts)").Scan(&min, &time)
+		var clip_id string
+		err := db.QueryRow("SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT min(count) from counts)").Scan(&min, &time, &clip_id)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		marshal_json_and_write(w, SeriesData{Twos: min, Time: time})
+		marshal_json_and_write(w, map[string]string{
+			"clip_id": clip_id,
+			"twos":    strconv.Itoa(min),
+			"time":    strconv.FormatFloat(time, 'f', 0, 64),
+		})
 
 	})
 
