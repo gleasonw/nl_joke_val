@@ -12,7 +12,7 @@ interface SeriesData {
 }
 
 const series_calc = ref<'rolling_sum' | 'instant'>('instant');
-const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '1 day' | '1 week' | '1 month' | '1 year'>('30 minutes');
+const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '9 hours' | '1 day' | '1 week' | '1 month' | '1 year'>('9 hours');
 const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('minute');
 const currentTime = ref(new Date().getTime());
 const clickedUnixSeconds = ref(Date.now() / 1000);
@@ -127,6 +127,7 @@ setInterval(() => {
             <option value="5 minutes">5 minutes</option>
             <option value="30 minutes">30 minutes</option>
             <option value="1 hour">1 hour</option>
+            <option value="9 hour">9 hour</option>
             <option value="1 day">1 day</option>
             <option value="1 week">1 week</option>
             <option value="1 month">1 month</option>
@@ -155,6 +156,7 @@ setInterval(() => {
         <BelovedClip />
         <HatedClip />
     </div>
+    <BarChart />
 </template>
 
 <style>
