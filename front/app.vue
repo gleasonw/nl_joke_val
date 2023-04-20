@@ -150,8 +150,8 @@ setInterval(() => {
         </button>
     </div>
     <Chart :options="chartOptions" ref="lineChart" />
-    <ClipViewer :time="clickedUnixSeconds" />
     <div class="flex-row">
+        <ClipViewer :time="clickedUnixSeconds" />
         <BelovedClip />
         <HatedClip />
     </div>
@@ -177,7 +177,7 @@ setInterval(() => {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 20px;
     align-items: center;
     justify-content: center;
 }
