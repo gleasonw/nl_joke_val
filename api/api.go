@@ -115,18 +115,37 @@ func main() {
 	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
+		var intervalFormat string
+		switch grouping {
+		case "second":
+			intervalFormat = "1 second"
+		case "minute":
+			intervalFormat = "1 minute"
+		case "hour":
+			intervalFormat = "1 hour"
+		case "day":
+			intervalFormat = "1 day"
+		case "week":
+			intervalFormat = "1 week"
+		case "month":
+			intervalFormat = "1 month"
+		case "year":
+			intervalFormat = "1 year"
+		default:
+			intervalFormat = "1 minute"
+		}
 		rows, err := db.Query(`
-			SELECT SUM(count) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
-				SUM(lol) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
-				SUM(cereal) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
-				SUM(monkas) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
-				SUM(joel) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
-				SUM(pogs) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
-				SUM(huhs) OVER (ORDER BY created RANGE BETWEEN $1::interval PRECEDING),
+			SELECT SUM(count) OVER (ORDER BY created RANGE $1::interval PRECEDING),
+				SUM(lol) OVER (ORDER BY created RANGE $1::interval PRECEDING),
+				SUM(cereal) OVER (ORDER BY created RANGE $1::interval PRECEDING),
+				SUM(monkas) OVER (ORDER BY created RANGE $1::interval PRECEDING),
+				SUM(joel) OVER (ORDER BY created RANGE $1::interval PRECEDING),
+				SUM(pogs) OVER (ORDER BY created RANGE $1::interval PRECEDING),
+				SUM(huhs) OVER (ORDER BY created RANGE $1::interval PRECEDING),
 			EXTRACT(epoch from date_trunc('minute', created)) AS created_epoch
  			FROM counts
  			WHERE created > NOW() - $2::interval; 
-		`, grouping, span)
+		`, intervalFormat, span)
 		if err != nil {
 			fmt.Println(err)
 			return

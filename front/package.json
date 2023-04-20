@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "chart.js": "^4.2.1",
+    "highcharts": "^10.3.3",
+    "highcharts-vue": "^1.4.0",
     "vue-chartjs": "^5.2.0"
   }
 }

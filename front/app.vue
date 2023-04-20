@@ -1,29 +1,7 @@
 <script lang="ts" setup>
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend,
-} from 'chart.js'
-import {
-    Line
-} from 'vue-chartjs'
-import {
-    getRelativePosition
-} from 'chart.js/helpers';
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend
-)
+import { Chart} from "highcharts-vue";
+
+
 
 interface SeriesData {
     twos: number;
@@ -49,28 +27,54 @@ const {
     data
 } = await useFetch < SeriesData[] > (url);
 
-function handleGraphClick(e) {
-    if (!lineChart.value) return;
-    const canvasPosition = getRelativePosition(e, lineChart.value?.chart);
-    console.log(lineChart.value?.chart);
-    console.log(canvasPosition);
-    const dataX = lineChart.value?.chart.scales.x.getValueForPixel(canvasPosition.x);
-    const dateString = lineChart.value?.chart.scales.x.ticks.find((label) => label.value === dataX);
-    clickedUnixSeconds.value = Date.parse(dateString.label) / 1000;
-    console.log(clickedUnixSeconds.value)
-
-
-}
-
-const colors = {
-    twos: "#7cb5ec",
-    lol: "#434348",
-    cereal: "#90ed7d",
-    monkas: "#f7a35c",
-    joel: "#8085e9",
-    pogs: "#f15c80",
-    huhs: "#e4d354",
-}
+const chartOptions = computed(() => ({
+    plotOptions: {
+        series: {
+            marker: {
+                enabled: false,
+            },
+        },
+        line: {
+            linecap: "round",
+        }
+    },
+    chart: {
+        type: "line",
+        zoomType: "x",
+        events: {
+            click: function (e: any) {
+                const xVal = e?.xAxis?.[0]?.value;
+                if(xVal) {
+                    clickedUnixSeconds.value = Math.round(xVal / 1000);
+                }
+            },
+        },
+    },
+    title: {
+        text: "Joke Value",
+    },
+    xAxis: {
+        type: "datetime",
+        title: {
+            text: "Time",
+        },
+    },
+    yAxis: {
+        title: {
+            text: "Joke Value",
+        },
+    },
+    series: data.value && data.value.length > 0 && Object.keys(data.value?.[0]).filter(k => k !== "time").map((key) => ({
+        name: key,
+        data: data.value?.map((d) => [d.time * 1000, d[key as keyof SeriesData]]),
+        events: {
+            click: function (e: any) {
+                console.log(e.point.x);
+                clickedUnixSeconds.value = e.point.x / 1000;
+            },
+        },
+    })) || ([] as Highcharts.SeriesOptionsType[]),
+}));
 
 setInterval(() => {
     currentTime.value = new Date().getTime();
@@ -101,14 +105,6 @@ setInterval(() => {
     <option value="month">month</option>
     <option value="year">year</option>
 </select>
-
-<Line ref="lineChart" @click="handleGraphClick" v-if="data" :data="{
-    labels: data.map(d => (new Date(d.time * 1000)).toLocaleString()),
-    datasets: Object.keys(data[0]).filter(k => k !== 'time').map((k) => ({
-      label: k,
-      data: data?.map(d => d[k as keyof SeriesData]) ?? [],
-      borderColor: colors[k as keyof typeof colors],
-    }))
-  }" />
+<Chart :options="chartOptions" ref="lineChart" />
 <ClipViewer :time="clickedUnixSeconds" />
 </template>
