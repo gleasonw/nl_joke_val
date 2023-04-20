@@ -12,7 +12,7 @@ interface SeriesData {
 }
 
 const series_calc = ref<'rolling_sum' | 'instant'>('instant');
-const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '9 hours' | '1 day' | '1 week' | '1 month' | '1 year'>('9 hours');
+const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '9 hours' | '1 day' | '1 week' | '1 month' | '1 year'>('30 minutes');
 const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('minute');
 const currentTime = ref(new Date().getTime());
 const clickedUnixSeconds = ref(Date.now() / 1000);
@@ -151,10 +151,12 @@ setInterval(() => {
         </button>
     </div>
     <Chart :options="chartOptions" ref="lineChart" />
-    <div class="flex-row">
+    <div class="flex-col">
         <ClipViewer :time="clickedUnixSeconds" />
-        <BelovedClip />
-        <HatedClip />
+        <div class="flex-row">
+            <BelovedClip />
+            <HatedClip />
+        </div>
     </div>
     <BarChart />
 </template>
@@ -173,6 +175,15 @@ setInterval(() => {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     grid-gap: 10px;
+}
+
+.flex-col {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
 }
 
 .flex-row {
