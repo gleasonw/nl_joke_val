@@ -151,6 +151,10 @@ setInterval(() => {
     </div>
     <Chart :options="chartOptions" ref="lineChart" />
     <ClipViewer :time="clickedUnixSeconds" />
+    <div class="flex-row">
+        <BelovedClip />
+        <HatedClip />
+    </div>
 </template>
 
 <style>
@@ -161,6 +165,12 @@ setInterval(() => {
 .series-button {
     padding: 5px;
     background-color: white;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-gap: 10px;
 }
 
 .flex-row {
