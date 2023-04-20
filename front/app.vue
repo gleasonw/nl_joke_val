@@ -146,7 +146,7 @@ setInterval(() => {
         <button v-for="key in keys" @click="() => handleSeriesButton(key)"
             :class="{ faded: !selectedKeys.has(key), 'series-button': true }"
             :style="{ backgroundColor: seriesColors[key as keyof typeof seriesColors] }">
-        {{ key }}
+            {{ key }}
         </button>
     </div>
     <Chart :options="chartOptions" ref="lineChart" />
