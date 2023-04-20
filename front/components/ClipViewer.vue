@@ -19,6 +19,6 @@ const vidSource = computed(() => `https://clips.twitch.tv/embed?clip=${data.valu
 </script>
 
 <template>
-    <p>{{ new Date(data?.time ?? 0).toLocaleString() }}</p>
+    <p v-if="data">{{ new Date(data.time).toLocaleString() }}</p>
 <iframe :src="vidSource" v-if="vidSource && parent" frameborder="0" allowfullscreen="true" scrolling="no" height="378" width="620" />
 </template>
