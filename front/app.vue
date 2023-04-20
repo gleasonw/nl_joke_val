@@ -89,6 +89,7 @@ const chartOptions = computed((): Highcharts.Options => ({
             text: "Joke Value",
         },
     },
+    //@ts-ignore
     series: [...selectedKeys.value].map((key) => ({
         name: key,
         data: data.value?.map((d) => [d.time * 1000, d[key as keyof SeriesData]]),
