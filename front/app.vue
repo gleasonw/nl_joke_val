@@ -86,7 +86,7 @@ const chartOptions = computed((): Highcharts.Options => ({
     },
     yAxis: {
         title: {
-            text: "Joke Value",
+            text: "Count",
         },
     },
     //@ts-ignore
