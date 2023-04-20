@@ -170,17 +170,21 @@ func main() {
 	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
 		t := r.URL.Query().Get("time")
 		var clipID string
+		var time float64
 		db.QueryRow(`
-		SELECT clip_id 
+		SELECT clip_id, EXTRACT(epoch from created)
 		FROM counts 
 		WHERE EXTRACT(epoch from created) > $1::float + 10
 		AND EXTRACT(epoch from created) < $1::float + 20
-		LIMIT 1`, t).Scan(&clipID)
+		LIMIT 1`, t).Scan(&clipID, &time)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		marshal_json_and_write(w, clipID)
+		marshal_json_and_write(w, map[string]string{
+			"clip_id": clipID,
+			"time":    fmt.Sprintf("%f", time),
+		})
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
