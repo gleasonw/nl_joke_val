@@ -4,15 +4,10 @@ type MinClipData = {
     time: number;
     twos: number;
 }
-const parent = ref('');
-onMounted(() => {
-    parent.value = window.location.hostname;
-})
 
 const {
     data
 } = await useFetch<MinClipData>(`https://nljokeval-production.up.railway.app/api/min_clip`);
-const vidSource = computed(() => `https://clips.twitch.tv/embed?clip=${data.value?.clip_id}&parent=${parent.value}`);
 console.log(data.value);
 
 </script>
@@ -28,8 +23,9 @@ console.log(data.value);
             {{ data.twos }}
         </p>
         </p>
-        <iframe :src="vidSource" v-if="vidSource && parent" frameborder="0" allowfullscreen="true" scrolling="no"
-            height="378" width="620" />
+        <TwitchClip v-if="data" :clipId="data.clip_id" />
+
+
 
     </div>
 </template>
