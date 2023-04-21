@@ -359,8 +359,8 @@ func split_and_get_last(text string, splitter string) string {
 
 func parse_val(text string) int {
 	for _, char := range text {
-		if char >= '0' && char <= '9' {
-			return int(char - '0')
+		if char == '2' {
+			return 2
 		}
 	}
 	return 0
