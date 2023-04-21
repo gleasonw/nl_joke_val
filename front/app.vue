@@ -1,3 +1,17 @@
+<script lang="ts">
+export const seriesColors = {
+    twos: "#7cb5ec",
+    lol: "#434348",
+    cereal: "#90ed7d",
+    monkas: "#f7a35c",
+    joel: "#8085e9",
+    pogs: "#f15c80",
+    huhs: "#e4d354",
+    nos: "#2b908f",
+    cockas: "#f45b5b",
+};
+</script>
+
 <script lang="ts" setup>
 
 interface SeriesData {
@@ -31,17 +45,7 @@ const selectedKeys = ref(new Set(["twos"]))
 const nuxtApp = useNuxtApp();
 const Chart = nuxtApp.$Chart;
 
-const seriesColors = {
-    twos: "#7cb5ec",
-    lol: "#434348",
-    cereal: "#90ed7d",
-    monkas: "#f7a35c",
-    joel: "#8085e9",
-    pogs: "#f15c80",
-    huhs: "#e4d354",
-    nos: "#2b908f",
-    cockas: "#f45b5b",
-};
+
 
 //   "#91e8e1",
 
@@ -179,6 +183,7 @@ setInterval(() => {
             <BelovedClip />
             <HatedClip />
         </div>
+        <CustomClip />
     </div>
 </template>
 

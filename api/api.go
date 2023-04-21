@@ -136,11 +136,33 @@ func main() {
 		marshal_json_and_write(w, data)
 	})
 
+	max_clip_queries := map[string]string{
+		"twos":   "SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT max(count) from counts) AND clip_id IS NOT NULL",
+		"lol":    "SELECT lol, EXTRACT(epoch from created), clip_id FROM counts WHERE lol=(SELECT max(lol) from counts) AND clip_id IS NOT NULL",
+		"cereal": "SELECT cereal, EXTRACT(epoch from created), clip_id FROM counts WHERE cereal=(SELECT max(cereal) from counts) AND clip_id IS NOT NULL",
+		"monkas": "SELECT monkas, EXTRACT(epoch from created), clip_id FROM counts WHERE monkas=(SELECT max(monkas) from counts) AND clip_id IS NOT NULL",
+		"joel":   "SELECT joel, EXTRACT(epoch from created), clip_id FROM counts WHERE joel=(SELECT max(joel) from counts) AND clip_id IS NOT NULL",
+		"pogs":   "SELECT pogs, EXTRACT(epoch from created), clip_id FROM counts WHERE pogs=(SELECT max(pogs) from counts) AND clip_id IS NOT NULL",
+		"huhs":   "SELECT huhs, EXTRACT(epoch from created), clip_id FROM counts WHERE huhs=(SELECT max(huhs) from counts) AND clip_id IS NOT NULL",
+		"nos":    "SELECT nos, EXTRACT(epoch from created), clip_id FROM counts WHERE nos=(SELECT max(nos) from counts) AND clip_id IS NOT NULL",
+		"cockas": "SELECT cockas, EXTRACT(epoch from created), clip_id FROM counts WHERE cockas=(SELECT max(cockas) from counts) AND clip_id IS NOT NULL",
+	}
+
 	http.HandleFunc("/api/max_clip", func(w http.ResponseWriter, r *http.Request) {
 		var max int
 		var time float64
 		var clip_id string
-		err := db.QueryRow("SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT max(count) from counts) AND clip_id IS NOT NULL").Scan(&max, &time, &clip_id)
+		column_to_select := r.URL.Query().Get("column")
+		if column_to_select == "" {
+			column_to_select = "twos"
+		}
+		q, ok := max_clip_queries[column_to_select]
+		if !ok {
+			fmt.Println("invalid column")
+			return
+		}
+
+		err := db.QueryRow(q).Scan(&max, &time, &clip_id)
 		if err != nil {
 			fmt.Println(err)
 			return
