@@ -298,7 +298,11 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 		case <-post_count_ticker.C:
 			if lionIsLive {
 				var timestamp time.Time
-				err := db.QueryRow("INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created", counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs).Scan(&timestamp)
+				err := db.QueryRow(`
+				INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+				RETURNING created`,
+					counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs).Scan(&timestamp)
 				if err != nil {
 					fmt.Println("Error inserting into db:", err)
 				}

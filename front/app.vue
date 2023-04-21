@@ -12,7 +12,7 @@ interface SeriesData {
 }
 
 const series_calc = ref<'rolling_sum' | 'instant'>('instant');
-const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '9 hours' | '1 day' | '1 week' | '1 month' | '1 year'>('30 minutes');
+const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '9 hours' | '1 day' | '1 week' | '1 month' | '1 year'>('1 hour');
 const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('minute');
 const display = ref<'line' | 'bar'>('line');
 const currentTime = ref(new Date().getTime());
