@@ -26,6 +26,8 @@ type SeriesData struct {
 	Pogs   int     `json:"pogs"`
 	Huhs   int     `json:"huhs"`
 	Time   float64 `json:"time"`
+	Nos    int     `json:"nos"`
+	Cockas int     `json:"cockas"`
 }
 
 var auth_token string = os.Getenv("AUTH_TOKEN")
@@ -91,16 +93,7 @@ func main() {
 			return
 		}
 		defer rows.Close()
-		data := make([]SeriesData, 0)
-		for rows.Next() {
-			var seriesData SeriesData
-			err := rows.Scan(&seriesData.Twos, &seriesData.Lol, &seriesData.Cereal, &seriesData.Monkas, &seriesData.Joel, &seriesData.Pogs, &seriesData.Huhs, &seriesData.Time)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			data = append(data, seriesData)
-		}
+		data := scan_rows_to_series_data(rows)
 		marshal_json_and_write(w, data)
 	})
 
@@ -125,16 +118,7 @@ func main() {
 			return
 		}
 		defer rows.Close()
-		data := make([]SeriesData, 0)
-		for rows.Next() {
-			var seriesData SeriesData
-			err := rows.Scan(&seriesData.Twos, &seriesData.Lol, &seriesData.Cereal, &seriesData.Monkas, &seriesData.Joel, &seriesData.Pogs, &seriesData.Huhs, &seriesData.Time)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			data = append(data, seriesData)
-		}
+		data := scan_rows_to_series_data(rows)
 		marshal_json_and_write(w, data)
 	})
 
@@ -196,6 +180,20 @@ func main() {
 
 	http.ListenAndServe(port, nil)
 
+}
+
+func scan_rows_to_series_data(rows *sql.Rows) []SeriesData {
+	data := make([]SeriesData, 0)
+	for rows.Next() {
+		var seriesData SeriesData
+		err := rows.Scan(&seriesData.Twos, &seriesData.Lol, &seriesData.Cereal, &seriesData.Monkas, &seriesData.Joel, &seriesData.Pogs, &seriesData.Huhs, &seriesData.Nos, &seriesData.Cockas, &seriesData.Time)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		data = append(data, seriesData)
+	}
+	return data
 }
 
 func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
