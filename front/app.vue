@@ -8,6 +8,8 @@ interface SeriesData {
     joel: number;
     pogs: number;
     huhs: number;
+    nos: number;
+    cockas: number;
     time: number;
 }
 
@@ -37,10 +39,10 @@ const seriesColors = {
     joel: "#8085e9",
     pogs: "#f15c80",
     huhs: "#e4d354",
+    nos: "#2b908f",
+    cockas: "#f45b5b",
 };
 
-// "#2b908f",
-//   "#f45b5b",
 //   "#91e8e1",
 
 

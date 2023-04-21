@@ -78,6 +78,8 @@ func main() {
 				SUM(joel), 
 				SUM(pogs), 
 				SUM(huhs),
+				SUM(nos),
+				SUM(cockas),
 				EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
 			FROM counts 
 			WHERE created >= (SELECT MAX(created) - $2::interval from counts)
@@ -113,6 +115,8 @@ func main() {
 			SUM(joel) OVER (ORDER BY created),
 			SUM(pogs) OVER (ORDER BY created),
 			SUM(huhs) OVER (ORDER BY created),
+			SUM(nos) OVER (ORDER BY created),
+			SUM(cockas) OVER (ORDER BY created),
 			EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
 		FROM counts
 		WHERE created >= (SELECT MAX(created) - $2::interval from counts)`, grouping, span)
@@ -235,6 +239,8 @@ type ChatCounts struct {
 	Joels         int
 	PogCrazies    int
 	Huhs          int
+	Nos           int
+	Cockas        int
 }
 
 func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
@@ -276,6 +282,12 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			if strings.Contains(only_message_text, "Cereal") {
 				counter.Cereals++
 			}
+			if strings.Contains(only_message_text, "NOOO") {
+				counter.Nos++
+			}
+			if strings.Contains(only_message_text, "COCKA") {
+				counter.Cockas++
+			}
 			if strings.Contains(only_message_text, "monkaS") {
 				counter.Monkas++
 			}
@@ -299,10 +311,10 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			if lionIsLive {
 				var timestamp time.Time
 				err := db.QueryRow(`
-				INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs)
-				VALUES ($1, $2, $3, $4, $5, $6, $7)
+				INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs, nos, cockas)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 				RETURNING created`,
-					counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs).Scan(&timestamp)
+					counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs, counter.Nos, counter.Cockas).Scan(&timestamp)
 				if err != nil {
 					fmt.Println("Error inserting into db:", err)
 				}
