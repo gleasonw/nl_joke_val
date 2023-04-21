@@ -320,11 +320,14 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			}
 			counter = ChatCounts{}
 		case clipWasMade := <-createClipStatus:
+			fmt.Println("Clip was made:", clipWasMade)
 			if clipWasMade {
 				lionIsLive = true
 			} else {
 				lionIsLive = false
 			}
+			fmt.Println("Lion is live:", lionIsLive)
+
 		}
 
 	}
@@ -412,6 +415,7 @@ func create_clip(db *sql.DB, unix_timestamp time.Time, isLive chan bool) {
 		return
 	}
 	db.Exec("UPDATE counts SET clip_id = $1 WHERE created = $2", clip_id, unix_timestamp)
+	isLive <- true
 }
 
 type Message struct {
