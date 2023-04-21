@@ -337,13 +337,11 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			}
 			counter = ChatCounts{}
 		case clipWasMade := <-createClipStatus:
-			fmt.Println("Clip was made:", clipWasMade)
 			if clipWasMade {
 				lionIsLive = true
 			} else {
 				lionIsLive = false
 			}
-			fmt.Println("Lion is live:", lionIsLive)
 
 		}
 
