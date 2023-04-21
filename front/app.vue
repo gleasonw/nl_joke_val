@@ -192,6 +192,12 @@ setInterval(() => {
     opacity: 0.5;
 }
 
+.box {
+    border: 1px solid black;
+    padding: 10px;
+    margin: 10px;
+}
+
 .series-button {
     padding: 5px;
     background-color: white;
