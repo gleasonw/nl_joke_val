@@ -130,6 +130,15 @@ function handleSeriesButton(key: string) {
         selectedKeys.value.add(key);
     }
 }
+
+function handleSpanChange(e: any) {
+    const newSpan = e.target.value;
+    if(newSpan === "1 week" || newSpan === "1 month" || newSpan === "1 year") {
+        grouping.value = "day";
+    }
+    span.value = newSpan;
+}
+
 setInterval(() => {
     currentTime.value = new Date().getTime();
 }, 10000);
@@ -143,26 +152,26 @@ setInterval(() => {
             <option value="instant">instant</option>
         </select>
         <label for="past">Past</label>
-        <select v-model="span" id="past">
-            <option value="1 minute">1 minute</option>
-            <option value="5 minutes">5 minutes</option>
-            <option value="30 minutes">30 minutes</option>
-            <option value="1 hour">1 hour</option>
-            <option value="9 hours">9 hours</option>
-            <option value="1 day">1 day</option>
-            <option value="1 week">1 week</option>
-            <option value="1 month">1 month</option>
-            <option value="1 year">1 year</option>
+        <select :value="span" @input="handleSpanChange" id="past">
+            <option>1 minute</option>
+            <option>5 minutes</option>
+            <option>30 minutes</option>
+            <option>1 hour</option>
+            <option>9 hours</option>
+            <option>1 day</option>
+            <option>1 week</option>
+            <option>1 month</option>
+            <option>1 year</option>
         </select>
         <label for="grouping">Group by</label>
         <select v-model="grouping" id="grouping">
-            <option value="second">second</option>
-            <option value="minute">minute</option>
-            <option value="hour">hour</option>
-            <option value="day">day</option>
-            <option value="week">week</option>
-            <option value="month">month</option>
-            <option value="year">year</option>
+            <option>second</option>
+            <option>minute</option>
+            <option>hour</option>
+            <option>day</option>
+            <option>week</option>
+            <option>month</option>
+            <option>year</option>
         </select>
         <label for="display">Display</label>
         <select v-model="display" id="display">
