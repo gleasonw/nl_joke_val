@@ -80,11 +80,6 @@ const chartOptions = computed((): Highcharts.Options => ({
         type: "datetime",
         title: {
             text: "Time",
-        },
-        labels: {
-            formatter: function (x) {
-                return new Date(x.value).toLocaleString();
-            },
         }
     },
     yAxis: {
