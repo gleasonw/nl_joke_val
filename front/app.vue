@@ -48,6 +48,25 @@ const seriesColors = {
 
 
 const chartOptions = computed((): Highcharts.Options => ({
+    dateTimeLabelFormats: {
+        millisecond: "%I:%M:%S.%L",
+        second: "%I:%M:%S",
+        minute: "%I:%M",
+        hour: "%I:%M",
+        day: "%e. %b",
+        week: "%e. %b",
+        month: "%b '%y",
+        year: "%Y",
+    },
+    time: {
+        getTimezoneOffset: function (timestamp: number) {
+            if(grouping.value === "day"){
+                // using an offset would throw off the day grouping
+                return 0
+            }
+            return new Date(timestamp).getTimezoneOffset();
+        },
+    },
     plotOptions: {
         series: {
             marker: {
