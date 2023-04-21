@@ -149,7 +149,7 @@ func main() {
 		var max int
 		var time float64
 		var clip_id string
-		err := db.QueryRow("SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT max(count) from counts)").Scan(&max, &time, &clip_id)
+		err := db.QueryRow("SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT max(count) from counts) AND clip_id IS NOT NULL").Scan(&max, &time, &clip_id)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -165,7 +165,7 @@ func main() {
 		var min int
 		var time float64
 		var clip_id string
-		err := db.QueryRow("SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT min(count) from counts)").Scan(&min, &time, &clip_id)
+		err := db.QueryRow("SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT min(count) from counts) AND clip_id IS NOT NULL").Scan(&min, &time, &clip_id)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -255,6 +255,8 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
 
 	incomingMessages := make(chan Message)
+	createClipStatus := make(chan bool)
+	lionIsLive := true
 	go func() {
 		for {
 			messageType, messageData, err := conn.ReadMessage()
@@ -305,14 +307,27 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 				counter.Twos -= delta
 			}
 		case <-post_count_ticker.C:
-			var timestamp time.Time
-			err := db.QueryRow("INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created", counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs).Scan(&timestamp)
-			if err != nil {
-				fmt.Println("Error inserting into db:", err)
+			fmt.Println("Lion is live?" + fmt.Sprintf("%t", lionIsLive))
+			if lionIsLive {
+				var timestamp time.Time
+				err := db.QueryRow("INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created", counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs).Scan(&timestamp)
+				if err != nil {
+					fmt.Println("Error inserting into db:", err)
+				}
+				go create_clip(db, timestamp, createClipStatus)
+			} else {
+				// try to create clip to check lion is live
+				go create_clip(db, time.Now(), createClipStatus)
 			}
-			go create_clip(db, timestamp)
 			counter = ChatCounts{}
+		case clipWasMade := <-createClipStatus:
+			if clipWasMade {
+				lionIsLive = true
+			} else {
+				lionIsLive = false
+			}
 		}
+
 	}
 
 }
@@ -332,7 +347,7 @@ func parse_val(text string) int {
 	return 0
 }
 
-func create_clip(db *sql.DB, unix_timestamp time.Time) {
+func create_clip(db *sql.DB, unix_timestamp time.Time, isLive chan bool) {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
@@ -364,6 +379,11 @@ func create_clip(db *sql.DB, unix_timestamp time.Time) {
 	// Send the request and get the response
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	//check if 404, live status
+	if resp.StatusCode == 404 {
+		isLive <- false
+		return
+	}
 	if err != nil {
 		fmt.Println("Error sending request:", err)
 		return
