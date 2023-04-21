@@ -182,8 +182,8 @@ setInterval(() => {
         <div class="flex-row">
             <BelovedClip />
             <HatedClip />
+            <CustomClip />
         </div>
-        <CustomClip />
     </div>
 </template>
 

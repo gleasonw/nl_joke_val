@@ -285,7 +285,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 
 	incomingMessages := make(chan Message)
 	createClipStatus := make(chan bool)
-	lionIsLive := true
+	lionIsLive := false
 	go func() {
 		for {
 			messageType, messageData, err := conn.ReadMessage()
