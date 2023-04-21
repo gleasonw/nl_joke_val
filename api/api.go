@@ -307,7 +307,6 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 				counter.Twos -= delta
 			}
 		case <-post_count_ticker.C:
-			fmt.Println("Lion is live?" + fmt.Sprintf("%t", lionIsLive))
 			if lionIsLive {
 				var timestamp time.Time
 				err := db.QueryRow("INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created", counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs).Scan(&timestamp)
