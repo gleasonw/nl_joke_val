@@ -63,17 +63,6 @@ func main() {
 	defer db.Close()
 	go connect_to_nl_chat(db)
 
-	http.HandleFunc("/api/sum", func(w http.ResponseWriter, r *http.Request) {
-		span := r.URL.Query().Get("interval")
-		var total int
-		db.QueryRow("SELECT SUM(count) FROM counts WHERE created > NOW() - $1::interval", span).Scan(&total)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		marshal_json_and_write(w, total)
-	})
-
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
 	})
@@ -91,7 +80,7 @@ func main() {
 				SUM(huhs),
 				EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
 			FROM counts 
-			WHERE created > NOW() - $2::interval
+			WHERE created >= (SELECT MAX(created) - $2::interval from counts)
 			GROUP BY date_trunc($1, created) 
 			ORDER BY date_trunc($1, created) asc
 		`, grouping, span)
@@ -118,15 +107,15 @@ func main() {
 		grouping := r.URL.Query().Get("grouping")
 		rows, err := db.Query(`
 		SELECT SUM(count) OVER(ORDER BY created), 
-		SUM(lol) OVER (ORDER BY created),
-		SUM(cereal) OVER (ORDER BY created),
-		SUM(monkas) OVER (ORDER BY created), 
-		SUM(joel) OVER (ORDER BY created),
-		SUM(pogs) OVER (ORDER BY created),
-		SUM(huhs) OVER (ORDER BY created),
-		EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
-	FROM counts 
-	WHERE created > NOW() - $2::interval`, grouping, span)
+			SUM(lol) OVER (ORDER BY created),
+			SUM(cereal) OVER (ORDER BY created),
+			SUM(monkas) OVER (ORDER BY created),
+			SUM(joel) OVER (ORDER BY created),
+			SUM(pogs) OVER (ORDER BY created),
+			SUM(huhs) OVER (ORDER BY created),
+			EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
+		FROM counts
+		WHERE created >= (SELECT MAX(created) - $2::interval from counts)`, grouping, span)
 		if err != nil {
 			fmt.Println(err)
 			return
