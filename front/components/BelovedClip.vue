@@ -13,8 +13,8 @@ const {
 
 <template>
     <div>
-        <h2>The King</h2>
-        <p><i>highest 10s</i></p>
+        <h2>High score (10s)</h2>
+        <p><i>Bread and circuses</i></p>
         <p v-if="data && data.time > 0">
         <p>
             {{ new Date(data.time * 1000).toLocaleString() }}

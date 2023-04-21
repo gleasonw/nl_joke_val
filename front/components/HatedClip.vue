@@ -14,8 +14,8 @@ console.log(data.value);
 
 <template>
     <div>
-        <h2>The Tyrant</h2>
-        <p><i>lowest 10s</i></p>
+        <h2>Low score (10s)</h2>
+        <p><i>Let them eat cake</i></p>
         <p v-if="data && data.time > 0">
         <p>
             {{ new Date(data.time * 1000).toLocaleString() }}

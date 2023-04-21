@@ -14,6 +14,7 @@ interface SeriesData {
 const series_calc = ref<'rolling_sum' | 'instant'>('instant');
 const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '9 hours' | '1 day' | '1 week' | '1 month' | '1 year'>('30 minutes');
 const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('minute');
+const display = ref<'line' | 'bar'>('line');
 const currentTime = ref(new Date().getTime());
 const clickedUnixSeconds = ref(Date.now() / 1000);
 const lineChart = ref();
@@ -56,16 +57,16 @@ const chartOptions = computed((): Highcharts.Options => ({
         }
     },
     chart: {
-        type: "line",
+        type: display.value,
         height: 600,
         zooming: {
             type: "x",
         },
         events: {
             click: function (e: any) {
-                const xVal = e?.xAxis?.[0]?.value;
+                let xVal = e?.xAxis?.[0]?.value;
                 if (xVal) {
-                    clickedUnixSeconds.value = Math.round(xVal / 1000);
+                    clickedUnixSeconds.value = xVal / 1000;
                 }
             },
         },
@@ -82,7 +83,7 @@ const chartOptions = computed((): Highcharts.Options => ({
             formatter: function (x) {
                 return new Date(x.value).toLocaleString();
             },
-        },
+        }
     },
     yAxis: {
         title: {
@@ -143,6 +144,11 @@ setInterval(() => {
             <option value="month">month</option>
             <option value="year">year</option>
         </select>
+        <label for="display">Display</label>
+        <select v-model="display" id="display">
+            <option value="bar">bar</option>
+            <option value="line">line</option>
+        </select>
 
         <button v-for="key in keys" @click="() => handleSeriesButton(key)"
             :class="{ faded: !selectedKeys.has(key), 'series-button': true }"
@@ -158,7 +164,6 @@ setInterval(() => {
             <HatedClip />
         </div>
     </div>
-    <BarChart />
 </template>
 
 <style>
