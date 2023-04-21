@@ -101,18 +101,32 @@ func main() {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
 		rows, err := db.Query(`
-		SELECT SUM(count) OVER(ORDER BY created), 
-			SUM(lol) OVER (ORDER BY created),
-			SUM(cereal) OVER (ORDER BY created),
-			SUM(monkas) OVER (ORDER BY created),
-			SUM(joel) OVER (ORDER BY created),
-			SUM(pogs) OVER (ORDER BY created),
-			SUM(huhs) OVER (ORDER BY created),
-			SUM(nos) OVER (ORDER BY created),
-			SUM(cockas) OVER (ORDER BY created),
-			EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
-		FROM counts
-		WHERE created >= (SELECT MAX(created) - $2::interval from counts)`, grouping, span)
+		SELECT SUM(count_sum) OVER(ORDER BY created_epoch),
+			SUM(lol_sum) OVER (ORDER BY created_epoch),
+			SUM(cereal_sum) OVER (ORDER BY created_epoch),
+			SUM(monkas_sum) OVER (ORDER BY created_epoch),
+			SUM(joel_sum) OVER (ORDER BY created_epoch),
+			SUM(pogs_sum) OVER (ORDER BY created_epoch),
+			SUM(huhs_sum) OVER (ORDER BY created_epoch),
+			SUM(nos_sum) OVER (ORDER BY created_epoch),
+			SUM(cockas_sum) OVER (ORDER BY created_epoch),
+			created_epoch
+		FROM (
+			SELECT SUM(count) as count_sum,
+				SUM(lol) as lol_sum,
+				SUM(cereal) as cereal_sum,
+				SUM(monkas) as monkas_sum,
+				SUM(joel) as joel_sum,
+				SUM(pogs) as pogs_sum,
+				SUM(huhs) as huhs_sum,
+				SUM(nos) as nos_sum,
+				SUM(cockas) as cockas_sum,
+				EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
+			FROM counts
+			WHERE created >= (SELECT MAX(created) - $2::interval from counts)
+			GROUP BY date_trunc($1, created)
+			ORDER BY date_trunc($1, created) asc
+		) as grouping_sum`, grouping, span)
 		if err != nil {
 			fmt.Println(err)
 			return
