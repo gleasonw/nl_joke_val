@@ -136,31 +136,31 @@ func main() {
 		marshal_json_and_write(w, data)
 	})
 
-	max_clip_queries := map[string]string{
-		"twos":   "SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT max(count) from counts) AND clip_id IS NOT NULL",
-		"lol":    "SELECT lol, EXTRACT(epoch from created), clip_id FROM counts WHERE lol=(SELECT max(lol) from counts) AND clip_id IS NOT NULL",
-		"cereal": "SELECT cereal, EXTRACT(epoch from created), clip_id FROM counts WHERE cereal=(SELECT max(cereal) from counts) AND clip_id IS NOT NULL",
-		"monkas": "SELECT monkas, EXTRACT(epoch from created), clip_id FROM counts WHERE monkas=(SELECT max(monkas) from counts) AND clip_id IS NOT NULL",
-		"joel":   "SELECT joel, EXTRACT(epoch from created), clip_id FROM counts WHERE joel=(SELECT max(joel) from counts) AND clip_id IS NOT NULL",
-		"pogs":   "SELECT pogs, EXTRACT(epoch from created), clip_id FROM counts WHERE pogs=(SELECT max(pogs) from counts) AND clip_id IS NOT NULL",
-		"huhs":   "SELECT huhs, EXTRACT(epoch from created), clip_id FROM counts WHERE huhs=(SELECT max(huhs) from counts) AND clip_id IS NOT NULL",
-		"nos":    "SELECT nos, EXTRACT(epoch from created), clip_id FROM counts WHERE nos=(SELECT max(nos) from counts) AND clip_id IS NOT NULL",
-		"cockas": "SELECT cockas, EXTRACT(epoch from created), clip_id FROM counts WHERE cockas=(SELECT max(cockas) from counts) AND clip_id IS NOT NULL",
-	}
-
 	http.HandleFunc("/api/max_clip", func(w http.ResponseWriter, r *http.Request) {
 		var max int
 		var time float64
 		var clip_id string
 		column_to_select := r.URL.Query().Get("column")
+		span := r.URL.Query().Get("span")
 		if column_to_select == "" {
-			column_to_select = "twos"
+			column_to_select = "count"
 		}
-		q, ok := max_clip_queries[column_to_select]
-		if !ok {
+		var q string
+		switch column_to_select {
+		case "count", "lol", "cereal", "monkas", "joel", "pogs", "huhs", "nos", "cockas":
+			q = fmt.Sprintf("SELECT %s, EXTRACT(epoch from created), clip_id FROM counts WHERE clip_id IS NOT NULL", column_to_select)
+			switch span {
+			case "day", "week", "month", "year":
+				q = fmt.Sprintf("%s AND %s=(SELECT max(%s) from counts WHERE created >= (SELECT MAX(created) - INTERVAL '1 %s' from counts))", q, column_to_select, column_to_select, span)
+			default:
+				q = fmt.Sprintf("%s AND %s=(SELECT max(%s) from counts)", q, column_to_select, column_to_select)
+			}
+		default:
 			fmt.Println("invalid column")
 			return
 		}
+
+		fmt.Print(q)
 
 		err := db.QueryRow(q).Scan(&max, &time, &clip_id)
 		if err != nil {
