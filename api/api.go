@@ -142,7 +142,7 @@ func main() {
 		var clip_id string
 		column_to_select := r.URL.Query().Get("column")
 		span := r.URL.Query().Get("span")
-		if column_to_select == "" {
+		if column_to_select == "twos" {
 			column_to_select = "count"
 		}
 		var q string
