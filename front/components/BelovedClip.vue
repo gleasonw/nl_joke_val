@@ -7,7 +7,7 @@ type MaxClipData = {
 
 const {
     data
-} = await useFetch<MaxClipData>(`https://nljokeval-production.up.railway.app/api/max_clip`);
+} = await useFetch<MaxClipData>(`https://nljokeval-production.up.railway.app/api/max_clip?column=twos`);
 
 </script>
 
