@@ -1,22 +1,28 @@
 <script setup>
 const props = defineProps({
-    clipId: String
-})
-const parent = ref('');
+  clipId: String,
+});
+const parent = ref("");
 onMounted(() => {
-    parent.value = window.location.hostname;
-})
-const vidSource = computed(() => `https://clips.twitch.tv/embed?clip=${props.clipId}&parent=${parent.value}`);
-
-
+  parent.value = window.location.hostname;
+});
+const vidSource = computed(
+  () =>
+    `https://clips.twitch.tv/embed?clip=${props.clipId}&parent=${parent.value}`
+);
 </script>
 
 <template>
-
-<iframe :src="vidSource" v-if="vidSource && parent" frameborder="0" allowfullscreen="true" scrolling="no"
-            height="378" width="620" 
-            class="twitch-clip"
-            />
+  <iframe
+    :src="vidSource"
+    v-if="vidSource && parent"
+    frameborder="0"
+    allowfullscreen="true"
+    scrolling="no"
+    height="378"
+    width="620"
+    class="twitch-clip"
+  />
 </template>
 
 <style>
@@ -33,5 +39,4 @@ const vidSource = computed(() => `https://clips.twitch.tv/embed?clip=${props.cli
     width: 310px;
   }
 }
-
 </style>

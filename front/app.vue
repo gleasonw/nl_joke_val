@@ -1,238 +1,252 @@
 <script lang="ts">
 export const seriesColors = {
-    twos: "#7cb5ec",
-    lol: "#434348",
-    cereal: "#90ed7d",
-    monkas: "#f7a35c",
-    joel: "#8085e9",
-    pogs: "#f15c80",
-    huhs: "#e4d354",
-    nos: "#2b908f",
-    cockas: "#f45b5b",
+  twos: "#7cb5ec",
+  lol: "#434348",
+  cereal: "#90ed7d",
+  monkas: "#f7a35c",
+  joel: "#8085e9",
+  pogs: "#f15c80",
+  huhs: "#e4d354",
+  nos: "#2b908f",
+  cockas: "#f45b5b",
 };
 </script>
 
 <script lang="ts" setup>
-
+import { Chart } from "highcharts-vue";
 interface SeriesData {
-    twos: number;
-    lol: number;
-    cereal: number;
-    monkas: number;
-    joel: number;
-    pogs: number;
-    huhs: number;
-    nos: number;
-    cockas: number;
-    time: number;
+  twos: number;
+  lol: number;
+  cereal: number;
+  monkas: number;
+  joel: number;
+  pogs: number;
+  huhs: number;
+  nos: number;
+  cockas: number;
+  time: number;
 }
 
-const series_calc = ref<'rolling_sum' | 'instant'>('instant');
-const span = ref<'1 minute' | '5 minutes' | '30 minutes' | '1 hour' | '9 hours' | '1 day' | '1 week' | '1 month' | '1 year'>('1 hour');
-const grouping = ref<'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'>('second');
-const display = ref<'line' | 'bar'>('line');
+const series_calc = ref<"rolling_sum" | "instant">("instant");
+const span = ref<
+  | "1 minute"
+  | "5 minutes"
+  | "30 minutes"
+  | "1 hour"
+  | "9 hours"
+  | "1 day"
+  | "1 week"
+  | "1 month"
+  | "1 year"
+>("1 hour");
+const grouping = ref<
+  "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
+>("second");
+const display = ref<"line" | "bar">("line");
 const currentTime = ref(new Date().getTime());
 const clickedUnixSeconds = ref(Date.now() / 1000);
 const lineChart = ref();
 
-const url = computed(() => `https://nljokeval-production.up.railway.app/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}&time=${currentTime.value}`);
+const url = computed(
+  () =>
+    `https://nljokeval-production.up.railway.app/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}&time=${currentTime.value}`
+);
 
-const {
-    data
-} = await useFetch<SeriesData[]>(url);
-const keys = computed(() => data.value && data.value.length > 0 && Object.keys(data.value?.[0]).filter(k => k !== "time") || ([] as string[]));
-const selectedKeys = ref(new Set(["twos"]))
-const nuxtApp = useNuxtApp();
-const Chart = nuxtApp.$Chart;
-
-
+const { data } = useFetch<SeriesData[]>(url);
+const keys = computed(
+  () =>
+    (data.value &&
+      data.value.length > 0 &&
+      Object.keys(data.value?.[0]).filter((k) => k !== "time")) ||
+    ([] as string[])
+);
+const selectedKeys = ref(new Set(["twos"]));
 
 //   "#91e8e1",
 
-
-
-const chartOptions = computed((): Highcharts.Options => ({
+const chartOptions = computed(
+  (): Highcharts.Options => ({
     dateTimeLabelFormats: {
-        millisecond: "%I:%M:%S.%L",
-        second: "%I:%M:%S",
-        minute: "%I:%M",
-        hour: "%I:%M",
-        day: "%e. %b",
-        week: "%e. %b",
-        month: "%b '%y",
-        year: "%Y",
+      millisecond: "%I:%M:%S.%L",
+      second: "%I:%M:%S",
+      minute: "%I:%M",
+      hour: "%I:%M",
+      day: "%e. %b",
+      week: "%e. %b",
+      month: "%b '%y",
+      year: "%Y",
     },
     time: {
-        getTimezoneOffset: function (timestamp: number) {
-            if(grouping.value === "day"){
-                // using an offset would throw off the day grouping
-                return 0
-            }
-            return new Date(timestamp).getTimezoneOffset();
-        },
+      getTimezoneOffset: function (timestamp: number) {
+        if (grouping.value === "day") {
+          // using an offset would throw off the day grouping
+          return 0;
+        }
+        return new Date(timestamp).getTimezoneOffset();
+      },
     },
     plotOptions: {
-        series: {
-            marker: {
-                enabled: false,
-            },
+      series: {
+        marker: {
+          enabled: false,
         },
-        line: {
-            linecap: "round",
-        }
+      },
+      line: {
+        linecap: "round",
+      },
     },
     chart: {
-        type: display.value,
-        height: 600,
-        zooming: {
-            type: "x",
+      type: display.value,
+      height: 600,
+      zooming: {
+        type: "x",
+      },
+      events: {
+        click: function (e: any) {
+          let xVal = e?.xAxis?.[0]?.value;
+          console.log(xVal);
+          if (xVal) {
+            clickedUnixSeconds.value = xVal / 1000;
+          }
         },
-        events: {
-            click: function (e: any) {
-                let xVal = e?.xAxis?.[0]?.value;
-                if (xVal) {
-                    clickedUnixSeconds.value = xVal / 1000;
-                }
-            },
-        },
+      },
     },
     title: {
-        text: "",
+      text: "",
     },
     xAxis: {
-        type: "datetime",
-        title: {
-            text: "Time",
-        }
+      type: "datetime",
+      title: {
+        text: "Time",
+      },
     },
     yAxis: {
-        title: {
-            text: "Count",
-        },
+      title: {
+        text: "Count",
+      },
     },
     //@ts-ignore
-    series: [...selectedKeys.value].map((key) => ({
+    series:
+      [...selectedKeys.value].map((key) => ({
         name: key,
-        data: data.value?.map((d) => [d.time * 1000, d[key as keyof SeriesData]]),
+        data: data.value?.map((d) => [
+          d.time * 1000,
+          d[key as keyof SeriesData],
+        ]),
         color: seriesColors[key as keyof typeof seriesColors],
         events: {
-            click: function (e: any) {
-                clickedUnixSeconds.value = e.point.x / 1000;
-            },
+          click: function (e: any) {
+            clickedUnixSeconds.value = e.point.x / 1000;
+          },
         },
-    })) || ([] as Highcharts.SeriesOptionsType[]),
-}));
+      })) || ([] as Highcharts.SeriesOptionsType[]),
+  })
+);
 
 function handleSeriesButton(key: string) {
-    if (selectedKeys.value.has(key)) {
-        selectedKeys.value.delete(key);
-    } else {
-        selectedKeys.value.add(key);
-    }
+  if (selectedKeys.value.has(key)) {
+    selectedKeys.value.delete(key);
+  } else {
+    selectedKeys.value.add(key);
+  }
 }
 
 function handleSpanChange(e: any) {
-    const newSpan = e.target.value;
-    if(newSpan === "1 week" || newSpan === "1 month" || newSpan === "1 year") {
-        grouping.value = "day";
-    }
-    span.value = newSpan;
+  const newSpan = e.target.value;
+  if (newSpan === "1 week" || newSpan === "1 month" || newSpan === "1 year") {
+    grouping.value = "day";
+  }
+  span.value = newSpan;
 }
 
 setInterval(() => {
-    currentTime.value = new Date().getTime();
+  currentTime.value = new Date().getTime();
 }, 10000);
 </script>
 
 <template>
-    <div class="flex-row">
+  <div class="mb-10">
+    <div class="m-5 flex-col gap-8 flex items-center justify-center">
+      <div class="flex-row flex gap-4 items-center flex-wrap">
         <label for="calc">Calc</label>
-        <select v-model="series_calc" id="calc">
-            <option value="rolling_sum">rolling_sum</option>
-            <option value="instant">instant</option>
+        <select
+          v-model="series_calc"
+          id="calc"
+          class="p-2 rounded-lg hover:cursor-pointer"
+        >
+          <option value="rolling_sum">rolling_sum</option>
+          <option value="instant">instant</option>
         </select>
         <label for="past">Past</label>
-        <select :value="span" @input="handleSpanChange" id="past">
-            <option>1 minute</option>
-            <option>5 minutes</option>
-            <option>30 minutes</option>
-            <option>1 hour</option>
-            <option>9 hours</option>
-            <option>1 day</option>
-            <option>1 week</option>
-            <option>1 month</option>
-            <option>1 year</option>
+        <select
+          :value="span"
+          @input="handleSpanChange"
+          id="past"
+          class="p-2 rounded-lg hover:cursor-pointer"
+        >
+          <option>1 minute</option>
+          <option>5 minutes</option>
+          <option>30 minutes</option>
+          <option>1 hour</option>
+          <option>9 hours</option>
+          <option>1 day</option>
+          <option>1 week</option>
+          <option>1 month</option>
+          <option>1 year</option>
         </select>
         <label for="grouping">Group by</label>
-        <select v-model="grouping" id="grouping">
-            <option>second</option>
-            <option>minute</option>
-            <option>hour</option>
-            <option>day</option>
-            <option>week</option>
-            <option>month</option>
-            <option>year</option>
+        <select
+          v-model="grouping"
+          id="grouping"
+          class="p-2 rounded-lg hover:cursor-pointer"
+        >
+          <option>second</option>
+          <option>minute</option>
+          <option>hour</option>
+          <option>day</option>
+          <option>week</option>
+          <option>month</option>
+          <option>year</option>
         </select>
         <label for="display">Display</label>
-        <select v-model="display" id="display">
-            <option value="bar">bar</option>
-            <option value="line">line</option>
+        <select
+          v-model="display"
+          id="display"
+          class="p-2 rounded-lg hover:cursor-pointer"
+        >
+          <option value="bar">bar</option>
+          <option value="line">line</option>
         </select>
-
-        <button v-for="key in keys" @click="() => handleSeriesButton(key)"
-            :class="{ faded: !selectedKeys.has(key), 'series-button': true }"
-            :style="{ backgroundColor: seriesColors[key as keyof typeof seriesColors] }">
-            {{ key }}
+      </div>
+      <div class="flex-row gap-5 flex flex-wrap">
+        <button
+          v-for="key in keys"
+          @click="() => handleSeriesButton(key)"
+          class="rounded-lg p-2 hover:cursor-pointer"
+          :class="{ faded: !selectedKeys.has(key), 'series-button': true }"
+          :style="{ backgroundColor: seriesColors[key as keyof typeof seriesColors] }"
+        >
+          {{ key }}
         </button>
+      </div>
     </div>
     <Chart :options="chartOptions" ref="lineChart" />
-    <div class="flex-col">
+    <div class="flex-col flex items-center justify-center gap-16">
+      <div class="flex-row flex flex-wrap items-center justify-center gap-10">
         <ClipViewer :time="clickedUnixSeconds" />
-        <div class="flex-row">
-            <BelovedClip />
-            <HatedClip />
-            <CustomClip />
-        </div>
+        <CustomClip />
+      </div>
+      <div class="border w-7/12 m-5"/>
+      <div class="flex-row flex flex-wrap items-center justify-center gap-10">
+        <BelovedClip />
+        <HatedClip />
+      </div>
     </div>
+  </div>
 </template>
 
 <style>
 .faded {
     opacity: 0.5;
-}
-
-.box {
-    border: 1px solid black;
-    padding: 10px;
-    margin: 10px;
-}
-
-.series-button {
-    padding: 5px;
-    background-color: white;
-}
-
-.grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    grid-gap: 10px;
-}
-
-.flex-col {
-    display: flex;
-    flex-direction: column;
-    flex-wrap: wrap;
-    gap: 20px;
-    align-items: center;
-    justify-content: center;
-}
-
-.flex-row {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 20px;
-    align-items: center;
-    justify-content: center;
 }
 </style>

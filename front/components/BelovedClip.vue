@@ -12,17 +12,9 @@ const {
 </script>
 
 <template>
-    <div>
-        <h2>High score (10s)</h2>
+    <div class="flex flex-col gap-2">
+        <h2 class="font-bold text-2xl">High score (10s)</h2>
         <p><i>Bread and circuses</i></p>
-        <p v-if="data && data.time > 0">
-        <p>
-            {{ new Date(data.time * 1000).toLocaleString() }}
-        </p>
-        <p>
-            {{ data.twos }}
-        </p>
-        </p>
-        <TwitchClip v-if="data" :clipId="data.clip_id" />
+        <ClipLabel v-if="data" :data="data" />
     </div>
 </template>

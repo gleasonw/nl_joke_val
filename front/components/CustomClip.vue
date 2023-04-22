@@ -1,13 +1,17 @@
-<script lang="ts" setup>
-import { seriesColors } from "../app.vue";
-type MaxClipData = {
+<script lang="ts">
+export type MaxClipData = {
   clip_id: string;
   time: number;
   twos: number;
 };
+</script>
+
+<script lang="ts" setup>
+import { seriesColors } from "../app.vue";
+
 const column = ref<keyof typeof seriesColors>("lol");
 const span = ref<"day" | "week" | "month" | "year" | "">("");
-const { data } = await useFetch<MaxClipData>(
+const { data } = useFetch<MaxClipData>(
   computed(
     () =>
       `https://nljokeval-production.up.railway.app/api/max_clip?column=${column.value}&span=${span.value}`
@@ -16,30 +20,23 @@ const { data } = await useFetch<MaxClipData>(
 </script>
 
 <template>
-  <div>
-    <h2>Emote (10s)</h2>
-    <div class="flex-row">
-      <select v-model="column">
+  <div class="flex flex-col justiy-center items-center">    
+    <div class="flex-row flex gap-3flex-wrap items-center pl-2">
+      <h2 class="font-bold text-2xl">Top</h2>
+      <select v-model="column" class="p-2 rounded-lg hover:cursor-pointer">
         <option v-for="key in Object.keys(seriesColors)" :value="key">
           {{ key }}
         </option>
       </select>
-      <select v-model="span">
+      <h2 class="font-bold text-2xl">(10s)</h2>
+      <select v-model="span" class="p-2 rounded-lg hover:cursor-pointer">
         <option value="">Since 4/19/23</option>
-        <option value="day">Day</option>
-        <option value="week">Week</option>
-        <option value="month">Month</option>
-        <option value="year">Year</option>
+        <option value="day">Today</option>
+        <option value="week">This week</option>
+        <option value="month">This month</option>
+        <option value="year">This year</option>
       </select>
     </div>
-    <div v-if="data && data.time > 0">
-      <p>
-        {{ new Date(data.time * 1000).toLocaleString() }}
-      </p>
-      <p>
-        {{ data.twos }}
-      </p>
-    </div>
-    <TwitchClip v-if="data" :clipId="data.clip_id" />
+    <ClipLabel v-if="data" :data="data" />
   </div>
 </template>
