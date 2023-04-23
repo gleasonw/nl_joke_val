@@ -52,7 +52,7 @@ const url = computed(
     `https://nljokeval-production.up.railway.app/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}&time=${currentTime.value}`
 );
 
-const { data } = useFetch<SeriesData[]>(url);
+const { data } = await useFetch<SeriesData[]>(url);
 const keys = computed(
   () =>
     (data.value &&

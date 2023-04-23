@@ -11,17 +11,19 @@ import { seriesColors } from "../app.vue";
 
 const column = ref<keyof typeof seriesColors>("lol");
 const span = ref<"day" | "week" | "month" | "year" | "">("");
-const { data } = useFetch<MaxClipData>(
+console.log(span.value)
+const { data } = await useFetch<MaxClipData>(
   computed(
     () =>
       `https://nljokeval-production.up.railway.app/api/max_clip?column=${column.value}&span=${span.value}`
   )
 );
+console.log(data.value);
 </script>
 
 <template>
   <div class="flex flex-col justiy-center items-center">    
-    <div class="flex-row flex gap-3flex-wrap items-center pl-2">
+    <div class="flex-row flex gap-3 flex-wrap items-center p-2">
       <h2 class="font-bold text-2xl">Top</h2>
       <select v-model="column" class="p-2 rounded-lg hover:cursor-pointer">
         <option v-for="key in Object.keys(seriesColors)" :value="key">
