@@ -16,8 +16,9 @@ const { data } = await useFetch<ClipData>(
 </script>
 
 <template>
-  <div class="flex flex-col p-5">      
-    <h2 class="font-bold text-2xl mb-5">Click graph to pull nearest clip (group by second for precision)</h2>
+  <div class="flex flex-col gap-5">
+    <h2 class="font-bold text-2xl">Click graph to pull nearest clip</h2>
+    <p class="italic">group by second for precision</p>
     <p v-if="data && data.time > 0">
       {{ new Date(data.time * 1000).toLocaleString() }}
     </p>

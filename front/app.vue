@@ -237,6 +237,7 @@ setInterval(() => {
         <CustomClip />
       </div>
       <div class="border w-7/12 m-5"/>
+      <h2 class="text-xl">+2 | -2</h2>
       <div class="flex-row flex flex-wrap items-center justify-center gap-10">
         <BelovedClip />
         <HatedClip />

@@ -23,7 +23,7 @@ console.log(data.value);
 
 <template>
   <div class="flex flex-col justiy-center items-center">    
-    <div class="flex-row flex gap-3 flex-wrap items-center p-2">
+    <div class="flex-row flex gap-3 flex-wrap items-center">
       <h2 class="font-bold text-2xl">Top</h2>
       <select v-model="column" class="p-2 rounded-lg hover:cursor-pointer">
         <option v-for="key in Object.keys(seriesColors)" :value="key">
