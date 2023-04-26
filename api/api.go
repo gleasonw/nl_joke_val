@@ -48,15 +48,6 @@ func main() {
 		db_url = os.Getenv("DATABASE_URL")
 		client_id = os.Getenv("CLIENT_ID")
 	}
-	if db_url == "" {
-		//load .env file
-		err := godotenv.Load()
-		if err != nil {
-			fmt.Println("Error loading .env file")
-		}
-		db_url = os.Getenv("DATABASE_URL")
-	}
-
 	db, err := sql.Open("postgres", db_url)
 	if err != nil {
 		fmt.Println(err)
