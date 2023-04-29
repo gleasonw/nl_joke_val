@@ -34,7 +34,7 @@ var auth_token string = os.Getenv("AUTH_TOKEN")
 var nickname string = os.Getenv("NICK")
 var db_url string = os.Getenv("DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
-// add who asked and what
+// add who asked, what, copium
 
 func main() {
 	if auth_token == "" {
