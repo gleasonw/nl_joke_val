@@ -225,7 +225,21 @@ func scan_rows_to_series_data(rows *sql.Rows) []SeriesData {
 	data := make([]SeriesData, 0)
 	for rows.Next() {
 		var seriesData SeriesData
-		err := rows.Scan(&seriesData.Twos, &seriesData.Lol, &seriesData.Cereal, &seriesData.Monkas, &seriesData.Joel, &seriesData.Pogs, &seriesData.Huhs, &seriesData.Nos, &seriesData.Cockas, &seriesData.Time)
+		err := rows.Scan(
+			&seriesData.Twos,
+			&seriesData.Lol,
+			&seriesData.Cereal,
+			&seriesData.Monkas,
+			&seriesData.Joel,
+			&seriesData.Pogs,
+			&seriesData.Huhs,
+			&seriesData.Nos,
+			&seriesData.Cockas,
+			&seriesData.WhoAsked,
+			&seriesData.Shock,
+			&seriesData.Copium,
+			&seriesData.Time,
+		)
 		if err != nil {
 			fmt.Println(err)
 			continue
