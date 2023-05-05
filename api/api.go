@@ -18,23 +18,25 @@ import (
 )
 
 type SeriesData struct {
-	Twos   int     `json:"twos"`
-	Lol    int     `json:"lol"`
-	Cereal int     `json:"cereal"`
-	Monkas int     `json:"monkas"`
-	Joel   int     `json:"joel"`
-	Pogs   int     `json:"pogs"`
-	Huhs   int     `json:"huhs"`
-	Time   float64 `json:"time"`
-	Nos    int     `json:"nos"`
-	Cockas int     `json:"cockas"`
+	Twos     int     `json:"twos"`
+	Lol      int     `json:"lol"`
+	Cereal   int     `json:"cereal"`
+	Monkas   int     `json:"monkas"`
+	Joel     int     `json:"joel"`
+	Pogs     int     `json:"pogs"`
+	Huhs     int     `json:"huhs"`
+	Time     float64 `json:"time"`
+	Nos      int     `json:"nos"`
+	Cockas   int     `json:"cockas"`
+	WhoAsked int     `json:"who_asked"`
+	Shock    int     `json:"what"`
+	Copium   int     `json:"copium"`
 }
 
 var auth_token string = os.Getenv("AUTH_TOKEN")
 var nickname string = os.Getenv("NICK")
 var db_url string = os.Getenv("DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
-// add who asked, what, copium
 
 func main() {
 	if auth_token == "" {
@@ -61,25 +63,30 @@ func main() {
 		w.Write([]byte("Hello World!"))
 	})
 
+	sumQuery := `	
+		SELECT SUM(count) as count_sum,
+			SUM(lol) as lol_sum,
+			SUM(cereal) as cereal_sum,
+			SUM(monkas) as monkas_sum,
+			SUM(joel) as joel_sum,
+			SUM(pogs) as pogs_sum,
+			SUM(huhs) as huhs_sum,
+			SUM(nos) as nos_sum,
+			SUM(cockas) as cockas_sum,
+			SUM(who_askeds) as who_askeds_sum,
+			SUM(shocks) as shocks_sum,
+			SUM(copiums) as copiums_sum,
+			EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
+		FROM counts 
+		WHERE created >= (SELECT MAX(created) - $2::interval from counts)
+		GROUP BY date_trunc($1, created) 
+		ORDER BY date_trunc($1, created) asc
+	`
+
 	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
-		rows, err := db.Query(`	
-			SELECT SUM(count), 
-				SUM(lol), 
-				SUM(cereal), 
-				SUM(monkas), 
-				SUM(joel), 
-				SUM(pogs), 
-				SUM(huhs),
-				SUM(nos),
-				SUM(cockas),
-				EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
-			FROM counts 
-			WHERE created >= (SELECT MAX(created) - $2::interval from counts)
-			GROUP BY date_trunc($1, created) 
-			ORDER BY date_trunc($1, created) asc
-		`, grouping, span)
+		rows, err := db.Query(sumQuery, grouping, span)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -92,7 +99,7 @@ func main() {
 	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
-		rows, err := db.Query(`
+		rows, err := db.Query(fmt.Sprintf(`
 		SELECT SUM(count_sum) OVER(ORDER BY created_epoch),
 			SUM(lol_sum) OVER (ORDER BY created_epoch),
 			SUM(cereal_sum) OVER (ORDER BY created_epoch),
@@ -102,23 +109,11 @@ func main() {
 			SUM(huhs_sum) OVER (ORDER BY created_epoch),
 			SUM(nos_sum) OVER (ORDER BY created_epoch),
 			SUM(cockas_sum) OVER (ORDER BY created_epoch),
+			SUM(who_askeds_sum) OVER (ORDER BY created_epoch),
+			SUM(shocks_sum) OVER (ORDER BY created_epoch),
+			SUM(copiums_sum) OVER (ORDER BY created_epoch),
 			created_epoch
-		FROM (
-			SELECT SUM(count) as count_sum,
-				SUM(lol) as lol_sum,
-				SUM(cereal) as cereal_sum,
-				SUM(monkas) as monkas_sum,
-				SUM(joel) as joel_sum,
-				SUM(pogs) as pogs_sum,
-				SUM(huhs) as huhs_sum,
-				SUM(nos) as nos_sum,
-				SUM(cockas) as cockas_sum,
-				EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
-			FROM counts
-			WHERE created >= (SELECT MAX(created) - $2::interval from counts)
-			GROUP BY date_trunc($1, created)
-			ORDER BY date_trunc($1, created) asc
-		) as grouping_sum`, grouping, span)
+		FROM (%s) as grouping_sum`, sumQuery), grouping, span)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -139,11 +134,22 @@ func main() {
 		}
 		var q string
 		switch column_to_select {
-		case "count", "lol", "cereal", "monkas", "joel", "pogs", "huhs", "nos", "cockas":
-			q = fmt.Sprintf("SELECT %s, EXTRACT(epoch from created), clip_id FROM counts WHERE clip_id IS NOT NULL", column_to_select)
+		case "count", "lol", "cereal", "monkas", "joel", "pogs", "huhs", "nos", "cockas", "who_asked", "shock", "copium":
+			q = fmt.Sprintf(`
+			SELECT %s, EXTRACT(epoch from created), clip_id 
+			FROM counts 
+			WHERE clip_id IS NOT NULL`,
+				column_to_select)
 			switch span {
 			case "day", "week", "month", "year":
-				q = fmt.Sprintf("%s AND %s=(SELECT max(%s) from counts WHERE created >= (SELECT MAX(created) - INTERVAL '1 %s' from counts))", q, column_to_select, column_to_select, span)
+				q = fmt.Sprintf(`
+				%s AND %s=(
+					SELECT max(%s)
+					FROM counts
+					WHERE created >= (
+						SELECT MAX(created) - INTERVAL '1 %s'
+						FROM counts)
+					)`, q, column_to_select, column_to_select, span)
 			default:
 				q = fmt.Sprintf("%s AND %s=(SELECT max(%s) from counts)", q, column_to_select, column_to_select)
 			}
@@ -151,8 +157,6 @@ func main() {
 			fmt.Println("invalid column")
 			return
 		}
-
-		fmt.Print(q)
 
 		err := db.QueryRow(q).Scan(&max, &time, &clip_id)
 		if err != nil {
@@ -170,7 +174,14 @@ func main() {
 		var min int
 		var time float64
 		var clip_id string
-		err := db.QueryRow("SELECT count, EXTRACT(epoch from created), clip_id FROM counts WHERE count=(SELECT min(count) from counts) AND clip_id IS NOT NULL").Scan(&min, &time, &clip_id)
+		err := db.QueryRow(`
+		SELECT count, EXTRACT(epoch from created), clip_id 
+		FROM counts 
+		WHERE count=(
+			SELECT min(count) 
+			FROM counts
+		)
+		AND clip_id IS NOT NULL`).Scan(&min, &time, &clip_id)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -263,10 +274,13 @@ type ChatCounts struct {
 	Monkas        int
 	Cereals       int
 	Joels         int
-	PogCrazies    int
+	Pogs          int
 	Huhs          int
 	Nos           int
 	Cockas        int
+	Copiums       int
+	WhoAskeds     int
+	Shocks        int
 }
 
 func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
@@ -302,6 +316,8 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 		case msg := <-incomingMessages:
 			full_message := string(msg.Data)
 			only_message_text := split_and_get_last(full_message, ":")
+			// rewrite to an abstraction that takes the string and a pointer to the counter field, loop over
+			//make array of strings and pointers
 			if strings.Contains(only_message_text, "LUL") || strings.Contains(only_message_text, "ICANT") {
 				counter.LulsAndICANTS++
 			}
@@ -321,26 +337,44 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 				counter.Joels++
 			}
 			if strings.Contains(only_message_text, "POGCRAZY") || strings.Contains(only_message_text, "Pog") {
-				counter.PogCrazies++
+				counter.Pogs++
 			}
 			if strings.Contains(only_message_text, "HUHH") {
 				counter.Huhs++
 			}
+			if strings.Contains(only_message_text, "COPIUM") {
+				counter.Copiums++
+			}
+			if strings.Contains(only_message_text, "D:") {
+				counter.Shocks++
+			}
+			if strings.Contains(only_message_text, "WhoAsked") {
+				counter.WhoAskeds++
+			}
 			if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
-				delta := parse_val(split_and_get_last(only_message_text, "+"))
-				counter.Twos += delta
+				counter.Twos += parse_val(split_and_get_last(only_message_text, "+"))
 			} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
-				delta := parse_val(split_and_get_last(only_message_text, "-"))
-				counter.Twos -= delta
+				counter.Twos -= parse_val(split_and_get_last(only_message_text, "-"))
 			}
 		case <-post_count_ticker.C:
 			if lionIsLive {
 				var timestamp time.Time
 				err := db.QueryRow(`
-				INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs, nos, cockas)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+				INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs, nos, cockas, copiums, who_askeds, shocks)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 				RETURNING created`,
-					counter.Twos, counter.LulsAndICANTS, counter.Cereals, counter.Monkas, counter.Joels, counter.PogCrazies, counter.Huhs, counter.Nos, counter.Cockas).Scan(&timestamp)
+					counter.Twos,
+					counter.LulsAndICANTS,
+					counter.Cereals,
+					counter.Monkas,
+					counter.Joels,
+					counter.Pogs,
+					counter.Huhs,
+					counter.Nos,
+					counter.Cockas,
+					counter.Copiums,
+					counter.WhoAskeds,
+					counter.Shocks).Scan(&timestamp)
 				if err != nil {
 					fmt.Println("Error inserting into db:", err)
 				}
@@ -356,9 +390,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			} else {
 				lionIsLive = false
 			}
-
 		}
-
 	}
 
 }
@@ -370,10 +402,8 @@ func split_and_get_last(text string, splitter string) string {
 }
 
 func parse_val(text string) int {
-	for _, char := range text {
-		if char == '2' {
-			return 2
-		}
+	if strings.Contains(text, "2") {
+		return 2
 	}
 	return 0
 }
