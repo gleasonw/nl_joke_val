@@ -301,7 +301,12 @@ type ChatCounts struct {
 }
 
 func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
-	initializeConnection(conn)
+
+	// connect to NL chat
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
+	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
+
 	incomingMessages := make(chan Message)
 	createClipStatus := make(chan bool)
 	lionIsLive := false
@@ -313,19 +318,74 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 	for {
 		select {
 		case msg := <-incomingMessages:
-			processMessage(msg, &counter)
+			full_message := string(msg.Data)
+			only_message_text := split_and_get_last(full_message, "#northernlion")
+			emotesAndKeywords := map[string]*int{
+				"LUL":      &counter.LulsAndICANTS,
+				"ICANT":    &counter.LulsAndICANTS,
+				"Cereal":   &counter.Cereals,
+				"NOOO":     &counter.Nos,
+				"COCKA":    &counter.Cockas,
+				"monkaS":   &counter.Monkas,
+				"Joel":     &counter.Joels,
+				"POGCRAZY": &counter.Pogs,
+				"Pog":      &counter.Pogs,
+				"HUHH":     &counter.Huhs,
+				"Copium":   &counter.Copiums,
+				"D:":       &counter.Shocks,
+				"WhoAsked": &counter.WhoAskeds,
+			}
+
+			for keyword, count := range emotesAndKeywords {
+				if strings.Contains(only_message_text, keyword) {
+					(*count)++
+				}
+			}
+
+			// modify the twos score
+
+			if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
+				counter.Twos += parse_val(split_and_get_last(only_message_text, "+"))
+			} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
+				counter.Twos -= parse_val(split_and_get_last(only_message_text, "-"))
+			}
+
 		case <-post_count_ticker.C:
-			handlePostCountTicker(db, &lionIsLive, createClipStatus, &counter)
+
+			// post 10 second count bins to postgres
+
+			if lionIsLive {
+				var timestamp time.Time
+				err := db.QueryRow(`
+				INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs, nos, cockas, copiums, who_askeds, shocks)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+				RETURNING created`,
+					counter.Twos,
+					counter.LulsAndICANTS,
+					counter.Cereals,
+					counter.Monkas,
+					counter.Joels,
+					counter.Pogs,
+					counter.Huhs,
+					counter.Nos,
+					counter.Cockas,
+					counter.Copiums,
+					counter.WhoAskeds,
+					counter.Shocks).Scan(&timestamp)
+				if err != nil {
+					fmt.Println("Error inserting into db:", err)
+				}
+				go create_clip(db, timestamp, createClipStatus)
+			} else {
+				go create_clip(db, time.Now(), createClipStatus)
+			}
+			counter = ChatCounts{}
+
 		case clipWasMade := <-createClipStatus:
+			// if we were unable to make a clip, NL must not be live
 			lionIsLive = clipWasMade
 		}
 	}
-}
-
-func initializeConnection(conn *websocket.Conn) {
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
-	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
 }
 
 func readMessages(conn *websocket.Conn, chat_closed chan error, incomingMessages chan Message) {
@@ -343,71 +403,6 @@ func readMessages(conn *websocket.Conn, chat_closed chan error, incomingMessages
 		}
 		incomingMessages <- Message{Type: messageType, Data: messageData}
 	}
-}
-
-func processMessage(msg Message, counter *ChatCounts) {
-	full_message := string(msg.Data)
-	only_message_text := split_and_get_last(full_message, "#northernlion")
-	emotesAndKeywords := map[string]*int{
-		"LUL":      &counter.LulsAndICANTS,
-		"ICANT":    &counter.LulsAndICANTS,
-		"Cereal":   &counter.Cereals,
-		"NOOO":     &counter.Nos,
-		"COCKA":    &counter.Cockas,
-		"monkaS":   &counter.Monkas,
-		"Joel":     &counter.Joels,
-		"POGCRAZY": &counter.Pogs,
-		"Pog":      &counter.Pogs,
-		"HUHH":     &counter.Huhs,
-		"Copium":   &counter.Copiums,
-		"D:":       &counter.Shocks,
-		"WhoAsked": &counter.WhoAskeds,
-	}
-
-	for keyword, count := range emotesAndKeywords {
-		if strings.Contains(only_message_text, keyword) {
-			(*count)++
-		}
-	}
-
-	handleTwos(only_message_text, counter)
-}
-
-func handleTwos(only_message_text string, counter *ChatCounts) {
-	if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
-		counter.Twos += parse_val(split_and_get_last(only_message_text, "+"))
-	} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
-		counter.Twos -= parse_val(split_and_get_last(only_message_text, "-"))
-	}
-}
-
-func handlePostCountTicker(db *sql.DB, lionIsLive *bool, createClipStatus chan bool, counter *ChatCounts) {
-	if *lionIsLive {
-		var timestamp time.Time
-		err := db.QueryRow(`
-        INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs, nos, cockas, copiums, who_askeds, shocks)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING created`,
-			counter.Twos,
-			counter.LulsAndICANTS,
-			counter.Cereals,
-			counter.Monkas,
-			counter.Joels,
-			counter.Pogs,
-			counter.Huhs,
-			counter.Nos,
-			counter.Cockas,
-			counter.Copiums,
-			counter.WhoAskeds,
-			counter.Shocks).Scan(&timestamp)
-		if err != nil {
-			fmt.Println("Error inserting into db:", err)
-		}
-		go create_clip(db, timestamp, createClipStatus)
-	} else {
-		go create_clip(db, time.Now(), createClipStatus)
-	}
-	*counter = ChatCounts{}
 }
 
 func split_and_get_last(text string, splitter string) string {

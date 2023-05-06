@@ -9,7 +9,7 @@ export type MaxClipData = {
 <script lang="ts" setup>
 import { seriesColors } from "../app.vue";
 
-const column = ref<keyof typeof seriesColors>("lol");
+const column = ref<keyof typeof seriesColors>("twos");
 const span = ref<"day" | "week" | "month" | "year" | "">("");
 console.log(span.value)
 const { data } = await useFetch<MaxClipData>(

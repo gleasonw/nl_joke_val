@@ -235,9 +235,6 @@ setInterval(() => {
       <div class="flex-row flex flex-wrap justify-center gap-10">
         <ClipViewer :time="clickedUnixSeconds" />
         <CustomClip />
-      </div>
-      <div class="flex-row flex flex-wrap items-center justify-center gap-10">
-        <BelovedClip />
         <HatedClip />
       </div>
     </div>
