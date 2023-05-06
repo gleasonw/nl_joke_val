@@ -136,20 +136,23 @@ func main() {
 		switch column_to_select {
 		case "count", "lol", "cereal", "monkas", "joel", "pogs", "huhs", "nos", "cockas", "who_asked", "shock", "copium":
 			q = fmt.Sprintf(`
-			SELECT %s, EXTRACT(epoch from created), clip_id 
+			SELECT %s, EXTRACT(epoch from created), clip_id
 			FROM counts 
 			WHERE clip_id IS NOT NULL`,
 				column_to_select)
 			switch span {
 			case "day", "week", "month", "year":
 				q = fmt.Sprintf(`
-				%s AND %s=(
-					SELECT max(%s)
+				%s AND clip_id IN (
+					SELECT clip_id
 					FROM counts
 					WHERE created >= (
 						SELECT MAX(created) - INTERVAL '1 %s'
 						FROM counts)
-					)`, q, column_to_select, column_to_select, span)
+					)
+					ORDER BY %s DESC
+					LIMIT 10
+					`, q, span, column_to_select)
 			default:
 				q = fmt.Sprintf("%s AND %s=(SELECT max(%s) from counts)", q, column_to_select, column_to_select)
 			}
@@ -329,7 +332,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 		select {
 		case msg := <-incomingMessages:
 			full_message := string(msg.Data)
-			only_message_text := split_and_get_last(full_message, ":")
+			only_message_text := split_and_get_last(full_message, "#northernlion")
 			// rewrite to an abstraction that takes the string and a pointer to the counter field, loop over
 			//make array of strings and pointers
 			if strings.Contains(only_message_text, "LUL") || strings.Contains(only_message_text, "ICANT") {
@@ -356,7 +359,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			if strings.Contains(only_message_text, "HUHH") {
 				counter.Huhs++
 			}
-			if strings.Contains(only_message_text, "COPIUM") {
+			if strings.Contains(only_message_text, "Copium") {
 				counter.Copiums++
 			}
 			if strings.Contains(only_message_text, "D:") {
