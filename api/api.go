@@ -301,115 +301,113 @@ type ChatCounts struct {
 }
 
 func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
-
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
-	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
-
+	initializeConnection(conn)
 	incomingMessages := make(chan Message)
 	createClipStatus := make(chan bool)
 	lionIsLive := false
-	go func() {
-		for {
-			messageType, messageData, err := conn.ReadMessage()
-			text := string(messageData)
-			if strings.Contains(text, "PING") {
-				conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
-				continue
-			}
-			if err != nil {
-				fmt.Println("Error reading message:", err)
-				chat_closed <- err
-				return
-			}
-			incomingMessages <- Message{Type: messageType, Data: messageData}
-		}
-	}()
 
+	go readMessages(conn, chat_closed, incomingMessages)
 	post_count_ticker := time.NewTicker(10 * time.Second)
 	counter := ChatCounts{}
+
 	for {
 		select {
 		case msg := <-incomingMessages:
-			full_message := string(msg.Data)
-			only_message_text := split_and_get_last(full_message, "#northernlion")
-			// rewrite to an abstraction that takes the string and a pointer to the counter field, loop over
-			//make array of strings and pointers
-			if strings.Contains(only_message_text, "LUL") || strings.Contains(only_message_text, "ICANT") {
-				counter.LulsAndICANTS++
-			}
-			if strings.Contains(only_message_text, "Cereal") {
-				counter.Cereals++
-			}
-			if strings.Contains(only_message_text, "NOOO") {
-				counter.Nos++
-			}
-			if strings.Contains(only_message_text, "COCKA") {
-				counter.Cockas++
-			}
-			if strings.Contains(only_message_text, "monkaS") {
-				counter.Monkas++
-			}
-			if strings.Contains(only_message_text, "Joel") {
-				counter.Joels++
-			}
-			if strings.Contains(only_message_text, "POGCRAZY") || strings.Contains(only_message_text, "Pog") {
-				counter.Pogs++
-			}
-			if strings.Contains(only_message_text, "HUHH") {
-				counter.Huhs++
-			}
-			if strings.Contains(only_message_text, "Copium") {
-				counter.Copiums++
-			}
-			if strings.Contains(only_message_text, "D:") {
-				counter.Shocks++
-			}
-			if strings.Contains(only_message_text, "WhoAsked") {
-				counter.WhoAskeds++
-			}
-			if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
-				counter.Twos += parse_val(split_and_get_last(only_message_text, "+"))
-			} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
-				counter.Twos -= parse_val(split_and_get_last(only_message_text, "-"))
-			}
+			processMessage(msg, &counter)
 		case <-post_count_ticker.C:
-			if lionIsLive {
-				var timestamp time.Time
-				err := db.QueryRow(`
-				INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs, nos, cockas, copiums, who_askeds, shocks)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-				RETURNING created`,
-					counter.Twos,
-					counter.LulsAndICANTS,
-					counter.Cereals,
-					counter.Monkas,
-					counter.Joels,
-					counter.Pogs,
-					counter.Huhs,
-					counter.Nos,
-					counter.Cockas,
-					counter.Copiums,
-					counter.WhoAskeds,
-					counter.Shocks).Scan(&timestamp)
-				if err != nil {
-					fmt.Println("Error inserting into db:", err)
-				}
-				go create_clip(db, timestamp, createClipStatus)
-			} else {
-				// try to create clip to check lion is live
-				go create_clip(db, time.Now(), createClipStatus)
-			}
-			counter = ChatCounts{}
+			handlePostCountTicker(db, &lionIsLive, createClipStatus, &counter)
 		case clipWasMade := <-createClipStatus:
-			if clipWasMade {
-				lionIsLive = true
-			} else {
-				lionIsLive = false
-			}
+			lionIsLive = clipWasMade
+		}
+	}
+}
+
+func initializeConnection(conn *websocket.Conn) {
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
+	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
+}
+
+func readMessages(conn *websocket.Conn, chat_closed chan error, incomingMessages chan Message) {
+	for {
+		messageType, messageData, err := conn.ReadMessage()
+		text := string(messageData)
+		if strings.Contains(text, "PING") {
+			conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
+			continue
+		}
+		if err != nil {
+			fmt.Println("Error reading message:", err)
+			chat_closed <- err
+			return
+		}
+		incomingMessages <- Message{Type: messageType, Data: messageData}
+	}
+}
+
+func processMessage(msg Message, counter *ChatCounts) {
+	full_message := string(msg.Data)
+	only_message_text := split_and_get_last(full_message, "#northernlion")
+	emotesAndKeywords := map[string]*int{
+		"LUL":      &counter.LulsAndICANTS,
+		"ICANT":    &counter.LulsAndICANTS,
+		"Cereal":   &counter.Cereals,
+		"NOOO":     &counter.Nos,
+		"COCKA":    &counter.Cockas,
+		"monkaS":   &counter.Monkas,
+		"Joel":     &counter.Joels,
+		"POGCRAZY": &counter.Pogs,
+		"Pog":      &counter.Pogs,
+		"HUHH":     &counter.Huhs,
+		"Copium":   &counter.Copiums,
+		"D:":       &counter.Shocks,
+		"WhoAsked": &counter.WhoAskeds,
+	}
+
+	for keyword, count := range emotesAndKeywords {
+		if strings.Contains(only_message_text, keyword) {
+			(*count)++
 		}
 	}
 
+	handleTwos(only_message_text, counter)
+}
+
+func handleTwos(only_message_text string, counter *ChatCounts) {
+	if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
+		counter.Twos += parse_val(split_and_get_last(only_message_text, "+"))
+	} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
+		counter.Twos -= parse_val(split_and_get_last(only_message_text, "-"))
+	}
+}
+
+func handlePostCountTicker(db *sql.DB, lionIsLive *bool, createClipStatus chan bool, counter *ChatCounts) {
+	if *lionIsLive {
+		var timestamp time.Time
+		err := db.QueryRow(`
+        INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs, nos, cockas, copiums, who_askeds, shocks)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING created`,
+			counter.Twos,
+			counter.LulsAndICANTS,
+			counter.Cereals,
+			counter.Monkas,
+			counter.Joels,
+			counter.Pogs,
+			counter.Huhs,
+			counter.Nos,
+			counter.Cockas,
+			counter.Copiums,
+			counter.WhoAskeds,
+			counter.Shocks).Scan(&timestamp)
+		if err != nil {
+			fmt.Println("Error inserting into db:", err)
+		}
+		go create_clip(db, timestamp, createClipStatus)
+	} else {
+		go create_clip(db, time.Now(), createClipStatus)
+	}
+	*counter = ChatCounts{}
 }
 
 func split_and_get_last(text string, splitter string) string {
