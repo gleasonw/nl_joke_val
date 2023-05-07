@@ -1,18 +1,25 @@
 <script lang="ts" setup>
-import { MaxClipData } from "./CustomClip.vue";
+import { Clip } from "./CustomClip.vue";
 
-const props = defineProps<{data: MaxClipData}>();
-
+const props = defineProps<{ clip_batch?: Clip[] }>();
+const selectedIndex = ref(0);
+const currentClip = computed(() => props.clip_batch?.[selectedIndex.value]);
 </script>
 
 <template>
-  <div class="flex flex-col gap-5 mt-5">
+  <div class="flex flex-col gap-5 mt-5" v-if="currentClip">
     <p>
-      {{ new Date(props.data.time * 1000).toLocaleString() }}
+      {{ new Date(currentClip.time * 1000).toLocaleString() }}
     </p>
     <p class="text-xl">
-      {{ props.data.twos }}
+      {{ currentClip.count }}
     </p>
-    <TwitchClip :clipId="props.data.clip_id" />
+    <TwitchClip :clipId="currentClip.clip_id" />
+    <select v-model="selectedIndex" class="p-2 rounded-lg hover:cursor-pointer">
+      <option v-for="(clip, index) in props.clip_batch" :value="index">
+        {{ new Date(currentClip.time * 1000).toLocaleString() }}
+        ({{ clip.count }})
+      </option>
+    </select>
   </div>
 </template>

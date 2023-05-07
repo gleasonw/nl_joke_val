@@ -1,9 +1,9 @@
 <script lang="ts">
-export type MaxClipData = {
+export type Clip = {
   clip_id: string;
+  count: number;
   time: number;
-  twos: number;
-};
+}
 </script>
 
 <script lang="ts" setup>
@@ -11,14 +11,12 @@ import { seriesColors } from "../app.vue";
 
 const column = ref<keyof typeof seriesColors>("twos");
 const span = ref<"day" | "week" | "month" | "year" | "">("");
-console.log(span.value)
-const { data } = await useFetch<MaxClipData>(
+const { data } = await useFetch<Clip[]>(
   computed(
     () =>
       `https://nljokeval-production.up.railway.app/api/max_clip?column=${column.value}&span=${span.value}`
   )
 );
-console.log(data.value);
 </script>
 
 <template>
@@ -39,6 +37,6 @@ console.log(data.value);
         <option value="year">This year</option>
       </select>
     </div>
-    <ClipLabel v-if="data" :data="data" />
+    <ClipLabel v-if="data" :clip_batch="data" />
   </div>
 </template>

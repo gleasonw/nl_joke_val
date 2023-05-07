@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +30,12 @@ type SeriesData struct {
 	WhoAsked int     `json:"who_asked"`
 	Shock    int     `json:"what"`
 	Copium   int     `json:"copium"`
+}
+
+type Clip struct {
+	ClipID string  `json:"clip_id"`
+	Count  int     `json:"count"`
+	Time   float64 `json:"time"`
 }
 
 var auth_token string = os.Getenv("AUTH_TOKEN")
@@ -57,7 +62,7 @@ func main() {
 		return
 	}
 	defer db.Close()
-	go connect_to_nl_chat(db)
+	// go connect_to_nl_chat(db)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
@@ -124,9 +129,6 @@ func main() {
 	})
 
 	http.HandleFunc("/api/max_clip", func(w http.ResponseWriter, r *http.Request) {
-		var max int
-		var time float64
-		var clip_id string
 		column_to_select := r.URL.Query().Get("column")
 		span := r.URL.Query().Get("span")
 		if column_to_select == "twos" {
@@ -136,65 +138,54 @@ func main() {
 		switch column_to_select {
 		case "count", "lol", "cereal", "monkas", "joel", "pogs", "huhs", "nos", "cockas", "who_asked", "shock", "copium":
 			q = fmt.Sprintf(`
-			SELECT %s, EXTRACT(epoch from created), clip_id
-			FROM counts 
-			WHERE clip_id IS NOT NULL`,
-				column_to_select)
+				SELECT %s, EXTRACT(epoch from created), clip_id
+				FROM counts 
+				WHERE clip_id IS NOT NULL`, column_to_select)
 			switch span {
 			case "day", "week", "month", "year":
 				q = fmt.Sprintf(`
-				%s AND clip_id IN (
-					SELECT clip_id
-					FROM counts
-					WHERE created >= (
-						SELECT MAX(created) - INTERVAL '1 %s'
-						FROM counts)
-					)
-					ORDER BY %s DESC
-					LIMIT 10
-					`, q, span, column_to_select)
+					%s AND clip_id IN (
+						SELECT clip_id
+						FROM counts
+						WHERE created >= (
+							SELECT MAX(created) - INTERVAL '1 %s'
+							FROM counts)
+						)
+						ORDER BY %s DESC
+						LIMIT 10
+						`, q, span, column_to_select)
 			default:
-				q = fmt.Sprintf("%s AND %s=(SELECT max(%s) from counts)", q, column_to_select, column_to_select)
+				q = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from counts order by %s desc limit 1)", q, column_to_select)
 			}
 		default:
-			fmt.Println("invalid column")
+			http.Error(w, "Invalid column", http.StatusBadRequest)
 			return
 		}
-
-		err := db.QueryRow(q).Scan(&max, &time, &clip_id)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		marshal_json_and_write(w, map[string]string{
-			"clip_id": clip_id,
-			"twos":    strconv.Itoa(max),
-			"time":    strconv.FormatFloat(time, 'f', 0, 64),
-		})
+		minMaxClipGetter(w, q, db)
 	})
 
 	http.HandleFunc("/api/min_clip", func(w http.ResponseWriter, r *http.Request) {
-		var min int
-		var time float64
-		var clip_id string
-		err := db.QueryRow(`
-		SELECT count, EXTRACT(epoch from created), clip_id 
-		FROM counts 
-		WHERE count=(
-			SELECT min(count) 
-			FROM counts
-		)
-		AND clip_id IS NOT NULL`).Scan(&min, &time, &clip_id)
-		if err != nil {
-			fmt.Println(err)
-			return
+		span := r.URL.Query().Get("span")
+		var q string
+		switch span {
+		case "day", "week", "month", "year":
+			q = fmt.Sprintf(`
+			SELECT count, EXTRACT(epoch from created), clip_id 
+			FROM counts 
+			WHERE clip_id IS NOT NULL
+			AND clip_id IN (
+				SELECT clip_id
+				FROM counts
+				WHERE created >= (
+					SELECT MAX(created) - INTERVAL '1 %s'
+					FROM counts)
+					)
+				ORDER BY count ASC
+				LIMIT 10
+			`, span)
 		}
-		marshal_json_and_write(w, map[string]string{
-			"clip_id": clip_id,
-			"twos":    strconv.Itoa(min),
-			"time":    strconv.FormatFloat(time, 'f', 0, 64),
-		})
 
+		minMaxClipGetter(w, q, db)
 	})
 
 	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
@@ -222,6 +213,30 @@ func main() {
 
 	http.ListenAndServe(port, nil)
 
+}
+
+func minMaxClipGetter(w http.ResponseWriter, query string, db *sql.DB) {
+	rows, err := db.Query(query)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+	var clips []Clip
+	for rows.Next() {
+		var count int
+		var time float64
+		var clipID string
+		err := rows.Scan(&count, &time, &clipID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		clips = append(clips, Clip{clipID, count, time})
+	}
+	marshal_json_and_write(w, map[string][]Clip{
+		"clips": clips,
+	})
 }
 
 func scan_rows_to_series_data(rows *sql.Rows) []SeriesData {
