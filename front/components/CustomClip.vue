@@ -23,7 +23,6 @@ const { data } = await useFetch<ClipResponse>(
       `https://nljokeval-production.up.railway.app/api/max_clip?column=${column.value}&span=${span.value}`
   )
 );
-console.log(data.value)
 </script>
 
 <template>
