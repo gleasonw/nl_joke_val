@@ -19,7 +19,7 @@ console.log(currentClip.value);
     <TwitchClip :clipId="currentClip.clip_id" />
     <select v-model="selectedIndex" class="p-2 rounded-lg hover:cursor-pointer">
       <option v-for="(clip, index) in props.clipBatch" :value="index">
-        {{ new Date(currentClip.time * 1000).toLocaleString() }}
+        {{ new Date(clip.time * 1000).toLocaleString() }}
         ({{ clip.count }})
       </option>
     </select>
