@@ -1,9 +1,11 @@
 <script lang="ts" setup>
 import { Clip } from "./CustomClip.vue";
 
-const props = defineProps<{ clip_batch?: Clip[] }>();
+const props = defineProps<{ clipBatch: Clip[] }>();
 const selectedIndex = ref(0);
-const currentClip = computed(() => props.clip_batch?.[selectedIndex.value]);
+console.log(props.clipBatch)
+const currentClip = computed(() => props.clipBatch?.[selectedIndex.value]);
+console.log(currentClip.value);
 </script>
 
 <template>
@@ -16,7 +18,7 @@ const currentClip = computed(() => props.clip_batch?.[selectedIndex.value]);
     </p>
     <TwitchClip :clipId="currentClip.clip_id" />
     <select v-model="selectedIndex" class="p-2 rounded-lg hover:cursor-pointer">
-      <option v-for="(clip, index) in props.clip_batch" :value="index">
+      <option v-for="(clip, index) in props.clipBatch" :value="index">
         {{ new Date(currentClip.time * 1000).toLocaleString() }}
         ({{ clip.count }})
       </option>
