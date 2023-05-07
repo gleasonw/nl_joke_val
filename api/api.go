@@ -155,7 +155,7 @@ func main() {
 						LIMIT 10
 						`, q, span, column_to_select)
 			default:
-				q = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from counts order by %s desc limit 1)", q, column_to_select)
+				q = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from counts order by %s desc limit 10)", q, column_to_select)
 			}
 		default:
 			http.Error(w, "Invalid column", http.StatusBadRequest)
@@ -183,6 +183,17 @@ func main() {
 				ORDER BY count ASC
 				LIMIT 10
 			`, span)
+		default:
+			q = `
+			SELECT count, EXTRACT(epoch from created), clip_id
+			FROM counts
+			WHERE clip_id IS NOT NULL
+			AND clip_id IN (
+				SELECT clip_id
+				FROM counts
+				ORDER BY count ASC
+				LIMIT 10
+			)`
 		}
 
 		minMaxClipGetter(w, q, db)
