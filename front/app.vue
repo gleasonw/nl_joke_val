@@ -232,7 +232,7 @@ setInterval(() => {
     </div>
     <Chart :options="chartOptions" ref="lineChart" />
     <div class="flex-col flex justify-center gap-16">
-      <div class="flex-row flex flex-wrap justify-center gap-10">
+      <div class="flex-row flex flex-wrap justify-center gap-20">
         <ClipViewer :time="clickedUnixSeconds" />
         <CustomClip />
         <HatedClip />
