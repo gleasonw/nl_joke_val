@@ -62,7 +62,7 @@ func main() {
 		return
 	}
 	defer db.Close()
-	// go connect_to_nl_chat(db)
+	go connect_to_nl_chat(db)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
