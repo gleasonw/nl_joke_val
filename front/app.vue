@@ -9,6 +9,9 @@ export const seriesColors = {
   huhs: "#e4d354",
   nos: "#2b908f",
   cockas: "#f45b5b",
+  what: "#8d4654",
+  who_asked: "#91e8e1",
+  copium: "#696969",
 };
 </script>
 
@@ -24,6 +27,9 @@ interface SeriesData {
   huhs: number;
   nos: number;
   cockas: number;
+  what: number;
+  copium: number;
+  who_asked: number;
   time: number;
 }
 
@@ -243,6 +249,6 @@ setInterval(() => {
 
 <style>
 .faded {
-    opacity: 0.5;
+  opacity: 0.5;
 }
 </style>
