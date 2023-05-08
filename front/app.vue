@@ -9,9 +9,9 @@ export const seriesColors = {
   huhs: "#e4d354",
   nos: "#2b908f",
   cockas: "#f45b5b",
-  what: "#8d4654",
-  who_asked: "#91e8e1",
-  copium: "#696969",
+  shocks: "#8d4654",
+  who_askeds: "#91e8e1",
+  copiums: "#696969",
 };
 </script>
 
@@ -27,9 +27,9 @@ interface SeriesData {
   huhs: number;
   nos: number;
   cockas: number;
-  what: number;
-  copium: number;
-  who_asked: number;
+  shocks: number;
+  copiums: number;
+  who_askeds: number;
   time: number;
 }
 

@@ -27,9 +27,9 @@ type SeriesData struct {
 	Time     float64 `json:"time"`
 	Nos      int     `json:"nos"`
 	Cockas   int     `json:"cockas"`
-	WhoAsked int     `json:"who_asked"`
-	Shock    int     `json:"what"`
-	Copium   int     `json:"copium"`
+	WhoAsked int     `json:"who_askeds"`
+	Shock    int     `json:"shocks"`
+	Copium   int     `json:"copiums"`
 }
 
 type Clip struct {
@@ -136,7 +136,7 @@ func main() {
 		}
 		var q string
 		switch column_to_select {
-		case "count", "lol", "cereal", "monkas", "joel", "pogs", "huhs", "nos", "cockas", "who_asked", "shock", "copium":
+		case "count", "lol", "cereal", "monkas", "joel", "pogs", "huhs", "nos", "cockas", "who_askeds", "shocks", "copiums":
 			q = fmt.Sprintf(`
 				SELECT %s, EXTRACT(epoch from created), clip_id
 				FROM counts 
