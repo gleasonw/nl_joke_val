@@ -2,4 +2,5 @@
 export default defineNuxtConfig({
   ssr: false,
   modules: ["@nuxtjs/tailwindcss"],
+  plugins: [{ src: "~/plugins/vercel.client.ts", mode: "client" }],
 });
