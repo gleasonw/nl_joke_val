@@ -143,9 +143,9 @@ func main() {
 						SELECT MAX(created_at) - INTERVAL '1 %s'
 						FROM chat_counts)
 					)
-					ORDER BY %s DESC
-					LIMIT 10
-					`, query, span, column_to_select)
+				ORDER BY %s DESC
+				LIMIT 10
+				`, query, span, column_to_select)
 		default:
 			query = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from chat_counts order by %s desc limit 10)", query, column_to_select)
 		}
@@ -266,7 +266,6 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	// remove UpdatedAt, DeletedAt, CreatedAt, ID from interface
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -337,7 +336,6 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 
 			for keyword, count := range emotesAndKeywords {
 				if strings.Contains(only_message_text, keyword) {
-					fmt.Println("counting", keyword, "in", only_message_text)
 					(*count)++
 				}
 			}
