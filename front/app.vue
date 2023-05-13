@@ -245,11 +245,11 @@ setInterval(() => {
           <option value="line">line</option>
         </select>
       </div>
-      <div class="flex-row gap-5 flex flex-wrap">
+      <div class="flex-row gap-10 flex flex-wrap">
         <button
           v-for="key in keys"
           @click="() => handleSeriesButton(key)"
-          class="rounded-lg p-2 hover:cursor-pointer"
+          class="rounded-lg p-3 hover:cursor-pointer"
           :class="{ faded: !selectedKeys.has(key), 'series-button': true }"
           :style="{ backgroundColor: seriesColors[key as keyof typeof seriesColors] }"
         >
@@ -258,11 +258,7 @@ setInterval(() => {
       </div>
     </div>
     <div class="flex flex-row flex-wrap justify-center gap-10 items-center">
-      <Chart
-        :options="chartOptions"
-        ref="lineChart"
-        class="w-full md:w-3/5 lg:w-3/5 xl:w-3/5"
-      />
+      <Chart :options="chartOptions" ref="lineChart" class="w-full xl:w-3/5" />
       <ClipViewer :time="clickedUnixSeconds" />
       <CustomClip />
       <HatedClip />
