@@ -33,7 +33,7 @@ type ChatCounts struct {
 	Copium       int       `json:"copium"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
-	CreatedEpoch float64   `json:"time"`
+	CreatedEpoch float64   `json:"time" gorm:"-"`
 }
 
 type Clip struct {
@@ -70,7 +70,7 @@ func main() {
 		return
 	}
 	db.AutoMigrate(&ChatCounts{})
-
+	go connect_to_nl_chat(db)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
 	})
@@ -205,7 +205,10 @@ func main() {
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
 	fmt.Println("Listening on port", port)
 
-	http.ListenAndServe(port, nil)
+	listenError := http.ListenAndServe(port, nil)
+	if listenError != nil {
+		fmt.Println(listenError)
+	}
 
 }
 
@@ -334,6 +337,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 
 			for keyword, count := range emotesAndKeywords {
 				if strings.Contains(only_message_text, keyword) {
+					fmt.Println("counting", keyword, "in", only_message_text)
 					(*count)++
 				}
 			}

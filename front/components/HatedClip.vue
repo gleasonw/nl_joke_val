@@ -10,7 +10,7 @@ const { data } = await useFetch<ClipResponse>(
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
+  <div class="flex flex-col gap-2 shadow-md rounded-lg p-10 border">
     <div class="flex-row flex gap-3 flex-wrap items-center">
       <h2 class="font-bold text-2xl">Low score</h2>
       <h2 class="font-bold text-2xl">(10s)</h2>

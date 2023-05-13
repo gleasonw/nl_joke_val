@@ -24,7 +24,9 @@ const { data } = await useFetch<ClipResponse>(
 </script>
 
 <template>
-  <div class="flex flex-col justiy-center items-center">
+  <div
+    class="flex flex-col justiy-center items-center border shadow-md rounded-lg p-10"
+  >
     <div class="flex-row flex gap-3 flex-wrap items-center">
       <h2 class="font-bold text-2xl">Top</h2>
       <select v-model="column" class="p-2 rounded-lg hover:cursor-pointer">
