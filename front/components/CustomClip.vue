@@ -3,19 +3,16 @@ export type Clip = {
   clip_id: string;
   count: number;
   time: number;
-}
+};
 export type ClipResponse = {
   clips: Clip[];
-}
+};
 </script>
 
 <script lang="ts" setup>
+import { SeriesKeys } from "../app.vue";
 
-
-import { seriesColors } from "../app.vue";
-
-
-const column = ref<keyof typeof seriesColors>("twos");
+const column = ref<keyof typeof SeriesKeys>("two");
 const span = ref<"day" | "week" | "month" | "year" | "">("");
 const { data } = await useFetch<ClipResponse>(
   computed(
@@ -26,7 +23,7 @@ const { data } = await useFetch<ClipResponse>(
 </script>
 
 <template>
-  <div class="flex flex-col justiy-center items-center">    
+  <div class="flex flex-col justiy-center items-center">
     <div class="flex-row flex gap-3 flex-wrap items-center">
       <h2 class="font-bold text-2xl">Top</h2>
       <select v-model="column" class="p-2 rounded-lg hover:cursor-pointer">
@@ -43,6 +40,9 @@ const { data } = await useFetch<ClipResponse>(
         <option value="year">This year</option>
       </select>
     </div>
-    <ClipLabel v-if="data && data.clips.length > 0" :clipBatch="data.clips.sort((a,b)=> b.count - a.count)" />
+    <ClipLabel
+      v-if="data && data.clips.length > 0"
+      :clipBatch="data.clips.sort((a, b) => b.count - a.count)"
+    />
   </div>
 </template>

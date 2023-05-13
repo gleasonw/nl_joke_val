@@ -1,37 +1,51 @@
 <script lang="ts">
-export const seriesColors = {
-  twos: "#7cb5ec",
-  lol: "#434348",
-  cereal: "#90ed7d",
-  monkas: "#f7a35c",
-  joel: "#8085e9",
-  pogs: "#f15c80",
-  huhs: "#e4d354",
-  nos: "#2b908f",
-  cockas: "#f45b5b",
-  shocks: "#8d4654",
-  who_askeds: "#91e8e1",
-  copiums: "#696969",
-};
+export enum SeriesKeys {
+  two = "two",
+  lol = "lol",
+  cereal = "cereal",
+  monkas = "monkas",
+  joel = "joel",
+  pog = "pog",
+  huh = "huh",
+  no = "no",
+  cocka = "cocka",
+  shock = "shock",
+  who_asked = "who_asked",
+  copium = "copium",
+}
 </script>
 
 <script lang="ts" setup>
 import { Chart } from "highcharts-vue";
 interface SeriesData {
-  two: number;
-  lol: number;
-  cereal: number;
-  monkas: number;
-  joel: number;
-  pog: number;
-  huh: number;
-  no: number;
-  cocka: number;
-  shock: number;
-  copium: number;
-  who_asked: number;
+  [SeriesKeys.two]: number;
+  [SeriesKeys.lol]: number;
+  [SeriesKeys.cereal]: number;
+  [SeriesKeys.monkas]: number;
+  [SeriesKeys.joel]: number;
+  [SeriesKeys.pog]: number;
+  [SeriesKeys.huh]: number;
+  [SeriesKeys.no]: number;
+  [SeriesKeys.cocka]: number;
+  [SeriesKeys.shock]: number;
+  [SeriesKeys.who_asked]: number;
+  [SeriesKeys.copium]: number;
   time: number;
 }
+const seriesColors: Record<SeriesKeys, string> = {
+  [SeriesKeys.two]: "#7cb5ec",
+  [SeriesKeys.lol]: "#434348",
+  [SeriesKeys.cereal]: "#90ed7d",
+  [SeriesKeys.monkas]: "#f7a35c",
+  [SeriesKeys.joel]: "#8085e9",
+  [SeriesKeys.pog]: "#f15c80",
+  [SeriesKeys.huh]: "#e4d354",
+  [SeriesKeys.no]: "#2b908f",
+  [SeriesKeys.cocka]: "#f45b5b",
+  [SeriesKeys.shock]: "#8d4654",
+  [SeriesKeys.who_asked]: "#91e8e1",
+  [SeriesKeys.copium]: "#696969",
+};
 
 const series_calc = ref<"rolling_sum" | "instant">("instant");
 const span = ref<
@@ -67,9 +81,6 @@ const keys = computed(
     ([] as string[])
 );
 const selectedKeys = ref(new Set(["twos"]));
-
-//   "#91e8e1",
-
 const chartOptions = computed(
   (): Highcharts.Options => ({
     dateTimeLabelFormats: {

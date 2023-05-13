@@ -31,8 +31,8 @@ type ChatCounts struct {
 	WhoAsked     int       `json:"who_asked"`
 	Shock        int       `json:"shock"`
 	Copium       int       `json:"copium"`
-	CreatedAt    time.Time `gorm:"index"`
-	ClipId       string    `json:"clip_id"`
+	CreatedAt    time.Time `gorm:"index" json:"-"`
+	ClipId       string    `json:"-"`
 	CreatedEpoch float64   `json:"time"`
 }
 
@@ -219,7 +219,7 @@ func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
 	for i := 0; i < val.NumField(); i++ {
 		fieldName := typeOfS.Field(i).Tag.Get("json")
 
-		if fieldName != "created_at" && fieldName != "" && fieldName != "clip_id" && fieldName != "time" {
+		if fieldName != "-" && fieldName != "time" {
 			sumField := fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
 			overField := fmt.Sprintf("SUM(%s) OVER (ORDER BY created_epoch) as %s", fieldName, fieldName)
 			sumFields = append(sumFields, sumField)
