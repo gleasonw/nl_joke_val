@@ -163,7 +163,7 @@ func main() {
 			timeSpan = fmt.Sprintf(
 				`WHERE created_at >= (
 					SELECT MAX(created_at) - INTERVAL '1 %s'
-					FROM chat_counts)
+					FROM chat_counts
 				)
 			`, span)
 		}
@@ -176,8 +176,9 @@ func main() {
 			SELECT clip_id
 			FROM chat_counts
 			%s
-			ORDER BY two ASC
-			LIMIT 10`, timeSpan)
+		)
+		ORDER BY two ASC
+		LIMIT 10`, timeSpan)
 
 		minMaxClipGetter(w, query, db)
 	})
