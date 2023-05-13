@@ -266,7 +266,6 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	// remove UpdatedAt, DeletedAt, CreatedAt, ID from interface
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
