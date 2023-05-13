@@ -368,8 +368,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 
 		case clipWasMade := <-createClipStatus:
 			// if we were unable to make a clip, NL must not be live
-			fmt.Println("clip was made:", clipWasMade)
-			lionIsLive = true
+			lionIsLive = clipWasMade
 		}
 	}
 }
