@@ -193,73 +193,96 @@ setInterval(() => {
 
 <template>
   <div class="mb-10">
-    <div class="m-5 flex-col gap-8 flex items-center justify-center">
-      <div class="flex-row flex gap-4 items-center flex-wrap">
-        <label for="calc">Calc</label>
-        <select
-          v-model="series_calc"
-          id="calc"
-          class="p-2 rounded-lg hover:cursor-pointer"
-        >
-          <option value="rolling_sum">rolling_sum</option>
-          <option value="instant">instant</option>
-        </select>
-        <label for="past">Past</label>
-        <select
-          :value="span"
-          @input="handleSpanChange"
-          id="past"
-          class="p-2 rounded-lg hover:cursor-pointer"
-        >
-          <option>1 minute</option>
-          <option>5 minutes</option>
-          <option>30 minutes</option>
-          <option>1 hour</option>
-          <option>9 hours</option>
-          <option>1 day</option>
-          <option>1 week</option>
-          <option>1 month</option>
-          <option>1 year</option>
-        </select>
-        <label for="grouping">Group by</label>
-        <select
-          v-model="grouping"
-          id="grouping"
-          class="p-2 rounded-lg hover:cursor-pointer"
-        >
-          <option>second</option>
-          <option>minute</option>
-          <option>hour</option>
-          <option>day</option>
-          <option>week</option>
-          <option>month</option>
-          <option>year</option>
-        </select>
-        <label for="display">Display</label>
-        <select
-          v-model="display"
-          id="display"
-          class="p-2 rounded-lg hover:cursor-pointer"
-        >
-          <option value="bar">bar</option>
-          <option value="line">line</option>
-        </select>
+    <title>Nl Joke Val</title>
+    <meta
+      name="Quantify Northernlion's Twitch chat and extract worthy clips."
+      content="NL Joke Val"
+    />
+    <div class="text-center">
+      <h1 class="text-center text-3xl m-10">NL Joke Val</h1>
+      <h2 class="italic text-md">
+        Begins counting chat when NL is live. Data since 4/19/2023.
+      </h2>
+    </div>
+    <div
+      class="flex flex-col border md:m-10 lg:m-10 xl:m-10 shadow-md rounded-lg p-2"
+    >
+      <div class="m-5 flex-col gap-8 flex items-center justify-center">
+        <div class="flex-row flex gap-4 items-center flex-wrap">
+          <label for="calc">Calc</label>
+          <select
+            v-model="series_calc"
+            id="calc"
+            class="p-2 rounded-lg hover:cursor-pointer"
+          >
+            <option value="rolling_sum">rolling_sum</option>
+            <option value="instant">instant</option>
+          </select>
+          <label for="past">Past</label>
+          <select
+            :value="span"
+            @input="handleSpanChange"
+            id="past"
+            class="p-2 rounded-lg hover:cursor-pointer"
+          >
+            <option>1 minute</option>
+            <option>5 minutes</option>
+            <option>30 minutes</option>
+            <option>1 hour</option>
+            <option>9 hours</option>
+            <option>1 day</option>
+            <option>1 week</option>
+            <option>1 month</option>
+            <option>1 year</option>
+          </select>
+          <label for="grouping">Group by</label>
+          <select
+            v-model="grouping"
+            id="grouping"
+            class="p-2 rounded-lg hover:cursor-pointer"
+          >
+            <option>second</option>
+            <option>minute</option>
+            <option>hour</option>
+            <option>day</option>
+            <option>week</option>
+            <option>month</option>
+            <option>year</option>
+          </select>
+          <label for="display">Display</label>
+          <select
+            v-model="display"
+            id="display"
+            class="p-2 rounded-lg hover:cursor-pointer"
+          >
+            <option value="bar">bar</option>
+            <option value="line">line</option>
+          </select>
+        </div>
+        <div class="flex-row gap-10 flex flex-wrap">
+          <button
+            v-for="key in keys"
+            @click="() => handleSeriesButton(key)"
+            class="rounded-lg p-3 hover:cursor-pointer"
+            :class="{ faded: !selectedKeys.has(key), 'series-button': true }"
+            :style="{ backgroundColor: seriesColors[key as keyof typeof seriesColors] }"
+          >
+            {{ key }}
+          </button>
+        </div>
       </div>
-      <div class="flex-row gap-10 flex flex-wrap">
-        <button
-          v-for="key in keys"
-          @click="() => handleSeriesButton(key)"
-          class="rounded-lg p-3 hover:cursor-pointer"
-          :class="{ faded: !selectedKeys.has(key), 'series-button': true }"
-          :style="{ backgroundColor: seriesColors[key as keyof typeof seriesColors] }"
-        >
-          {{ key }}
-        </button>
+      <div
+        class="flex flex-row p-3 flex-wrap gap-10 justify-center items-center"
+      >
+        <Chart
+          :options="chartOptions"
+          ref="lineChart"
+          class="w-full xl:w-3/5"
+        />
+        <ClipViewer :time="clickedUnixSeconds" />
       </div>
     </div>
-    <div class="flex flex-row flex-wrap justify-center gap-10 items-center">
-      <Chart :options="chartOptions" ref="lineChart" class="w-full xl:w-3/5" />
-      <ClipViewer :time="clickedUnixSeconds" />
+    <div class="flex flex-row flex-wrap justify-center gap-20 items-center">
       <CustomClip />
       <HatedClip />
     </div>
