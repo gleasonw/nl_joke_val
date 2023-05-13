@@ -2,34 +2,37 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-type SeriesData struct {
-	Twos     int     `json:"twos"`
-	Lol      int     `json:"lol"`
-	Cereal   int     `json:"cereal"`
-	Monkas   int     `json:"monkas"`
-	Joel     int     `json:"joel"`
-	Pogs     int     `json:"pogs"`
-	Huhs     int     `json:"huhs"`
-	Time     float64 `json:"time"`
-	Nos      int     `json:"nos"`
-	Cockas   int     `json:"cockas"`
-	WhoAsked int     `json:"who_askeds"`
-	Shock    int     `json:"shocks"`
-	Copium   int     `json:"copiums"`
+type ChatCounts struct {
+	gorm.Model
+	Two       int       `json:"two"`
+	Lol       int       `json:"lol"`
+	Cereal    int       `json:"cereal"`
+	Monkas    int       `json:"monkas"`
+	Joel      int       `json:"joel"`
+	Pog       int       `json:"pog"`
+	Huh       int       `json:"huh"`
+	No        int       `json:"no"`
+	Cocka     int       `json:"cocka"`
+	WhoAsked  int       `json:"who_asked"`
+	Shock     int       `json:"shock"`
+	Copium    int       `json:"copium"`
+	CreatedAt time.Time `json:"created_at" gorm:"index"`
 }
 
 type Clip struct {
@@ -56,112 +59,93 @@ func main() {
 		db_url = os.Getenv("DATABASE_URL")
 		client_id = os.Getenv("CLIENT_ID")
 	}
-	db, err := sql.Open("postgres", db_url)
+	db, err := gorm.Open(postgres.Open(db_url))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer db.Close()
-	go connect_to_nl_chat(db)
+	db.AutoMigrate(&ChatCounts{})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
 	})
 
-	sumQuery := `	
-		SELECT SUM(count) as count_sum,
-			SUM(lol) as lol_sum,
-			SUM(cereal) as cereal_sum,
-			SUM(monkas) as monkas_sum,
-			SUM(joel) as joel_sum,
-			SUM(pogs) as pogs_sum,
-			SUM(huhs) as huhs_sum,
-			SUM(nos) as nos_sum,
-			SUM(cockas) as cockas_sum,
-			SUM(who_askeds) as who_askeds_sum,
-			SUM(shocks) as shocks_sum,
-			SUM(copiums) as copiums_sum,
-			EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
-		FROM counts 
-		WHERE created >= (SELECT MAX(created) - $2::interval from counts)
-		GROUP BY date_trunc($1, created) 
-		ORDER BY date_trunc($1, created) asc
-	`
+	sumQuery, overQuery, err := buildQueriesFromStructReflect(ChatCounts{})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
-		rows, err := db.Query(sumQuery, grouping, span)
+
+		var result []ChatCounts
+
+		err := db.Raw(sumQuery, grouping, span).Scan(&result).Error
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		defer rows.Close()
-		data := scan_rows_to_series_data(rows)
-		marshal_json_and_write(w, data)
+
+		marshal_json_and_write(w, result)
 	})
 
 	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
-		rows, err := db.Query(fmt.Sprintf(`
-		SELECT SUM(count_sum) OVER(ORDER BY created_epoch),
-			SUM(lol_sum) OVER (ORDER BY created_epoch),
-			SUM(cereal_sum) OVER (ORDER BY created_epoch),
-			SUM(monkas_sum) OVER (ORDER BY created_epoch),
-			SUM(joel_sum) OVER (ORDER BY created_epoch),
-			SUM(pogs_sum) OVER (ORDER BY created_epoch),
-			SUM(huhs_sum) OVER (ORDER BY created_epoch),
-			SUM(nos_sum) OVER (ORDER BY created_epoch),
-			SUM(cockas_sum) OVER (ORDER BY created_epoch),
-			SUM(who_askeds_sum) OVER (ORDER BY created_epoch),
-			SUM(shocks_sum) OVER (ORDER BY created_epoch),
-			SUM(copiums_sum) OVER (ORDER BY created_epoch),
-			created_epoch
-		FROM (%s) as grouping_sum`, sumQuery), grouping, span)
+		result := []ChatCounts{}
+		err := db.Raw(overQuery, grouping, span).Scan(&result).Error
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		defer rows.Close()
-		data := scan_rows_to_series_data(rows)
-		marshal_json_and_write(w, data)
+		marshal_json_and_write(w, result)
 	})
 
 	http.HandleFunc("/api/max_clip", func(w http.ResponseWriter, r *http.Request) {
 		column_to_select := r.URL.Query().Get("column")
 		span := r.URL.Query().Get("span")
-		if column_to_select == "twos" {
-			column_to_select = "count"
-		}
-		var q string
-		switch column_to_select {
-		case "count", "lol", "cereal", "monkas", "joel", "pogs", "huhs", "nos", "cockas", "who_askeds", "shocks", "copiums":
-			q = fmt.Sprintf(`
-				SELECT %s, EXTRACT(epoch from created), clip_id
-				FROM counts 
-				WHERE clip_id IS NOT NULL`, column_to_select)
-			switch span {
-			case "day", "week", "month", "year":
-				q = fmt.Sprintf(`
-					%s AND clip_id IN (
-						SELECT clip_id
-						FROM counts
-						WHERE created >= (
-							SELECT MAX(created) - INTERVAL '1 %s'
-							FROM counts)
-						)
-						ORDER BY %s DESC
-						LIMIT 10
-						`, q, span, column_to_select)
-			default:
-				q = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from counts order by %s desc limit 10)", q, column_to_select)
+		var query string
+
+		// sanitize column_to_select
+		val := reflect.ValueOf(ChatCounts{})
+		typeOfChatCounts := val.Type()
+		for i := 0; i < val.NumField(); i++ {
+			jsonTag := typeOfChatCounts.Field(i).Tag.Get("json")
+			if jsonTag == column_to_select {
+				break
 			}
-		default:
-			http.Error(w, "Invalid column", http.StatusBadRequest)
-			return
+			if i == val.NumField()-1 {
+				http.Error(w, fmt.Sprintf("invalid column: %s", column_to_select), http.StatusBadRequest)
+				return
+			}
 		}
-		minMaxClipGetter(w, q, db)
+
+		query = fmt.Sprintf(`
+			SELECT %s, EXTRACT(epoch from created), clip_id
+			FROM counts 
+			WHERE clip_id IS NOT NULL`, column_to_select)
+
+		// sanitize span
+		switch span {
+		case "day", "week", "month", "year":
+			query = fmt.Sprintf(`
+				%s AND clip_id IN (
+					SELECT clip_id
+					FROM counts
+					WHERE created >= (
+						SELECT MAX(created) - INTERVAL '1 %s'
+						FROM counts)
+					)
+					ORDER BY %s DESC
+					LIMIT 10
+					`, query, span, column_to_select)
+		default:
+			query = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from counts order by %s desc limit 10)", query, column_to_select)
+		}
+
+		minMaxClipGetter(w, query, db)
 	})
 
 	http.HandleFunc("/api/min_clip", func(w http.ResponseWriter, r *http.Request) {
@@ -201,21 +185,20 @@ func main() {
 
 	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
 		t := r.URL.Query().Get("time")
-		var clipID string
-		var time float64
-		db.QueryRow(`
+		var clip Clip
+		db.Raw(`
 		SELECT clip_id, EXTRACT(epoch from created)
 		FROM counts 
 		WHERE EXTRACT(epoch from created) > $1::float + 10
 		AND EXTRACT(epoch from created) < $1::float + 20
-		LIMIT 1`, t).Scan(&clipID, &time)
+		LIMIT 1`, t).Scan(&clip)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 		marshal_json_and_write(w, map[string]string{
-			"clip_id": clipID,
-			"time":    fmt.Sprintf("%f", time),
+			"clip_id": clip.ClipID,
+			"time":    fmt.Sprintf("%f", clip.Time),
 		})
 	})
 
@@ -226,56 +209,60 @@ func main() {
 
 }
 
-func minMaxClipGetter(w http.ResponseWriter, query string, db *sql.DB) {
-	rows, err := db.Query(query)
+func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
+	val := reflect.ValueOf(s).Elem()
+	typeOfS := val.Type()
+
+	sumFields := make([]string, 0, val.NumField())
+	overFields := make([]string, 0, val.NumField())
+
+	for i := 0; i < val.NumField(); i++ {
+		fieldName := typeOfS.Field(i).Tag.Get("json")
+
+		// Skip the CreatedAt field, which will be handled separately
+		if fieldName != "created_at" && fieldName != "" {
+			sumField := fmt.Sprintf("SUM(%s) as %s_sum", fieldName, fieldName)
+			overField := fmt.Sprintf("SUM(%s_sum) OVER (ORDER BY created_epoch)", fieldName)
+			sumFields = append(sumFields, sumField)
+			overFields = append(overFields, overField)
+		}
+	}
+
+	// Join the fields into a single string, separated by commas
+	sumFieldStr := strings.Join(sumFields, ",\n\t\t")
+	overFieldStr := strings.Join(overFields, ",\n\t\t")
+
+	sumQuery := fmt.Sprintf(`
+		SELECT %s,
+			EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
+		FROM counts 
+		WHERE created >= (SELECT MAX(created) - $2::interval from counts)
+		GROUP BY date_trunc($1, created) 
+		ORDER BY date_trunc($1, created) asc
+	`, sumFieldStr)
+
+	overQuery := fmt.Sprintf(`
+		SELECT %s,
+			created_epoch
+		FROM (%s) as grouping_sum
+	`, overFieldStr, "%s") // Placeholder for the sumQuery
+
+	fmt.Println(sumQuery)
+	fmt.Println(overQuery)
+
+	return sumQuery, overQuery, nil
+}
+
+func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
+	var clips []Clip
+	err := db.Raw(query).Scan(&clips).Error
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
-	var clips []Clip
-	for rows.Next() {
-		var count int
-		var time float64
-		var clipID string
-		err := rows.Scan(&count, &time, &clipID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		clips = append(clips, Clip{clipID, count, time})
-	}
 	marshal_json_and_write(w, map[string][]Clip{
 		"clips": clips,
 	})
-}
-
-func scan_rows_to_series_data(rows *sql.Rows) []SeriesData {
-	data := make([]SeriesData, 0)
-	for rows.Next() {
-		var seriesData SeriesData
-		err := rows.Scan(
-			&seriesData.Twos,
-			&seriesData.Lol,
-			&seriesData.Cereal,
-			&seriesData.Monkas,
-			&seriesData.Joel,
-			&seriesData.Pogs,
-			&seriesData.Huhs,
-			&seriesData.Nos,
-			&seriesData.Cockas,
-			&seriesData.WhoAsked,
-			&seriesData.Shock,
-			&seriesData.Copium,
-			&seriesData.Time,
-		)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		data = append(data, seriesData)
-	}
-	return data
 }
 
 func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
@@ -289,7 +276,7 @@ func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
 	w.Write(jsonData)
 }
 
-func connect_to_nl_chat(db *sql.DB) {
+func connect_to_nl_chat(db *gorm.DB) {
 	conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
 	if err != nil {
 		fmt.Println("Error connecting to Twitch IRC:", err)
@@ -311,22 +298,7 @@ func connect_to_nl_chat(db *sql.DB) {
 	}
 }
 
-type ChatCounts struct {
-	Twos          int
-	LulsAndICANTS int
-	Monkas        int
-	Cereals       int
-	Joels         int
-	Pogs          int
-	Huhs          int
-	Nos           int
-	Cockas        int
-	Copiums       int
-	WhoAskeds     int
-	Shocks        int
-}
-
-func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
+func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 
 	// connect to NL chat
 	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
@@ -347,19 +319,19 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			full_message := string(msg.Data)
 			only_message_text := split_and_get_last(full_message, "#northernlion")
 			emotesAndKeywords := map[string]*int{
-				"LUL":      &counter.LulsAndICANTS,
-				"ICANT":    &counter.LulsAndICANTS,
-				"Cereal":   &counter.Cereals,
-				"NOOO":     &counter.Nos,
-				"COCKA":    &counter.Cockas,
+				"LUL":      &counter.Lol,
+				"ICANT":    &counter.Lol,
+				"Cereal":   &counter.Cereal,
+				"NOOO":     &counter.No,
+				"COCKA":    &counter.Cocka,
 				"monkaS":   &counter.Monkas,
-				"Joel":     &counter.Joels,
-				"POGCRAZY": &counter.Pogs,
-				"Pog":      &counter.Pogs,
-				"HUHH":     &counter.Huhs,
-				"Copium":   &counter.Copiums,
-				"D:":       &counter.Shocks,
-				"WhoAsked": &counter.WhoAskeds,
+				"Joel":     &counter.Joel,
+				"POGCRAZY": &counter.Pog,
+				"Pog":      &counter.Pog,
+				"HUHH":     &counter.Huh,
+				"Copium":   &counter.Copium,
+				"D:":       &counter.Shock,
+				"WhoAsked": &counter.WhoAsked,
 			}
 
 			for keyword, count := range emotesAndKeywords {
@@ -371,9 +343,9 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			// modify the twos score
 
 			if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
-				counter.Twos += parse_val(split_and_get_last(only_message_text, "+"))
+				counter.Two += parse_val(split_and_get_last(only_message_text, "+"))
 			} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
-				counter.Twos -= parse_val(split_and_get_last(only_message_text, "-"))
+				counter.Two -= parse_val(split_and_get_last(only_message_text, "-"))
 			}
 
 		case <-post_count_ticker.C:
@@ -381,23 +353,8 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *sql.DB) {
 			// post 10 second count bins to postgres
 
 			if lionIsLive {
-				var timestamp time.Time
-				err := db.QueryRow(`
-				INSERT INTO counts (count, lol, cereal, monkas, joel, pogs, huhs, nos, cockas, copiums, who_askeds, shocks)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-				RETURNING created`,
-					counter.Twos,
-					counter.LulsAndICANTS,
-					counter.Cereals,
-					counter.Monkas,
-					counter.Joels,
-					counter.Pogs,
-					counter.Huhs,
-					counter.Nos,
-					counter.Cockas,
-					counter.Copiums,
-					counter.WhoAskeds,
-					counter.Shocks).Scan(&timestamp)
+				timestamp := time.Now()
+				err := db.Create(&counter).Error
 				if err != nil {
 					fmt.Println("Error inserting into db:", err)
 				}
@@ -444,7 +401,7 @@ func parse_val(text string) int {
 	return 0
 }
 
-func create_clip(db *sql.DB, unix_timestamp time.Time, isLive chan bool) {
+func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
