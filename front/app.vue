@@ -13,26 +13,7 @@ export enum SeriesKeys {
   who_asked = "who_asked",
   copium = "copium",
 }
-</script>
-
-<script lang="ts" setup>
-import { Chart } from "highcharts-vue";
-interface SeriesData {
-  [SeriesKeys.two]: number;
-  [SeriesKeys.lol]: number;
-  [SeriesKeys.cereal]: number;
-  [SeriesKeys.monkas]: number;
-  [SeriesKeys.joel]: number;
-  [SeriesKeys.pog]: number;
-  [SeriesKeys.huh]: number;
-  [SeriesKeys.no]: number;
-  [SeriesKeys.cocka]: number;
-  [SeriesKeys.shock]: number;
-  [SeriesKeys.who_asked]: number;
-  [SeriesKeys.copium]: number;
-  time: number;
-}
-const seriesColors: Record<SeriesKeys, string> = {
+export const seriesColors: Record<SeriesKeys, string> = {
   [SeriesKeys.two]: "#7cb5ec",
   [SeriesKeys.lol]: "#434348",
   [SeriesKeys.cereal]: "#90ed7d",
@@ -46,6 +27,27 @@ const seriesColors: Record<SeriesKeys, string> = {
   [SeriesKeys.who_asked]: "#91e8e1",
   [SeriesKeys.copium]: "#696969",
 };
+</script>
+
+<script lang="ts" setup>
+import { Chart } from "highcharts-vue";
+import { z } from "zod";
+const SeriesDataSchema = z.object({
+  [SeriesKeys.two]: z.number(),
+  [SeriesKeys.lol]: z.number(),
+  [SeriesKeys.cereal]: z.number(),
+  [SeriesKeys.monkas]: z.number(),
+  [SeriesKeys.joel]: z.number(),
+  [SeriesKeys.pog]: z.number(),
+  [SeriesKeys.huh]: z.number(),
+  [SeriesKeys.no]: z.number(),
+  [SeriesKeys.cocka]: z.number(),
+  [SeriesKeys.shock]: z.number(),
+  [SeriesKeys.who_asked]: z.number(),
+  [SeriesKeys.copium]: z.number(),
+  time: z.number(),
+});
+const SeriesData = SeriesDataSchema.array();
 
 const series_calc = ref<"rolling_sum" | "instant">("instant");
 const span = ref<
@@ -72,15 +74,21 @@ const url = computed(
     `https://nljokeval-production.up.railway.app/api/${series_calc.value}?span=${span.value}&grouping=${grouping.value}&time=${currentTime.value}`
 );
 
-const { data } = await useFetch<SeriesData[]>(url);
+const { data } = await useFetch(url);
+const result = SeriesData.safeParse(data.value);
+if (!result.success) {
+  console.error(result.error);
+  throw new Error("Failed to parse data");
+}
+const unpackedSeries = result.data;
 const keys = computed(
   () =>
-    (data.value &&
-      data.value.length > 0 &&
-      Object.keys(data.value?.[0]).filter((k) => k !== "time")) ||
+    (unpackedSeries &&
+      unpackedSeries.length > 0 &&
+      Object.keys(unpackedSeries?.[0]).filter((k) => k !== "time")) ||
     ([] as string[])
 );
-const selectedKeys = ref(new Set(["twos"]));
+const selectedKeys = ref(new Set(["two"]));
 const chartOptions = computed(
   (): Highcharts.Options => ({
     dateTimeLabelFormats: {
@@ -145,9 +153,9 @@ const chartOptions = computed(
     series:
       [...selectedKeys.value].map((key) => ({
         name: key,
-        data: data.value?.map((d) => [
+        data: unpackedSeries?.map((d) => [
           d.time * 1000,
-          d[key as keyof SeriesData],
+          d[key as keyof typeof d],
         ]),
         color: seriesColors[key as keyof typeof seriesColors],
         events: {
@@ -246,12 +254,11 @@ setInterval(() => {
         </button>
       </div>
     </div>
-    <div class="flex-row flex justify-between">
-      <Chart :options="chartOptions" ref="lineChart" />
-      <ClipViewer :time="clickedUnixSeconds" />
-    </div>
+    <Chart :options="chartOptions" ref="lineChart" />
     <div class="flex-col flex justify-center gap-16">
       <div class="flex-row flex flex-wrap justify-center gap-20">
+        <ClipViewer :time="clickedUnixSeconds" />
+
         <CustomClip />
         <HatedClip />
       </div>

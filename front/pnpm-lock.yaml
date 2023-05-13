@@ -16,6 +16,9 @@ dependencies:
   vue-chartjs:
     specifier: ^5.2.0
     version: 5.2.0(chart.js@4.2.1)(vue@3.2.47)
+  zod:
+    specifier: ^3.21.4
+    version: 3.21.4
 
 devDependencies:
   '@nuxtjs/tailwindcss':
@@ -5991,3 +5994,7 @@ packages:
       compress-commons: 4.1.1
       readable-stream: 3.6.2
     dev: true
+
+  /zod@3.21.4:
+    resolution: {integrity: sha512-m46AKbrzKVzOzs/DZgVnG5H55N1sv1M8qZU3A8RIKbs3mrACDNeIOeilDymVb2HdmP8uwshOCF4uJ8uM9rCqJw==}
+    dev: false

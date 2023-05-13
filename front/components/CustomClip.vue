@@ -11,6 +11,7 @@ export type ClipResponse = {
 
 <script lang="ts" setup>
 import { SeriesKeys } from "../app.vue";
+import { seriesColors } from "../app.vue";
 
 const column = ref<keyof typeof SeriesKeys>("two");
 const span = ref<"day" | "week" | "month" | "year" | "">("");
