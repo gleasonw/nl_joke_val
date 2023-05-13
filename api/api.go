@@ -19,7 +19,6 @@ import (
 )
 
 type ChatCounts struct {
-	gorm.Model
 	Two          int       `json:"two"`
 	Lol          int       `json:"lol"`
 	Cereal       int       `json:"cereal"`
