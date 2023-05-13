@@ -33,7 +33,7 @@ type ChatCounts struct {
 	Copium       int       `json:"copium"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
-	CreatedEpoch float64   `json:"time" gorm:"-"`
+	CreatedEpoch float64   `json:"time"`
 }
 
 type Clip struct {
