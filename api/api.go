@@ -337,7 +337,6 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 
 			for keyword, count := range emotesAndKeywords {
 				if strings.Contains(only_message_text, keyword) {
-					fmt.Println("counting", keyword, "in", only_message_text)
 					(*count)++
 				}
 			}
