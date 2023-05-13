@@ -41,6 +41,11 @@ type Clip struct {
 	Time   float64 `json:"time"`
 }
 
+type Message struct {
+	Type int
+	Data []byte
+}
+
 var auth_token string = os.Getenv("AUTH_TOKEN")
 var nickname string = os.Getenv("NICK")
 var db_url string = os.Getenv("DATABASE_URL")
@@ -470,7 +475,4 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	isLive <- true
 }
 
-type Message struct {
-	Type int
-	Data []byte
-}
+
