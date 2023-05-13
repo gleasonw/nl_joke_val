@@ -75,17 +75,19 @@ const url = computed(
 );
 
 const { data } = await useFetch(url);
-const result = SeriesData.safeParse(data.value);
-if (!result.success) {
-  console.error(result.error);
-  throw new Error("Failed to parse data");
-}
-const unpackedSeries = result.data;
+const unpackedSeries = computed(() => {
+  const result = SeriesData.safeParse(data.value);
+  if (!result.success) {
+    console.error(result.error);
+    throw new Error("Failed to parse data");
+  }
+  return result.data;
+});
 const keys = computed(
   () =>
-    (unpackedSeries &&
-      unpackedSeries.length > 0 &&
-      Object.keys(unpackedSeries?.[0]).filter((k) => k !== "time")) ||
+    (unpackedSeries.value &&
+      unpackedSeries.value.length > 0 &&
+      Object.keys(unpackedSeries.value?.[0]).filter((k) => k !== "time")) ||
     ([] as string[])
 );
 const selectedKeys = ref(new Set(["two"]));
@@ -153,7 +155,7 @@ const chartOptions = computed(
     series:
       [...selectedKeys.value].map((key) => ({
         name: key,
-        data: unpackedSeries?.map((d) => [
+        data: unpackedSeries.value?.map((d) => [
           d.time * 1000,
           d[key as keyof typeof d],
         ]),
