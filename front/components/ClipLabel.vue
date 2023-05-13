@@ -3,9 +3,7 @@ import { Clip } from "./CustomClip.vue";
 
 const props = defineProps<{ clipBatch: Clip[] }>();
 const selectedIndex = ref(0);
-console.log(props.clipBatch);
 const currentClip = computed(() => props.clipBatch?.[selectedIndex.value]);
-console.log(currentClip.value);
 </script>
 
 <template>

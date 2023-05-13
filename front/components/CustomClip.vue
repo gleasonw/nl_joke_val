@@ -46,6 +46,7 @@ const { data } = await useFetch<ClipResponse>(
     <ClipLabel
       v-if="data && data.clips.length > 0"
       :clipBatch="data.clips.sort((a, b) => b.count - a.count)"
+      :key="`${column}-${span}`"
     />
   </div>
 </template>
