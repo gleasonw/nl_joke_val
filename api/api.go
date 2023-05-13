@@ -143,9 +143,9 @@ func main() {
 						SELECT MAX(created_at) - INTERVAL '1 %s'
 						FROM chat_counts)
 					)
-					ORDER BY %s DESC
-					LIMIT 10
-					`, query, span, column_to_select)
+				ORDER BY %s DESC
+				LIMIT 10
+				`, query, span, column_to_select)
 		default:
 			query = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from chat_counts order by %s desc limit 10)", query, column_to_select)
 		}
