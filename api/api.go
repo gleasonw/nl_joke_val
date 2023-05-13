@@ -33,6 +33,7 @@ type ChatCounts struct {
 	Shock     int       `json:"shock"`
 	Copium    int       `json:"copium"`
 	CreatedAt time.Time `json:"created_at" gorm:"index"`
+	ClipId    string    `json:"clip_id"`
 }
 
 type Clip struct {
@@ -54,7 +55,6 @@ var client_id string = os.Getenv("CLIENT_ID")
 func main() {
 	if auth_token == "" {
 		//load .env file
-		fmt.Println("local")
 		err := godotenv.Load()
 		if err != nil {
 			fmt.Println("Error loading .env file")
@@ -215,7 +215,7 @@ func main() {
 }
 
 func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
-	val := reflect.ValueOf(s).Elem()
+	val := reflect.ValueOf(s)
 	typeOfS := val.Type()
 
 	sumFields := make([]string, 0, val.NumField())
@@ -225,7 +225,7 @@ func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
 		fieldName := typeOfS.Field(i).Tag.Get("json")
 
 		// Skip the CreatedAt field, which will be handled separately
-		if fieldName != "created_at" && fieldName != "" {
+		if fieldName != "created_at" && fieldName != "" && fieldName != "clip_id" {
 			sumField := fmt.Sprintf("SUM(%s) as %s_sum", fieldName, fieldName)
 			overField := fmt.Sprintf("SUM(%s_sum) OVER (ORDER BY created_epoch)", fieldName)
 			sumFields = append(sumFields, sumField)
@@ -251,9 +251,6 @@ func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
 			created_epoch
 		FROM (%s) as grouping_sum
 	`, overFieldStr, "%s") // Placeholder for the sumQuery
-
-	fmt.Println(sumQuery)
-	fmt.Println(overQuery)
 
 	return sumQuery, overQuery, nil
 }
@@ -474,5 +471,3 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	db.Exec("UPDATE counts SET clip_id = $1 WHERE created = $2", clip_id, unix_timestamp)
 	isLive <- true
 }
-
-
