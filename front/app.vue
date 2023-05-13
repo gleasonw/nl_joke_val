@@ -83,6 +83,7 @@ const unpackedSeries = computed(() => {
   }
   return result.data;
 });
+console.log(unpackedSeries.value);
 const keys = computed(
   () =>
     (unpackedSeries.value &&
@@ -256,13 +257,15 @@ setInterval(() => {
         </button>
       </div>
     </div>
-    <Chart :options="chartOptions" ref="lineChart" />
-    <div class="flex-col flex justify-center gap-16">
-      <div class="flex flex-row gap-20 flex-wrap justify-center">
-        <ClipViewer :time="clickedUnixSeconds" />
-        <CustomClip />
-        <HatedClip />
-      </div>
+    <div class="flex flex-row flex-wrap justify-center gap-10 items-center">
+      <Chart
+        :options="chartOptions"
+        ref="lineChart"
+        class="w-full md:w-3/5 lg:w-3/5 xl:w-3/5"
+      />
+      <ClipViewer :time="clickedUnixSeconds" />
+      <CustomClip />
+      <HatedClip />
     </div>
   </div>
 </template>
