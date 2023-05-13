@@ -20,20 +20,21 @@ import (
 
 type ChatCounts struct {
 	gorm.Model
-	Two       int       `json:"two"`
-	Lol       int       `json:"lol"`
-	Cereal    int       `json:"cereal"`
-	Monkas    int       `json:"monkas"`
-	Joel      int       `json:"joel"`
-	Pog       int       `json:"pog"`
-	Huh       int       `json:"huh"`
-	No        int       `json:"no"`
-	Cocka     int       `json:"cocka"`
-	WhoAsked  int       `json:"who_asked"`
-	Shock     int       `json:"shock"`
-	Copium    int       `json:"copium"`
-	CreatedAt time.Time `json:"created_at" gorm:"index"`
-	ClipId    string    `json:"clip_id"`
+	Two          int       `json:"two"`
+	Lol          int       `json:"lol"`
+	Cereal       int       `json:"cereal"`
+	Monkas       int       `json:"monkas"`
+	Joel         int       `json:"joel"`
+	Pog          int       `json:"pog"`
+	Huh          int       `json:"huh"`
+	No           int       `json:"no"`
+	Cocka        int       `json:"cocka"`
+	WhoAsked     int       `json:"who_asked"`
+	Shock        int       `json:"shock"`
+	Copium       int       `json:"copium"`
+	CreatedAt    time.Time `gorm:"index"`
+	ClipId       string    `json:"clip_id"`
+	CreatedEpoch float64   `json:"time"`
 }
 
 type Clip struct {
@@ -128,8 +129,8 @@ func main() {
 		}
 
 		query = fmt.Sprintf(`
-			SELECT %s, EXTRACT(epoch from created), clip_id
-			FROM counts 
+			SELECT %s AS count, EXTRACT(epoch from created_at) as time, clip_id
+			FROM chat_counts 
 			WHERE clip_id IS NOT NULL`, column_to_select)
 
 		// sanitize span
@@ -138,16 +139,16 @@ func main() {
 			query = fmt.Sprintf(`
 				%s AND clip_id IN (
 					SELECT clip_id
-					FROM counts
-					WHERE created >= (
-						SELECT MAX(created) - INTERVAL '1 %s'
-						FROM counts)
+					FROM chat_counts
+					WHERE created_at >= (
+						SELECT MAX(created_at) - INTERVAL '1 %s'
+						FROM chat_counts)
 					)
 					ORDER BY %s DESC
 					LIMIT 10
 					`, query, span, column_to_select)
 		default:
-			query = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from counts order by %s desc limit 10)", query, column_to_select)
+			query = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from chat_counts order by %s desc limit 10)", query, column_to_select)
 		}
 
 		minMaxClipGetter(w, query, db)
@@ -155,47 +156,41 @@ func main() {
 
 	http.HandleFunc("/api/min_clip", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
-		var q string
+		var query string
+		var timeSpan string
+
 		switch span {
 		case "day", "week", "month", "year":
-			q = fmt.Sprintf(`
-			SELECT count, EXTRACT(epoch from created), clip_id 
-			FROM counts 
-			WHERE clip_id IS NOT NULL
-			AND clip_id IN (
-				SELECT clip_id
-				FROM counts
-				WHERE created >= (
-					SELECT MAX(created) - INTERVAL '1 %s'
-					FROM counts)
-					)
-				ORDER BY count ASC
-				LIMIT 10
+			timeSpan = fmt.Sprintf(
+				`WHERE created_at >= (
+					SELECT MAX(created_at) - INTERVAL '1 %s'
+					FROM chat_counts)
+				)
 			`, span)
-		default:
-			q = `
-			SELECT count, EXTRACT(epoch from created), clip_id
-			FROM counts
-			WHERE clip_id IS NOT NULL
-			AND clip_id IN (
-				SELECT clip_id
-				FROM counts
-				ORDER BY count ASC
-				LIMIT 10
-			)`
 		}
 
-		minMaxClipGetter(w, q, db)
+		query = fmt.Sprintf(`
+		SELECT two as count, EXTRACT(epoch from created_at) as time, clip_id 
+		FROM chat_counts 
+		WHERE clip_id IS NOT NULL
+		AND clip_id IN (
+			SELECT clip_id
+			FROM chat_counts
+			%s
+			ORDER BY two ASC
+			LIMIT 10`, timeSpan)
+
+		minMaxClipGetter(w, query, db)
 	})
 
 	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
 		t := r.URL.Query().Get("time")
 		var clip Clip
 		db.Raw(`
-		SELECT clip_id, EXTRACT(epoch from created)
-		FROM counts 
-		WHERE EXTRACT(epoch from created) > $1::float + 10
-		AND EXTRACT(epoch from created) < $1::float + 20
+		SELECT clip_id, EXTRACT(epoch from created_at) as time
+		FROM chat_counts 
+		WHERE EXTRACT(epoch from created_at) > $1::float + 10
+		AND EXTRACT(epoch from created_at) < $1::float + 20
 		LIMIT 1`, t).Scan(&clip)
 		if err != nil {
 			fmt.Println(err)
@@ -224,33 +219,31 @@ func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
 	for i := 0; i < val.NumField(); i++ {
 		fieldName := typeOfS.Field(i).Tag.Get("json")
 
-		// Skip the CreatedAt field, which will be handled separately
-		if fieldName != "created_at" && fieldName != "" && fieldName != "clip_id" {
-			sumField := fmt.Sprintf("SUM(%s) as %s_sum", fieldName, fieldName)
-			overField := fmt.Sprintf("SUM(%s_sum) OVER (ORDER BY created_epoch)", fieldName)
+		if fieldName != "created_at" && fieldName != "" && fieldName != "clip_id" && fieldName != "time" {
+			sumField := fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
+			overField := fmt.Sprintf("SUM(%s) OVER (ORDER BY created_epoch) as %s", fieldName, fieldName)
 			sumFields = append(sumFields, sumField)
 			overFields = append(overFields, overField)
 		}
 	}
 
-	// Join the fields into a single string, separated by commas
 	sumFieldStr := strings.Join(sumFields, ",\n\t\t")
 	overFieldStr := strings.Join(overFields, ",\n\t\t")
 
 	sumQuery := fmt.Sprintf(`
 		SELECT %s,
-			EXTRACT(epoch from date_trunc($1, created)) AS created_epoch
-		FROM counts 
-		WHERE created >= (SELECT MAX(created) - $2::interval from counts)
-		GROUP BY date_trunc($1, created) 
-		ORDER BY date_trunc($1, created) asc
+			EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+		FROM chat_counts 
+		WHERE created_at >= (SELECT MAX(created_at) - $2::interval from chat_counts)
+		GROUP BY date_trunc($1, created_at) 
+		ORDER BY date_trunc($1, created_at) asc
 	`, sumFieldStr)
 
 	overQuery := fmt.Sprintf(`
 		SELECT %s,
 			created_epoch
 		FROM (%s) as grouping_sum
-	`, overFieldStr, "%s") // Placeholder for the sumQuery
+	`, overFieldStr, sumQuery)
 
 	return sumQuery, overQuery, nil
 }
@@ -270,11 +263,14 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// remove UpdatedAt, DeletedAt, CreatedAt, ID from interface
+
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
 	w.Write(jsonData)
 }
 
@@ -368,7 +364,8 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 
 		case clipWasMade := <-createClipStatus:
 			// if we were unable to make a clip, NL must not be live
-			lionIsLive = clipWasMade
+			fmt.Println("clip was made:", clipWasMade)
+			lionIsLive = true
 		}
 	}
 }
@@ -468,6 +465,6 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	if !ok {
 		return
 	}
-	db.Exec("UPDATE counts SET clip_id = $1 WHERE created = $2", clip_id, unix_timestamp)
+	db.Exec("UPDATE chat_counts SET clip_id = $1 WHERE created_at = $2", clip_id, unix_timestamp)
 	isLive <- true
 }

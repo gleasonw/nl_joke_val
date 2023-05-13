@@ -18,18 +18,18 @@ export const seriesColors = {
 <script lang="ts" setup>
 import { Chart } from "highcharts-vue";
 interface SeriesData {
-  twos: number;
+  two: number;
   lol: number;
   cereal: number;
   monkas: number;
   joel: number;
-  pogs: number;
-  huhs: number;
-  nos: number;
-  cockas: number;
-  shocks: number;
-  copiums: number;
-  who_askeds: number;
+  pog: number;
+  huh: number;
+  no: number;
+  cocka: number;
+  shock: number;
+  copium: number;
+  who_asked: number;
   time: number;
 }
 
@@ -110,7 +110,6 @@ const chartOptions = computed(
       events: {
         click: function (e: any) {
           let xVal = e?.xAxis?.[0]?.value;
-          console.log(xVal);
           if (xVal) {
             clickedUnixSeconds.value = xVal / 1000;
           }
@@ -236,10 +235,12 @@ setInterval(() => {
         </button>
       </div>
     </div>
-    <Chart :options="chartOptions" ref="lineChart" />
+    <div class="flex-row flex justify-between">
+      <Chart :options="chartOptions" ref="lineChart" />
+      <ClipViewer :time="clickedUnixSeconds" />
+    </div>
     <div class="flex-col flex justify-center gap-16">
       <div class="flex-row flex flex-wrap justify-center gap-20">
-        <ClipViewer :time="clickedUnixSeconds" />
         <CustomClip />
         <HatedClip />
       </div>
