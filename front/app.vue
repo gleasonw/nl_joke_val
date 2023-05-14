@@ -201,11 +201,12 @@ setInterval(() => {
     <div class="text-center">
       <h1 class="text-center text-3xl m-10">NL Joke Val</h1>
       <h2 class="italic text-md">
-        Begins counting chat when NL is live. Data since 4/19/2023.
+        Counts +2s, -2s, and emotes in 10-second blocks when NL is live. Data
+        since 4/19/2023.
       </h2>
     </div>
     <div
-      class="flex flex-col border md:m-10 lg:m-10 xl:m-10 shadow-md rounded-lg p-2"
+      class="flex flex-col border md:m-10 lg:m-10 xl:m-10 pb-10 shadow-md rounded-lg p-2"
     >
       <div class="m-5 flex-col gap-8 flex items-center justify-center">
         <div class="flex-row flex gap-4 items-center flex-wrap">
@@ -274,11 +275,7 @@ setInterval(() => {
       <div
         class="flex flex-row p-3 flex-wrap gap-10 justify-center items-center"
       >
-        <Chart
-          :options="chartOptions"
-          ref="lineChart"
-          class="w-full xl:w-3/5"
-        />
+        <Chart :options="chartOptions" ref="lineChart" class="w-full" />
         <ClipViewer :time="clickedUnixSeconds" />
       </div>
     </div>
