@@ -351,14 +351,13 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 		case <-post_count_ticker.C:
 
 			// post 10 second count bins to postgres if NL is live
-
-			timestamp := time.Now()
-
+			var timestamp time.Time
 			if lionIsLive {
 				err := db.Create(&counter).Error
 				if err != nil {
 					fmt.Println("Error inserting into db:", err)
 				}
+				timestamp = counter.CreatedAt
 			}
 
 			go create_clip(db, timestamp, createClipStatus)
