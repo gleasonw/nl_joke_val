@@ -130,7 +130,7 @@ func main() {
 		query = fmt.Sprintf(`
 			SELECT %s AS count, EXTRACT(epoch from created_at) as time, clip_id
 			FROM chat_counts 
-			WHERE clip_id IS NOT NULL`, column_to_select)
+			WHERE clip_id != ''`, column_to_select)
 
 		// sanitize span
 		switch span {
@@ -147,7 +147,13 @@ func main() {
 				LIMIT 10
 				`, query, span, column_to_select)
 		default:
-			query = fmt.Sprintf("%s AND clip_id IN (SELECT clip_id from chat_counts order by %s desc limit 10)", query, column_to_select)
+			query = fmt.Sprintf(`
+			%s AND clip_id IN (
+				SELECT clip_id
+				FROM chat_counts
+				ORDER BY %s DESC
+				LIMIT 10)
+			LIMIT 10 `, query, column_to_select)
 		}
 
 		minMaxClipGetter(w, query, db)
