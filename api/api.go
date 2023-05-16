@@ -153,7 +153,7 @@ func main() {
 				FROM chat_counts
 				ORDER BY %s DESC
 				LIMIT 10)
-			LIMIT 10 `, query, column_to_select)
+			`, query, column_to_select)
 		}
 
 		minMaxClipGetter(w, query, db)
