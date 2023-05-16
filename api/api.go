@@ -112,6 +112,7 @@ func main() {
 		column_to_select := r.URL.Query().Get("column")
 		span := r.URL.Query().Get("span")
 		var query string
+		var timeSpan string
 
 		// sanitize column_to_select
 		val := reflect.ValueOf(ChatCounts{})
@@ -126,35 +127,29 @@ func main() {
 				return
 			}
 		}
+		
+		// sanitize span
+		switch span {
+		case "day", "week", "month", "year":
+			timeSpan = fmt.Sprintf(`
+				WHERE created_at >= (
+					SELECT MAX(created_at) - INTERVAL '1 %s'
+					FROM chat_counts
+				)`, span)
+		}
 
 		query = fmt.Sprintf(`
 			SELECT %s AS count, EXTRACT(epoch from created_at) as time, clip_id
 			FROM chat_counts 
-			WHERE clip_id != ''`, column_to_select)
-
-		// sanitize span
-		switch span {
-		case "day", "week", "month", "year":
-			query = fmt.Sprintf(`
-				%s AND clip_id IN (
-					SELECT clip_id
-					FROM chat_counts
-					WHERE created_at >= (
-						SELECT MAX(created_at) - INTERVAL '1 %s'
-						FROM chat_counts)
-					)
-				ORDER BY %s DESC
-				LIMIT 10
-				`, query, span, column_to_select)
-		default:
-			query = fmt.Sprintf(`
-			%s AND clip_id IN (
+			WHERE clip_id != ''
+			AND clip_id IN (
 				SELECT clip_id
 				FROM chat_counts
+				%s
 				ORDER BY %s DESC
-				LIMIT 10)
-			`, query, column_to_select)
-		}
+				LIMIT 10
+			)
+		`, column_to_select, timeSpan, column_to_select)
 
 		minMaxClipGetter(w, query, db)
 	})
