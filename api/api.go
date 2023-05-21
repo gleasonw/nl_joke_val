@@ -112,7 +112,7 @@ func main() {
 		column_to_select := r.URL.Query().Get("column")
 		span := r.URL.Query().Get("span")
 		var query string
-		var timeSpan string
+		timeSpan := "FROM chat_counts"
 
 		// sanitize column_to_select
 		val := reflect.ValueOf(ChatCounts{})
@@ -132,6 +132,7 @@ func main() {
 		switch span {
 		case "day", "week", "month", "year":
 			timeSpan = fmt.Sprintf(`
+				FROM chat_counts
 				WHERE created_at >= (
 					SELECT MAX(created_at) - INTERVAL '1 %s'
 					FROM chat_counts
@@ -144,7 +145,6 @@ func main() {
 			WHERE clip_id != ''
 			AND clip_id IN (
 				SELECT clip_id
-				FROM chat_counts
 				%s
 				ORDER BY %s DESC
 				LIMIT 10
