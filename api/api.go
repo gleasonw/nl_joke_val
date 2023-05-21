@@ -150,6 +150,8 @@ func main() {
 				LIMIT 10
 			)
 		`, column_to_select, timeSpan, column_to_select)
+		
+		fmt.Println(query)
 
 		minMaxClipGetter(w, query, db)
 	})
