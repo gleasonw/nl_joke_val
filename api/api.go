@@ -331,6 +331,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 				"Joel":     &counter.Joel,
 				"POGCRAZY": &counter.Pog,
 				"Pog":      &counter.Pog,
+				"LETSGO": &counter.Pog,
 				"HUHH":     &counter.Huh,
 				"Copium":   &counter.Copium,
 				"D:":       &counter.Shock,
