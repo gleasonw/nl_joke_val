@@ -324,6 +324,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 			emotesAndKeywords := map[string]*int{
 				"LUL":      &counter.Lol,
 				"ICANT":    &counter.Lol,
+				"KEKW":    &counter.Lol,
 				"Cereal":   &counter.Cereal,
 				"NOOO":     &counter.No,
 				"COCKA":    &counter.Cocka,
