@@ -206,7 +206,7 @@ setInterval(() => {
       </h2>
     </div>
     <div
-      class="flex flex-col border md:m-10 lg:m-10 xl:m-10 pb-10 shadow-md rounded-lg p-2"
+      class="flex flex-col pb-10 p-2"
     >
       <div class="m-5 flex-col gap-8 flex items-center justify-center">
         <div class="flex-row flex gap-4 items-center flex-wrap">
