@@ -265,8 +265,7 @@ setInterval(() => {
             v-for="key in keys"
             @click="() => handleSeriesButton(key)"
             class="rounded-lg p-3 hover:cursor-pointer"
-            :class="{ faded: !selectedKeys.has(key), 'series-button': true }"
-            :style="{ backgroundColor: seriesColors[key as keyof typeof seriesColors] }"
+            :style="{ border: `2px solid ${seriesColors[key]}`, backgroundColor: selectedKeys.has(key) ? seriesColors[key] : '' }"
           >
             {{ key }}
           </button>
@@ -285,9 +284,3 @@ setInterval(() => {
     </div>
   </div>
 </template>
-
-<style>
-.faded {
-  opacity: 0.5;
-}
-</style>
