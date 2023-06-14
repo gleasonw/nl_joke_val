@@ -369,6 +369,7 @@ func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 			counter = ChatCounts{}
 
 		case clipWasMade := <-createClipStatus:
+			fmt.Println(lionIsLive)
 			lionIsLive = clipWasMade
 		}
 	}
