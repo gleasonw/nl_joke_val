@@ -2,10 +2,13 @@
 const props = defineProps({
   clipId: String,
 });
+
 const parent = ref("");
+
 onMounted(() => {
   parent.value = window.location.hostname;
 });
+
 const vidSource = computed(
   () =>
     `https://clips.twitch.tv/embed?clip=${props.clipId}&parent=${parent.value}`

@@ -281,6 +281,7 @@ func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
 
 func connect_to_nl_chat(db *gorm.DB) {
 	conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
+	fmt.Println(conn)
 	if err != nil {
 		fmt.Println("Error connecting to Twitch IRC:", err)
 		return
@@ -304,6 +305,8 @@ func connect_to_nl_chat(db *gorm.DB) {
 func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
 
 	// connect to NL chat
+	fmt.Println(auth_token)
+	fmt.Println(nickname)
 	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
 	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
 	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
