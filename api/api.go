@@ -52,6 +52,10 @@ var nickname string = os.Getenv("NICK")
 var db_url string = os.Getenv("DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
 
+//TODO: refresh token every month. URL on Railway vars
+
+
+
 func main() {
 	if auth_token == "" {
 		//load .env file
@@ -280,15 +284,108 @@ func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
 }
 
 func connect_to_nl_chat(db *gorm.DB) {
+
 	conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
-	fmt.Println(conn)
 	if err != nil {
 		fmt.Println("Error connecting to Twitch IRC:", err)
 		return
 	}
+
 	chat_closed := make(chan error)
-	go read_chat(conn, chat_closed, db)
+
+	go func() {
+		// connect to NL chat
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
+		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
+
+		incomingMessages := make(chan Message)
+		createClipStatus := make(chan bool)
+		lionIsLive := false
+
+		go func() {
+			// Read messages from chat
+			for {
+				messageType, messageData, err := conn.ReadMessage()
+				text := string(messageData)
+				if strings.Contains(text, "PING") {
+					conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
+					continue
+				}
+				if err != nil {
+					fmt.Println(text)
+					fmt.Println("Error reading message:", err)
+					chat_closed <- err
+					return
+				}
+				incomingMessages <- Message{Type: messageType, Data: messageData}
+			}
+		}()
+
+		post_count_ticker := time.NewTicker(10 * time.Second)
+		counter := ChatCounts{}
+
+		for {
+			select {
+			case msg := <-incomingMessages:
+				full_message := string(msg.Data)
+				only_message_text := split_and_get_last(full_message, "#northernlion")
+				emotesAndKeywords := map[string]*int{
+					"LUL":      &counter.Lol,
+					"ICANT":    &counter.Lol,
+					"KEKW":    &counter.Lol,
+					"Cereal":   &counter.Cereal,
+					"NOOO":     &counter.No,
+					"COCKA":    &counter.Cocka,
+					"monkaS":   &counter.Monkas,
+					"Joel":     &counter.Joel,
+					"POGCRAZY": &counter.Pog,
+					"Pog":      &counter.Pog,
+					"LETSGO": &counter.Pog,
+					"HUHH":     &counter.Huh,
+					"Copium":   &counter.Copium,
+					"D:":       &counter.Shock,
+					"WhoAsked": &counter.WhoAsked,
+				}
+
+				for keyword, count := range emotesAndKeywords {
+					if strings.Contains(only_message_text, keyword) {
+						(*count)++
+					}
+				}
+
+				// modify the twos score
+
+				if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
+					counter.Two += parse_val(split_and_get_last(only_message_text, "+"))
+				} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
+					counter.Two -= parse_val(split_and_get_last(only_message_text, "-"))
+				}
+
+			case <-post_count_ticker.C:
+
+				// post 10 second count bins to postgres if NL is live
+				var timestamp time.Time
+
+				if lionIsLive {
+					err := db.Create(&counter).Error
+					if err != nil {
+						fmt.Println("Error inserting into db:", err)
+					}
+					timestamp = counter.CreatedAt
+				}
+
+				go create_clip(db, timestamp, createClipStatus)
+				counter = ChatCounts{}
+
+			case clipWasMade := <-createClipStatus:
+				lionIsLive = clipWasMade
+			}
+		}
+	}()
+
 	defer conn.Close()
+
 	for {
 		select {
 		case err := <-chat_closed:
@@ -299,99 +396,6 @@ func connect_to_nl_chat(db *gorm.DB) {
 		default:
 			time.Sleep(100 * time.Millisecond)
 		}
-	}
-}
-
-func read_chat(conn *websocket.Conn, chat_closed chan error, db *gorm.DB) {
-
-	// connect to NL chat
-	fmt.Println(auth_token)
-	fmt.Println(nickname)
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
-	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
-
-	incomingMessages := make(chan Message)
-	createClipStatus := make(chan bool)
-	lionIsLive := false
-
-	go readMessages(conn, chat_closed, incomingMessages)
-	post_count_ticker := time.NewTicker(10 * time.Second)
-	counter := ChatCounts{}
-
-	for {
-		select {
-		case msg := <-incomingMessages:
-			full_message := string(msg.Data)
-			only_message_text := split_and_get_last(full_message, "#northernlion")
-			emotesAndKeywords := map[string]*int{
-				"LUL":      &counter.Lol,
-				"ICANT":    &counter.Lol,
-				"KEKW":    &counter.Lol,
-				"Cereal":   &counter.Cereal,
-				"NOOO":     &counter.No,
-				"COCKA":    &counter.Cocka,
-				"monkaS":   &counter.Monkas,
-				"Joel":     &counter.Joel,
-				"POGCRAZY": &counter.Pog,
-				"Pog":      &counter.Pog,
-				"LETSGO": &counter.Pog,
-				"HUHH":     &counter.Huh,
-				"Copium":   &counter.Copium,
-				"D:":       &counter.Shock,
-				"WhoAsked": &counter.WhoAsked,
-			}
-
-			for keyword, count := range emotesAndKeywords {
-				if strings.Contains(only_message_text, keyword) {
-					(*count)++
-				}
-			}
-
-			// modify the twos score
-
-			if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
-				counter.Two += parse_val(split_and_get_last(only_message_text, "+"))
-			} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
-				counter.Two -= parse_val(split_and_get_last(only_message_text, "-"))
-			}
-
-		case <-post_count_ticker.C:
-
-			// post 10 second count bins to postgres if NL is live
-			var timestamp time.Time
-			if lionIsLive {
-				err := db.Create(&counter).Error
-				if err != nil {
-					fmt.Println("Error inserting into db:", err)
-				}
-				timestamp = counter.CreatedAt
-			}
-
-			go create_clip(db, timestamp, createClipStatus)
-			counter = ChatCounts{}
-
-		case clipWasMade := <-createClipStatus:
-			fmt.Println(lionIsLive)
-			lionIsLive = clipWasMade
-		}
-	}
-}
-
-func readMessages(conn *websocket.Conn, chat_closed chan error, incomingMessages chan Message) {
-	for {
-		messageType, messageData, err := conn.ReadMessage()
-		text := string(messageData)
-		if strings.Contains(text, "PING") {
-			conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
-			continue
-		}
-		if err != nil {
-			fmt.Println("Error reading message:", err)
-			chat_closed <- err
-			return
-		}
-		incomingMessages <- Message{Type: messageType, Data: messageData}
 	}
 }
 
@@ -467,10 +471,12 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	}
 	data, ok := responseObject["data"].([]interface{})
 	if !ok {
+		fmt.Println("error creating clip")
 		return
 	}
 	clip_id, ok := data[0].(map[string]interface{})["id"].(string)
 	if !ok {
+		fmt.Println("error creating clip")
 		return
 	}
 	db.Exec("UPDATE chat_counts SET clip_id = $1 WHERE created_at = $2", clip_id, unix_timestamp)
