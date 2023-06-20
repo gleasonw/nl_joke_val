@@ -184,71 +184,69 @@ export default function Dashboard(props: any) {
   };
 
   return (
-    <Grid numItems={1} numItemsLg={2} className="gap-5">
-      <Col numColSpan={1}>
-        <Title>NL Chat Dashboard</Title>
-        <TabGroup
-          defaultIndex={1}
-          onIndexChange={(i) => {
-            setTimeSpan(timeSpans[i]);
-          }}
-        >
-          <TabList>
-            <Tab>1M</Tab>
-            <Tab>1H</Tab>
-            <Tab>9H</Tab>
-            <Tab>1D</Tab>
-            <Tab>1W</Tab>
-            <Tab>1M</Tab>
-            <Tab>6M</Tab>
-          </TabList>
-        </TabGroup>
-        <Flex>
-          <Select
-            value={chartType}
-            onValueChange={(value) => setChartType(value as "line" | "bar")}
-          >
-            <SelectItem value="line">Line</SelectItem>
-            <SelectItem value="bar">Bar</SelectItem>
-          </Select>
-          <Select
-            value={functionType}
-            onValueChange={(value) =>
-              setFunctionType(value as "rolling_sum" | "instant")
-            }
-          >
-            <SelectItem value="rolling_sum">Rolling sum</SelectItem>
-            <SelectItem value="instant">Instant</SelectItem>
-          </Select>
-          <MultiSelect
-            value={series}
-            onValueChange={(value) => setSeries(value as SeriesKeys[])}
-          >
-            {Object.keys(SeriesKeys).map((series) => (
-              <MultiSelectItem value={series} key={series}>
-                {series}
-              </MultiSelectItem>
-            ))}
-          </MultiSelect>
-        </Flex>
-        {chartData.isSuccess && (
-          <HighchartsReact
-            highcharts={Highcharts}
-            options={highChartsOptions}
-          />
-        )}
-      </Col>
-      <Card>
-        <Title>Click on the graph to pull the nearest clip</Title>
-        <TwitchClipAtTime time={clickedUnixSeconds} />
-      </Card>
-      <Card>
-        <TopTwitchClips />
-      </Card>
-      <Card>
-        <MostMinusTwosClips />
-      </Card>
-    </Grid>
+    <Card>
+     <Grid numItems={1} numItemsLg={2} className="gap-5">
+          <Col numColSpan={1}>
+            <Title>NL Chat Dashboard</Title>
+            <TabGroup
+              defaultIndex={1}
+              onIndexChange={(i) => {
+                setTimeSpan(timeSpans[i]);
+              }}
+            >
+              <TabList>
+                <Tab>1M</Tab>
+                <Tab>1H</Tab>
+                <Tab>9H</Tab>
+                <Tab>1D</Tab>
+                <Tab>1W</Tab>
+                <Tab>1M</Tab>
+                <Tab>6M</Tab>
+              </TabList>
+            </TabGroup>
+            <Flex>
+              <Select
+                value={chartType}
+                onValueChange={(value) => setChartType(value as "line" | "bar")}
+              >
+                <SelectItem value="line">Line</SelectItem>
+                <SelectItem value="bar">Bar</SelectItem>
+              </Select>
+              <Select
+                value={functionType}
+                onValueChange={(value) =>
+                  setFunctionType(value as "rolling_sum" | "instant")
+                }
+              >
+                <SelectItem value="rolling_sum">Rolling sum</SelectItem>
+                <SelectItem value="instant">Instant</SelectItem>
+              </Select>
+              <MultiSelect
+                value={series}
+                onValueChange={(value) => setSeries(value as SeriesKeys[])}
+              >
+                {Object.keys(SeriesKeys).map((series) => (
+                  <MultiSelectItem value={series} key={series}>
+                    {series}
+                  </MultiSelectItem>
+                ))}
+              </MultiSelect>
+            </Flex>
+            {chartData.isSuccess && (
+              <HighchartsReact
+                highcharts={Highcharts}
+                options={highChartsOptions}
+              />
+            )}
+          </Col>
+          <Flex>
+            <Title>Click on the graph to pull the nearest clip</Title>
+            <TwitchClipAtTime time={clickedUnixSeconds} />
+          </Flex>
+          <TopTwitchClips />
+          <MostMinusTwosClips />
+        </Grid>
+    </Card>
   );
 }
 
