@@ -239,12 +239,18 @@ export default function Dashboard(props: any) {
               />
             )}
           </Col>
-          <Flex>
+          <div>
             <Title>Click on the graph to pull the nearest clip</Title>
             <TwitchClipAtTime time={clickedUnixSeconds} />
-          </Flex>
+          </div>
+       <div>
           <TopTwitchClips />
+         
+       </div>
+       <div>
           <MostMinusTwosClips />
+         
+       </div>
         </Grid>
     </Card>
   );
