@@ -407,6 +407,7 @@ function TwitchClip({ clip_id, time }: { clip_id: string; time: number }) {
         width="100%"
         className="aspect-video max-w-2xl"
         allowFullScreen={true}
+        preload="none"
       />
     </>
   );
