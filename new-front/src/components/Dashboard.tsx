@@ -184,75 +184,64 @@ export default function Dashboard(props: any) {
   };
 
   return (
-    <Card>
-     <Grid numItems={1} numItemsLg={2} className="gap-5">
-          <Col numColSpan={1}>
-            <Title>NL Chat Dashboard</Title>
-            <TabGroup
-              defaultIndex={1}
-              onIndexChange={(i) => {
-                setTimeSpan(timeSpans[i]);
-              }}
-            >
-              <TabList>
-                <Tab>1M</Tab>
-                <Tab>1H</Tab>
-                <Tab>9H</Tab>
-                <Tab>1D</Tab>
-                <Tab>1W</Tab>
-                <Tab>1M</Tab>
-                <Tab>6M</Tab>
-              </TabList>
-            </TabGroup>
-            <Flex>
-              <Select
-                value={chartType}
-                onValueChange={(value) => setChartType(value as "line" | "bar")}
-              >
-                <SelectItem value="line">Line</SelectItem>
-                <SelectItem value="bar">Bar</SelectItem>
-              </Select>
-              <Select
-                value={functionType}
-                onValueChange={(value) =>
-                  setFunctionType(value as "rolling_sum" | "instant")
-                }
-              >
-                <SelectItem value="rolling_sum">Rolling sum</SelectItem>
-                <SelectItem value="instant">Instant</SelectItem>
-              </Select>
-              <MultiSelect
-                value={series}
-                onValueChange={(value) => setSeries(value as SeriesKeys[])}
-              >
-                {Object.keys(SeriesKeys).map((series) => (
-                  <MultiSelectItem value={series} key={series}>
-                    {series}
-                  </MultiSelectItem>
-                ))}
-              </MultiSelect>
-            </Flex>
-            {chartData.isSuccess && (
-              <HighchartsReact
-                highcharts={Highcharts}
-                options={highChartsOptions}
-              />
-            )}
-          </Col>
-          <div>
-            <Title>Click on the graph to pull the nearest clip</Title>
-            <TwitchClipAtTime time={clickedUnixSeconds} />
-          </div>
-       <div>
-          <TopTwitchClips />
-         
-       </div>
-       <div>
-          <MostMinusTwosClips />
-         
-       </div>
-        </Grid>
-    </Card>
+    <Grid numItems={1} numItemsLg={2} className="gap-5">
+      <Col numColSpan={1}>
+        <Title>NL Chat Dashboard</Title>
+        <TabGroup
+          defaultIndex={1}
+          onIndexChange={(i) => {
+            setTimeSpan(timeSpans[i]);
+          }}
+        >
+          <TabList>
+            <Tab>1M</Tab>
+            <Tab>1H</Tab>
+            <Tab>9H</Tab>
+            <Tab>1D</Tab>
+            <Tab>1W</Tab>
+            <Tab>1M</Tab>
+            <Tab>6M</Tab>
+          </TabList>
+        </TabGroup>
+        <Flex>
+          <Select
+            value={chartType}
+            onValueChange={(value) => setChartType(value as "line" | "bar")}
+          >
+            <SelectItem value="line">Line</SelectItem>
+            <SelectItem value="bar">Bar</SelectItem>
+          </Select>
+          <Select
+            value={functionType}
+            onValueChange={(value) =>
+              setFunctionType(value as "rolling_sum" | "instant")
+            }
+          >
+            <SelectItem value="rolling_sum">Rolling sum</SelectItem>
+            <SelectItem value="instant">Instant</SelectItem>
+          </Select>
+          <MultiSelect
+            value={series}
+            onValueChange={(value) => setSeries(value as SeriesKeys[])}
+          >
+            {Object.keys(SeriesKeys).map((series) => (
+              <MultiSelectItem value={series} key={series}>
+                {series}
+              </MultiSelectItem>
+            ))}
+          </MultiSelect>
+        </Flex>
+        {chartData.isSuccess && (
+          <HighchartsReact
+            highcharts={Highcharts}
+            options={highChartsOptions}
+          />
+        )}
+      </Col>
+      <TwitchClipAtTime time={clickedUnixSeconds} />
+      <TopTwitchClips />
+      <MostMinusTwosClips />
+    </Grid>
   );
 }
 
@@ -274,7 +263,12 @@ function TwitchClipAtTime(props: { time?: number }) {
   if (isLoading) {
     return <Text>Loading...</Text>;
   } else if (isSuccess && data) {
-    return <TwitchClip clip_id={data.clip_id} time={data.time} />;
+    return (
+      <Card className={"flex flex-col items-center justify-between"}>
+        <Title>Click on the graph to pull the nearest clip</Title>
+        <TwitchClip clip_id={data.clip_id} time={data.time} />;
+      </Card>
+    );
   } else {
     return <Text>Clip not found</Text>;
   }
@@ -289,7 +283,9 @@ type ClipBatch = {
 };
 
 function TopTwitchClips() {
-  const [timeSpan, setTimeSpan] = useState<TimeSpans>("1 year");
+  const [timeSpan, setTimeSpan] = useState<
+    "day" | "week" | "month" | "year" | ""
+  >("");
   const [grouping, setGrouping] = useState<"10 seconds" | "1 minute">(
     "10 seconds"
   );
@@ -306,7 +302,7 @@ function TopTwitchClips() {
   });
 
   return (
-    <>
+    <Card>
       {isLoading && <Text>Loading...</Text>}
       <div className={"flex flex-row gap-2 flex-wrap"}>
         <Title>Top</Title>
@@ -322,7 +318,7 @@ function TopTwitchClips() {
           value={timeSpan}
           onValueChange={(value) => setTimeSpan(value as any)}
         >
-          {timeSpans.map((span) => (
+          {["day", "week", "month", "year", ""].map((span) => (
             <SelectItem value={span} key={span}>
               {span}
             </SelectItem>
@@ -336,14 +332,14 @@ function TopTwitchClips() {
               .sort((a, b) => b.count - a.count)
               .map((clip) => (
                 <ListItem key={clip.clip_id} className={"flex flex-col"}>
-                  <Text className={"text-lg"}>{clip.count}</Text>
+                  <span className={"text-3xl"}>{clip.count}</span>
                   <TwitchClip clip_id={clip.clip_id} time={clip.time} />
                 </ListItem>
               ))}
           </List>
         )}
       </div>
-    </>
+    </Card>
   );
 }
 
@@ -369,7 +365,7 @@ function MostMinusTwosClips() {
     return <Text>Loading...</Text>;
   } else if (isSuccess) {
     return (
-      <>
+      <Card>
         <div className={"flex flex-row gap-2 flex-wrap"}>
           <Title>Lowest 2 count in 10 seconds over the past</Title>
           <Select
@@ -388,14 +384,14 @@ function MostMinusTwosClips() {
             <List>
               {data?.clips.map((clip) => (
                 <ListItem key={clip.clip_id} className={"flex flex-col"}>
-                  <Text className={"text-lg"}>{clip.count}</Text>
+                  <span className={"text-3xl"}>{clip.count}</span>
                   <TwitchClip clip_id={clip.clip_id} time={clip.time} />
                 </ListItem>
               ))}
             </List>
           )}
         </div>
-      </>
+      </Card>
     );
   }
 }
@@ -409,7 +405,8 @@ function TwitchClip({ clip_id, time }: { clip_id: string; time: number }) {
       <iframe
         src={`https://clips.twitch.tv/embed?clip=${clip_id}&parent=${window.location.hostname}`}
         width="100%"
-        className="aspect-video"
+        className="aspect-video max-w-2xl"
+        allowFullScreen={true}
       />
     </>
   );

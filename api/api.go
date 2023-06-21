@@ -73,7 +73,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	db.AutoMigrate(&ChatCounts{})
+	// db.AutoMigrate(&ChatCounts{})
 	go connect_to_nl_chat(db)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
@@ -444,6 +444,7 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	// Send the request and get the response
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	fmt.Println(resp)
 	//check if 404, live status
 	if resp.StatusCode == 404 {
 		isLive <- false

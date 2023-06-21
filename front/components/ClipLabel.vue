@@ -13,7 +13,7 @@ const currentClip = computed(() => props.clipBatch?.[selectedIndex.value]);
     :class="currentClip.count > 0 ? 'bg-green-100' : 'bg-red-100'"
     >
       {{ currentClip.count > 0 ? "+" : "" }} {{ currentClip.count }}
-      <p class="text-lg italic">
+      <p class="text-lg italic">c
         {{ new Date(currentClip.time * 1000).toLocaleString() }}
 
       </p>

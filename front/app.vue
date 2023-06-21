@@ -205,9 +205,7 @@ setInterval(() => {
         since 4/19/2023.
       </h2>
     </div>
-    <div
-      class="flex flex-col pb-10 p-2"
-    >
+    <div class="flex flex-col pb-10 p-2">
       <div class="m-5 flex-col gap-8 flex items-center justify-center">
         <div class="flex-row flex gap-4 items-center flex-wrap">
           <label for="calc">Calc</label>
@@ -265,7 +263,10 @@ setInterval(() => {
             v-for="key in keys"
             @click="() => handleSeriesButton(key)"
             class="rounded-lg p-3 hover:cursor-pointer"
-            :style="{ border: `2px solid ${seriesColors[key]}`, backgroundColor: selectedKeys.has(key) ? seriesColors[key] : '' }"
+            :style="{
+              border: `2px solid ${seriesColors[key]}`,
+              backgroundColor: selectedKeys.has(key) ? seriesColors[key] : '',
+            }"
           >
             {{ key }}
           </button>
