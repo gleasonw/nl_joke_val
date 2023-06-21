@@ -285,7 +285,7 @@ type ClipBatch = {
 function TopTwitchClips() {
   const [timeSpan, setTimeSpan] = useState<
     "day" | "week" | "month" | "year" | ""
-  >("");
+  >("day");
   const [grouping, setGrouping] = useState<"10 seconds" | "1 minute">(
     "10 seconds"
   );
@@ -346,7 +346,7 @@ function TopTwitchClips() {
 function MostMinusTwosClips() {
   const [timeSpan, setTimeSpan] = useState<
     "day" | "week" | "month" | "year" | ""
-  >("");
+  >("day");
   const [grouping, setGrouping] = useState<"10 seconds" | "1 minute">(
     "10 seconds"
   );
