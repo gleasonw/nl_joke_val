@@ -54,8 +54,6 @@ var client_id string = os.Getenv("CLIENT_ID")
 
 //TODO: refresh token every month. URL on Railway vars
 
-
-
 func main() {
 	if auth_token == "" {
 		//load .env file
@@ -178,7 +176,7 @@ func main() {
 		query = fmt.Sprintf(`
 		SELECT two as count, EXTRACT(epoch from created_at) as time, clip_id 
 		FROM chat_counts 
-		WHERE clip_id IS NOT NULL
+		WHERE clip_id != ''
 		AND clip_id IN (
 			SELECT clip_id
 			FROM chat_counts
