@@ -73,7 +73,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	// db.AutoMigrate(&ChatCounts{})
+	db.AutoMigrate(&ChatCounts{})
 	go connect_to_nl_chat(db)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
