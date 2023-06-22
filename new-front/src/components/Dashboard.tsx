@@ -90,7 +90,7 @@ export default function Dashboard(props: any) {
   const [timeSpan, setTimeSpan] = useState<TimeSpans>("1 hour");
   const [grouping, setGrouping] = useState<
     "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
-  >("minute");
+  >("second");
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
   >(Date.now() / 1000);
@@ -219,6 +219,18 @@ export default function Dashboard(props: any) {
           >
             <SelectItem value="rolling_sum">Rolling sum</SelectItem>
             <SelectItem value="instant">Instant</SelectItem>
+          </Select>
+          <Select
+            value={grouping}
+            onValueChange={(value) => setGrouping(value)}
+          >
+            <SelectItem value="second">Second</SelectItem>
+            <SelectItem value="minute">Minute</SelectItem>
+            <SelectItem value="hour">Hour</SelectItem>
+            <SelectItem value="day">Day</SelectItem>
+            <SelectItem value="week">Week</SelectItem>
+            <SelectItem value="month">Month</SelectItem>
+            <SelectItem value="year">Year</SelectItem>
           </Select>
           <MultiSelect
             value={series}

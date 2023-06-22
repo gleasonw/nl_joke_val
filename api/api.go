@@ -133,10 +133,18 @@ func main() {
 		// sanitize span
 		switch span {
 		case "day", "week", "month", "year":
+
+			if span == "day" {
+				// a full day pulls clips from prior streams
+				span = "9 hours"
+			}else{
+				span = fmt.Sprintf("1 %s", span)
+			}
+			
 			timeSpan = fmt.Sprintf(`
 				FROM chat_counts
 				WHERE created_at >= (
-					SELECT MAX(created_at) - INTERVAL '1 %s'
+					SELECT MAX(created_at) - INTERVAL '%s'
 					FROM chat_counts
 				)`, span)
 		}
