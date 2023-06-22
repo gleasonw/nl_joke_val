@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"reflect"
@@ -33,6 +34,7 @@ type ChatCounts struct {
 	Copium       int       `json:"copium"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
+	Thumbnail string `json:"-"`
 	CreatedEpoch float64   `json:"time"`
 }
 
@@ -40,6 +42,7 @@ type Clip struct {
 	ClipID string  `json:"clip_id"`
 	Count  int     `json:"count"`
 	Time   float64 `json:"time"`
+	Thumbnail string `json:"thumbnail"`
 }
 
 type Message struct {
@@ -51,6 +54,7 @@ var auth_token string = os.Getenv("AUTH_TOKEN")
 var nickname string = os.Getenv("NICK")
 var db_url string = os.Getenv("DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
+
 
 //TODO: refresh token every month. URL on Railway vars
 
@@ -140,7 +144,7 @@ func main() {
 			}else{
 				span = fmt.Sprintf("1 %s", span)
 			}
-			
+
 			timeSpan = fmt.Sprintf(`
 				FROM chat_counts
 				WHERE created_at >= (
@@ -271,6 +275,49 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	fmt.Println(clips)
+
+
+	// make request to helix api for thumbnail url for each clip, checking if present in db first, and updating if not
+	for i, clip := range clips {
+		var instantFromDB ChatCounts
+		db.Where("clip_id = ?", clip.ClipID).First(&instantFromDB)
+		if instantFromDB.Thumbnail == "" {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://api.twitch.tv/helix/clips?id=%s", clip.ClipID), nil)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			auth := split_and_get_last(auth_token, ":")
+			bearer := fmt.Sprintf("Bearer %s", auth)
+			req.Header.Set("Client-Id", client_id)
+			req.Header.Set("Authorization", bearer)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			type HelixClip struct {
+				Data []struct {
+					ThumbnailURL string `json:"thumbnail_url"`
+				} `json:"data"`
+			}
+			var clipResponse HelixClip
+			json.Unmarshal(body, &clipResponse)
+			thumbnailUrl := clipResponse.Data[0].ThumbnailURL
+			db.Model(&ChatCounts{}).Where("clip_id = ?", clip.ClipID).Update("thumbnail", thumbnailUrl)
+			clips[i].Thumbnail = thumbnailUrl
+		} else {
+			clips[i].Thumbnail = instantFromDB.Thumbnail
+		}
+	}
+
 	marshal_json_and_write(w, map[string][]Clip{
 		"clips": clips,
 	})
@@ -450,7 +497,6 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	// Send the request and get the response
 	client := &http.Client{}
 	resp, err := client.Do(req)
-	fmt.Println(resp)
 	//check if 404, live status
 	if resp.StatusCode == 404 {
 		isLive <- false
