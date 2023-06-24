@@ -207,7 +207,9 @@ export default function Dashboard(props: DataProps) {
   return (
     <Grid numItems={1} numItemsLg={2} className="gap-5">
       <Col numColSpan={1}>
-        <h1 className={"text-2xl m-5 font-semibold"}>NL Chat Dashboard</h1>
+        <h1 className={"text-2xl m-5 font-semibold"}>
+          NL Chat Dashboard (est. 4/18/23)
+        </h1>
         <TabGroup
           defaultIndex={2}
           onIndexChange={(i) => {
