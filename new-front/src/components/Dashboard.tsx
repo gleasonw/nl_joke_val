@@ -225,41 +225,64 @@ export default function Dashboard(props: DataProps) {
             <Tab>6M</Tab>
           </TabList>
         </TabGroup>
-        <div className={"flex flex-row gap-5"}>
-          <Select
-            value={chartType}
-            onValueChange={(value) => setChartType(value as "line" | "bar")}
-          >
-            <SelectItem value="line">Line</SelectItem>
-            <SelectItem value="bar">Bar</SelectItem>
-          </Select>
-          <Select
-            value={functionType}
-            onValueChange={(value) =>
-              setFunctionType(value as "rolling_sum" | "instant")
-            }
-          >
-            <SelectItem value="rolling_sum">Rolling sum</SelectItem>
-            <SelectItem value="instant">Instant</SelectItem>
-          </Select>
-          <Select
-            value={grouping}
-            onValueChange={(value) => setGrouping(value as TimeGroupings)}
-          >
-            {timeGroupings.map((grouping) => (
-              <SelectItem value={grouping} key={grouping} />
-            ))}
-          </Select>
-          <MultiSelect
-            value={series}
-            onValueChange={(value) => setSeries(value as SeriesKeys[])}
-          >
-            {Object.keys(SeriesKeys).map((series) => (
-              <MultiSelectItem value={series} key={series}>
-                {series}
-              </MultiSelectItem>
-            ))}
-          </MultiSelect>
+        <div className={"flex flex-row gap-5 m-5 flex-wrap"}>
+          <div className="flex flex-col">
+            <label htmlFor="chartTypeSelect">Chart Type</label>
+            <Select
+              id="chartTypeSelect"
+              value={chartType}
+              placeholder={"Chart type"}
+              onValueChange={(value) => setChartType(value as "line" | "bar")}
+            >
+              <SelectItem value="line">Line</SelectItem>
+              <SelectItem value="bar">Bar</SelectItem>
+            </Select>
+          </div>
+
+          <div className="flex flex-col">
+            <label htmlFor="sumTypeSelect">Sum Type</label>
+            <Select
+              id="sumTypeSelect"
+              value={functionType}
+              placeholder={"Sum type"}
+              onValueChange={(value) =>
+                setFunctionType(value as "rolling_sum" | "instant")
+              }
+            >
+              <SelectItem value="rolling_sum">Rolling sum</SelectItem>
+              <SelectItem value="instant">Instant</SelectItem>
+            </Select>
+          </div>
+
+          <div className="flex flex-col">
+            <label htmlFor="groupBySelect">Group By</label>
+            <Select
+              id="groupBySelect"
+              value={grouping}
+              placeholder={"Group by"}
+              onValueChange={(value) => setGrouping(value as TimeGroupings)}
+            >
+              {timeGroupings.map((grouping) => (
+                <SelectItem value={grouping} key={grouping} />
+              ))}
+            </Select>
+          </div>
+
+          <div className="flex flex-col">
+            <label htmlFor="seriesMultiSelect">Series</label>
+            <MultiSelect
+              id="seriesMultiSelect"
+              placeholder={"Series"}
+              value={series}
+              onValueChange={(value) => setSeries(value as SeriesKeys[])}
+            >
+              {Object.keys(SeriesKeys).map((series) => (
+                <MultiSelectItem value={series} key={series}>
+                  {series}
+                </MultiSelectItem>
+              ))}
+            </MultiSelect>
+          </div>
         </div>
         <div className={chartData.isFetching ? "opacity-50" : ""}>
           {chartData.isSuccess && (
