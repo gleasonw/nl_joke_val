@@ -79,9 +79,20 @@ const timeSpans = [
   "1 week",
   "1 month",
   "1 year",
-];
+] as const;
+
+const timeGroupings = [
+  "second",
+  "minute",
+  "hour",
+  "day",
+  "week",
+  "month",
+  "year",
+] as const;
 
 type TimeSpans = (typeof timeSpans)[number];
+type TimeGroupings = (typeof timeGroupings)[number];
 
 export default function Dashboard(props: any) {
   const [chartType, setChartType] = useState<"line" | "bar">("line");
@@ -226,15 +237,11 @@ export default function Dashboard(props: any) {
           </Select>
           <Select
             value={grouping}
-            onValueChange={(value) => setGrouping(value)}
+            onValueChange={(value) => setGrouping(value as TimeGroupings)}
           >
-            <SelectItem value="second">Second</SelectItem>
-            <SelectItem value="minute">Minute</SelectItem>
-            <SelectItem value="hour">Hour</SelectItem>
-            <SelectItem value="day">Day</SelectItem>
-            <SelectItem value="week">Week</SelectItem>
-            <SelectItem value="month">Month</SelectItem>
-            <SelectItem value="year">Year</SelectItem>
+            {timeGroupings.map((grouping) => (
+              <SelectItem value={grouping} key={grouping} />
+            ))}
           </Select>
           <MultiSelect
             value={series}
