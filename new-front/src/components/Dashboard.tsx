@@ -24,6 +24,9 @@ import { z } from "zod";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
+import { DataProps } from "@/components/App";
+import { InitialArgState } from "@/app/page";
+import { init } from "next/dist/compiled/@vercel/og/satori";
 
 enum SeriesKeys {
   two = "two",
@@ -71,6 +74,8 @@ const SeriesDataSchema = z.object({
   time: z.number(),
 });
 
+export type SeriesData = z.infer<typeof SeriesDataSchema>;
+
 const timeSpans = [
   "1 minute",
   "1 hour",
@@ -90,20 +95,21 @@ const timeGroupings = [
   "year",
 ] as const;
 
-type TimeSpans = (typeof timeSpans)[number];
-type TimeGroupings = (typeof timeGroupings)[number];
+export type TimeSpans = (typeof timeSpans)[number];
+export type TimeGroupings = (typeof timeGroupings)[number];
 
-export default function Dashboard(props: any) {
+export default function Dashboard(props: DataProps) {
+  const initArgs = props.initialArgState.chart;
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [functionType, setFunctionType] = useState<"rolling_sum" | "instant">(
-    "instant"
+    initArgs.functionType
   );
   const [series, setSeries] = useState<SeriesKeys[]>([SeriesKeys.two]);
 
-  const [timeSpan, setTimeSpan] = useState<TimeSpans>("9 hours");
+  const [timeSpan, setTimeSpan] = useState<TimeSpans>(initArgs.timeSpan);
   const [grouping, setGrouping] = useState<
     "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
-  >("second");
+  >(initArgs.timeGrouping);
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
   >(Date.now() / 1000);
@@ -126,6 +132,7 @@ export default function Dashboard(props: any) {
     },
     refetchInterval: 10000,
     keepPreviousData: true,
+    initialData: props.initialSeries,
   });
 
   const emoteSeries =
@@ -211,13 +218,12 @@ export default function Dashboard(props: any) {
             <Tab>1M</Tab>
             <Tab>1H</Tab>
             <Tab>9H</Tab>
-            <Tab>1D</Tab>
             <Tab>1W</Tab>
             <Tab>1M</Tab>
             <Tab>6M</Tab>
           </TabList>
         </TabGroup>
-        <Flex>
+        <div className={"flex flex-row gap-5"}>
           <Select
             value={chartType}
             onValueChange={(value) => setChartType(value as "line" | "bar")}
@@ -252,7 +258,7 @@ export default function Dashboard(props: any) {
               </MultiSelectItem>
             ))}
           </MultiSelect>
-        </Flex>
+        </div>
         <div className={chartData.isFetching ? "opacity-50" : ""}>
           {chartData.isSuccess && (
             <HighchartsReact
@@ -263,8 +269,14 @@ export default function Dashboard(props: any) {
         </div>
       </Col>
       <TwitchClipAtTime time={clickedUnixSeconds} />
-      <TopTwitchClips />
-      <MostMinusTwosClips />
+      <TopTwitchClips
+        initialClips={props.initialMaxClips}
+        initialState={props.initialArgState.clips}
+      />
+      <MostMinusTwosClips
+        initialClips={props.initialMinClips}
+        initialState={props.initialArgState.clips}
+      />
     </Grid>
   );
 }
@@ -305,18 +317,26 @@ type Clip = {
   thumbnail: string;
 };
 
-type ClipBatch = {
+export type ClipBatch = {
   clips: Clip[];
 };
 
-function TopTwitchClips() {
+function TopTwitchClips({
+  initialClips,
+  initialState,
+}: {
+  initialClips: ClipBatch;
+  initialState: InitialArgState["clips"];
+}) {
   const [timeSpan, setTimeSpan] = useState<
     "day" | "week" | "month" | "year" | ""
-  >("day");
+  >(initialState.clipTimeSpan);
   const [grouping, setGrouping] = useState<"10 seconds" | "1 minute">(
     "10 seconds"
   );
-  const [emote, setEmote] = useState<keyof typeof SeriesKeys>("two");
+  const [emote, setEmote] = useState<keyof typeof SeriesKeys>(
+    initialState.emote
+  );
 
   const { isSuccess, data, isLoading } = useQuery({
     queryKey: ["top_clips", timeSpan, grouping, emote],
@@ -326,6 +346,7 @@ function TopTwitchClips() {
       );
       return (await res.json()) as ClipBatch;
     },
+    initialData: initialClips,
   });
 
   return (
@@ -375,10 +396,16 @@ function TopTwitchClips() {
   );
 }
 
-function MostMinusTwosClips() {
+function MostMinusTwosClips({
+  initialClips,
+  initialState,
+}: {
+  initialClips: ClipBatch;
+  initialState: InitialArgState["clips"];
+}) {
   const [timeSpan, setTimeSpan] = useState<
     "day" | "week" | "month" | "year" | ""
-  >("day");
+  >(initialState.clipTimeSpan);
   const [grouping, setGrouping] = useState<"10 seconds" | "1 minute">(
     "10 seconds"
   );
@@ -391,6 +418,7 @@ function MostMinusTwosClips() {
       );
       return (await rest.json()) as ClipBatch;
     },
+    initialData: initialClips,
   });
 
   if (isLoading) {
