@@ -75,7 +75,6 @@ const timeSpans = [
   "1 minute",
   "1 hour",
   "9 hours",
-  "1 day",
   "1 week",
   "1 month",
   "1 year",
@@ -101,7 +100,7 @@ export default function Dashboard(props: any) {
   );
   const [series, setSeries] = useState<SeriesKeys[]>([SeriesKeys.two]);
 
-  const [timeSpan, setTimeSpan] = useState<TimeSpans>("1 day");
+  const [timeSpan, setTimeSpan] = useState<TimeSpans>("9 hours");
   const [grouping, setGrouping] = useState<
     "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
   >("second");
@@ -203,7 +202,7 @@ export default function Dashboard(props: any) {
       <Col numColSpan={1}>
         <h1 className={"text-2xl m-5 font-semibold"}>NL Chat Dashboard</h1>
         <TabGroup
-          defaultIndex={1}
+          defaultIndex={2}
           onIndexChange={(i) => {
             setTimeSpan(timeSpans[i]);
           }}
