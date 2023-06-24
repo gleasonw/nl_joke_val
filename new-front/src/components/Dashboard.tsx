@@ -23,6 +23,8 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
+import Image from "next/image";
+
 enum SeriesKeys {
   two = "two",
   lol = "lol",
@@ -37,6 +39,7 @@ enum SeriesKeys {
   who_asked = "who_asked",
   copium = "copium",
 }
+
 const seriesColors: Record<SeriesKeys, string> = {
   [SeriesKeys.two]: "#7cb5ec",
   [SeriesKeys.lol]: "#434348",
@@ -87,7 +90,7 @@ export default function Dashboard(props: any) {
   );
   const [series, setSeries] = useState<SeriesKeys[]>([SeriesKeys.two]);
 
-  const [timeSpan, setTimeSpan] = useState<TimeSpans>("1 hour");
+  const [timeSpan, setTimeSpan] = useState<TimeSpans>("1 day");
   const [grouping, setGrouping] = useState<
     "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
   >("second");
@@ -112,6 +115,7 @@ export default function Dashboard(props: any) {
       }
     },
     refetchInterval: 10000,
+    keepPreviousData: true,
   });
 
   const emoteSeries =
@@ -243,12 +247,14 @@ export default function Dashboard(props: any) {
             ))}
           </MultiSelect>
         </Flex>
-        {chartData.isSuccess && (
-          <HighchartsReact
-            highcharts={Highcharts}
-            options={highChartsOptions}
-          />
-        )}
+        <div className={chartData.isFetching ? "opacity-50" : ""}>
+          {chartData.isSuccess && (
+            <HighchartsReact
+              highcharts={Highcharts}
+              options={highChartsOptions}
+            />
+          )}
+        </div>
       </Col>
       <TwitchClipAtTime time={clickedUnixSeconds} />
       <TopTwitchClips />
@@ -286,12 +292,15 @@ function TwitchClipAtTime(props: { time?: number }) {
   }
 }
 
+type Clip = {
+  clip_id: string;
+  count: number;
+  time: number;
+  thumbnail: string;
+};
+
 type ClipBatch = {
-  clips: {
-    clip_id: string;
-    count: number;
-    time: number;
-  }[];
+  clips: Clip[];
 };
 
 function TopTwitchClips() {
@@ -345,7 +354,12 @@ function TopTwitchClips() {
               .map((clip) => (
                 <ListItem key={clip.clip_id} className={"flex flex-col"}>
                   <span className={"text-3xl"}>{clip.count}</span>
-                  <TwitchClip clip_id={clip.clip_id} time={clip.time} />
+                  <TwitchClipThumbnail
+                    clip_id={clip.clip_id}
+                    time={clip.time}
+                    thumbnail={clip.thumbnail}
+                    count={clip.count}
+                  />
                 </ListItem>
               ))}
           </List>
@@ -397,13 +411,46 @@ function MostMinusTwosClips() {
               {data?.clips.map((clip) => (
                 <ListItem key={clip.clip_id} className={"flex flex-col"}>
                   <span className={"text-3xl"}>{clip.count}</span>
-                  <TwitchClip clip_id={clip.clip_id} time={clip.time} />
+                  <TwitchClipThumbnail
+                    clip_id={clip.clip_id}
+                    time={clip.time}
+                    thumbnail={clip.thumbnail}
+                    count={clip.count}
+                  />
                 </ListItem>
               ))}
             </List>
           )}
         </div>
       </Card>
+    );
+  }
+}
+
+function TwitchClipThumbnail(props: Clip) {
+  const [isClipRevealed, setIsClipRevealed] = useState(false);
+  const { clip_id, count, time, thumbnail } = props;
+  const timeString = new Date(time * 1000).toLocaleString();
+  if (isClipRevealed) {
+    return <TwitchClip clip_id={clip_id} time={time} />;
+  } else {
+    return (
+      <button
+        className={"flex flex-col items-center justify-between"}
+        onClick={() => setIsClipRevealed(true)}
+      >
+        <Text className={"text-lg"}>{timeString}</Text>
+        <Image
+          alt={`Twitch clip thumbnail at ${timeString}, with ${count} ${
+            count === 1 ? "emote" : "emotes"
+          }`}
+          src={thumbnail}
+          className={"aspect-video w-full"}
+          onClick={() => setIsClipRevealed(true)}
+          width={320}
+          height={160}
+        />
+      </button>
     );
   }
 }
