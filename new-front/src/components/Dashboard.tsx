@@ -479,10 +479,9 @@ function TwitchClipThumbnail(props: Clip) {
             count === 1 ? "emote" : "emotes"
           }`}
           src={thumbnail}
-          className={"aspect-video w-full"}
           onClick={() => setIsClipRevealed(true)}
-          width={320}
-          height={160}
+          width={384}
+          height={218}
         />
       </button>
     );
