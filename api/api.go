@@ -310,6 +310,12 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 			}
 			var clipResponse HelixClip
 			json.Unmarshal(body, &clipResponse)
+			if(len(clipResponse.Data) == 0) {
+				fmt.Println("No data returned from helix api")
+				fmt.Println(string(body))
+				fmt.Println(clip)
+				continue
+			}
 			thumbnailUrl := clipResponse.Data[0].ThumbnailURL
 			db.Model(&ChatCounts{}).Where("clip_id = ?", clip.ClipID).Update("thumbnail", thumbnailUrl)
 			clips[i].Thumbnail = thumbnailUrl
