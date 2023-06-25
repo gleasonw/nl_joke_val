@@ -9,8 +9,8 @@ export type InitialArgState = {
     functionType: "rolling_sum" | "instant";
   };
   clips: {
-    clipTimeSpan: "day" | "week" | "month" | "year" | "";
-    clipTimeGrouping: "10 seconds" | "minute";
+    clipTimeSpan: "day" | "week" | "month" | "year";
+    clipTimeGrouping: TimeGroupings;
     emote: "two";
   };
 };
@@ -24,7 +24,7 @@ export default async function Home() {
     },
     clips: {
       clipTimeSpan: "day",
-      clipTimeGrouping: "10 seconds",
+      clipTimeGrouping: "second",
       emote: "two",
     },
   };
@@ -39,10 +39,10 @@ export default async function Home() {
     `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${timeGrouping}`
   );
   const initialMaxClips = await jsonFetcher(
-    `https://nljokeval-production.up.railway.app/api/max_clip?column=${emote}&span=${clipTimeSpan}`
+    `https://nljokeval-production.up.railway.app/api/max_clip?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}`
   );
   const initialMinClips = await jsonFetcher(
-    `https://nljokeval-production.up.railway.app/api/min_clip?span=${clipTimeSpan}`
+    `https://nljokeval-production.up.railway.app/api/min_clip?span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}`
   );
 
   return (
