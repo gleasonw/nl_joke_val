@@ -117,6 +117,15 @@ func main() {
 	http.HandleFunc("/api/max_clip", func(w http.ResponseWriter, r *http.Request) {
 		column_to_select := r.URL.Query().Get("column")
 		span := r.URL.Query().Get("span")
+		grouping := r.URL.Query().Get("grouping")
+
+		switch grouping {
+		case "second", "minute", "hour", "day" :
+			break
+		default:
+			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
+		}
+
 		var query string
 		timeSpan := "FROM chat_counts"
 
@@ -146,24 +155,24 @@ func main() {
 			}
 
 			timeSpan = fmt.Sprintf(`
-				FROM chat_counts
-				WHERE created_at >= (
+				AND created_at >= (
 					SELECT MAX(created_at) - INTERVAL '%s'
 					FROM chat_counts
 				)`, span)
 		}
 
 		query = fmt.Sprintf(`
-			SELECT %s AS count, EXTRACT(epoch from created_at) as time, clip_id
-			FROM chat_counts 
-			WHERE clip_id != ''
-			AND clip_id IN (
-				SELECT clip_id
+			SELECT SUM(sub.count) AS count, EXTRACT(epoch from time) as time, MIN(clip_id) as clip_id
+			FROM (
+				SELECT %s AS count, date_trunc('%s', created_at) as time, clip_id
+				FROM chat_counts
+				WHERE clip_id != ''
 				%s
-				ORDER BY %s DESC
-				LIMIT 10
-			)
-		`, column_to_select, timeSpan, column_to_select)
+			) sub
+			GROUP BY time
+			ORDER BY count DESC
+			LIMIT 10
+		`, column_to_select, grouping, timeSpan)
 		
 		fmt.Println(query)
 
@@ -172,30 +181,47 @@ func main() {
 
 	http.HandleFunc("/api/min_clip", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
+		grouping := r.URL.Query().Get("grouping")
 		var query string
 		var timeSpan string
 
+		switch grouping {
+		case "second", "minute", "hour", "day" :
+			break
+		default:
+			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
+		}
+
 		switch span {
 		case "day", "week", "month", "year":
+			if span == "day" {
+				// a full day pulls clips from prior streams
+				span = "9 hours"
+			}
+
 			timeSpan = fmt.Sprintf(
-				`WHERE created_at >= (
+				`AND created_at >= (
 					SELECT MAX(created_at) - INTERVAL '1 %s'
 					FROM chat_counts
 				)
 			`, span)
+			default: 
+				http.Error(w, fmt.Sprintf("invalid span: %s", span), http.StatusBadRequest)
 		}
 
+		// selecting the min string clip should give a random clip
 		query = fmt.Sprintf(`
-		SELECT two as count, EXTRACT(epoch from created_at) as time, clip_id 
-		FROM chat_counts 
-		WHERE clip_id != ''
-		AND clip_id IN (
-			SELECT clip_id
-			FROM chat_counts
-			%s
-		)
-		ORDER BY two ASC
-		LIMIT 10`, timeSpan)
+		SELECT MIN(clip_id) as clip_id, SUM(sub.count) as count, EXTRACT(epoch from sub.time) as time
+		FROM (
+				SELECT date_trunc('%s', created_at) as time, clip_id, two as count
+				FROM chat_counts
+				WHERE clip_id != ''
+				%s
+		) sub
+		GROUP BY time
+		ORDER BY count ASC
+		LIMIT 10;
+		`, grouping, timeSpan)
 
 		minMaxClipGetter(w, query, db)
 	})
@@ -267,6 +293,7 @@ func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
 
 	return sumQuery, overQuery, nil
 }
+
 
 func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 	var clips []Clip

@@ -287,7 +287,7 @@ export default function Dashboard(props: DataProps) {
             </MultiSelect>
           </div>
         </div>
-        <div className={chartData.isFetching ? "opacity-50" : ""}>
+        <div className={chartData.isRefetching ? "opacity-50" : ""}>
           {chartData.isSuccess && (
             <HighchartsReact
               highcharts={Highcharts}
@@ -359,26 +359,25 @@ function TopTwitchClips({
   const [timeSpan, setTimeSpan] = useState<
     "day" | "week" | "month" | "year" | ""
   >(initialState.clipTimeSpan);
-  const [grouping, setGrouping] = useState<"10 seconds" | "1 minute">(
-    "10 seconds"
-  );
+  const [grouping, setGrouping] = useState<TimeGroupings>("second");
   const [emote, setEmote] = useState<keyof typeof SeriesKeys>(
     initialState.emote
   );
 
-  const { isSuccess, data, isLoading } = useQuery({
+  const { isSuccess, data, isLoading, isFetching } = useQuery({
     queryKey: ["top_clips", timeSpan, grouping, emote],
     queryFn: async () => {
       const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/max_clip?column=${emote}&span=${timeSpan}`
+        `https://nljokeval-production.up.railway.app/api/max_clip?column=${emote}&span=${timeSpan}&grouping=${grouping}`
       );
       return (await res.json()) as ClipBatch;
     },
-    initialData: initialClips,
+    placeholderData: initialClips,
+    keepPreviousData: true,
   });
 
   return (
-    <Card>
+    <Card className={isFetching ? "opacity-50" : ""}>
       {isLoading && <Text>Loading...</Text>}
       <div className={"flex flex-row gap-2 flex-wrap"}>
         <Title>Top</Title>
@@ -389,12 +388,23 @@ function TopTwitchClips({
             </SelectItem>
           ))}
         </Select>
-        <Title>in 10 seconds over the past</Title>
+        <Title>grouped by</Title>
+        <Select
+          value={grouping}
+          onValueChange={(value) => setGrouping(value as any)}
+        >
+          {timeGroupings.map((grouping) => (
+            <SelectItem value={grouping} key={grouping}>
+              {grouping == "second" ? "10 seconds" : grouping}
+            </SelectItem>
+          ))}
+        </Select>
+        <Title>over the past</Title>
         <Select
           value={timeSpan}
           onValueChange={(value) => setTimeSpan(value as any)}
         >
-          {["day", "week", "month", "year", ""].map((span) => (
+          {["day", "week", "month", "year"].map((span) => (
             <SelectItem value={span} key={span}>
               {span}
             </SelectItem>
@@ -434,33 +444,43 @@ function MostMinusTwosClips({
   const [timeSpan, setTimeSpan] = useState<
     "day" | "week" | "month" | "year" | ""
   >(initialState.clipTimeSpan);
-  const [grouping, setGrouping] = useState<"10 seconds" | "1 minute">(
-    "10 seconds"
-  );
+  const [grouping, setGrouping] = useState<TimeGroupings>("second");
 
-  const { isSuccess, data, isLoading } = useQuery({
+  const { isSuccess, data, isLoading, isFetching } = useQuery({
     queryKey: ["minus_twos", timeSpan, grouping],
     queryFn: async () => {
       const rest = await fetch(
-        `https://nljokeval-production.up.railway.app/api/min_clip?span=${timeSpan}`
+        `https://nljokeval-production.up.railway.app/api/min_clip?span=${timeSpan}&grouping=${grouping}`
       );
       return (await rest.json()) as ClipBatch;
     },
     initialData: initialClips,
+    keepPreviousData: true,
   });
 
   if (isLoading) {
     return <Text>Loading...</Text>;
   } else if (isSuccess) {
     return (
-      <Card>
+      <Card className={isFetching ? "opacity-50" : ""}>
         <div className={"flex flex-row gap-2 flex-wrap"}>
-          <Title>Lowest 2 count in 10 seconds over the past</Title>
+          <Title>Lowest 2 count grouped by</Title>
+          <Select
+            value={grouping}
+            onValueChange={(value) => setGrouping(value as any)}
+          >
+            {["second", "minute", "hour"].map((grouping) => (
+              <SelectItem value={grouping} key={grouping}>
+                {grouping == "second" ? "10 seconds" : grouping}
+              </SelectItem>
+            ))}
+          </Select>
+          <Title>over the past</Title>
           <Select
             value={timeSpan}
             onValueChange={(value) => setTimeSpan(value as any)}
           >
-            {["day", "week", "month", "year", ""].map((span) => (
+            {["day", "week", "month", "year"].map((span) => (
               <SelectItem value={span} key={span}>
                 {span}
               </SelectItem>
