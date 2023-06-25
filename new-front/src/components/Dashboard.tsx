@@ -112,7 +112,7 @@ export default function Dashboard(props: DataProps) {
   >(initArgs.timeGrouping);
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
-  >(Date.now() / 1000);
+  >(undefined);
 
   const SeriesData = SeriesDataSchema.array();
   const chartData = useQuery({
@@ -313,7 +313,7 @@ function TwitchClipAtTime(props: { time?: number }) {
     time: number;
   };
 
-  const { isSuccess, data, isLoading } = useQuery({
+  const { isSuccess, data, isFetching } = useQuery({
     queryKey: ["clip", props.time],
     queryFn: async () => {
       const res = await fetch(
@@ -321,19 +321,25 @@ function TwitchClipAtTime(props: { time?: number }) {
       );
       return (await res.json()) as ClipData;
     },
+    keepPreviousData: true,
   });
-  if (isLoading) {
-    return <Text>Loading...</Text>;
-  } else if (isSuccess && data) {
-    return (
-      <Card className={"flex flex-col items-center justify-between"}>
-        <Title>Click on the graph to pull the nearest clip</Title>
-        <TwitchClip clip_id={data.clip_id} time={data.time} />;
-      </Card>
-    );
-  } else {
-    return <Text>Clip not found</Text>;
-  }
+  return (
+    <Card
+      className={
+        "flex flex-col items-center gap-10 justify-center " +
+        (isFetching && "opacity-50")
+      }
+    >
+      {!props.time && (
+        <Title className={"m-10 text-center"}>
+          Click on the graph to pull the nearest clip
+        </Title>
+      )}
+      {data && isSuccess && props.time && (
+        <TwitchClip clip_id={data.clip_id} time={data.time} />
+      )}
+    </Card>
+  );
 }
 
 type Clip = {
@@ -543,7 +549,7 @@ function TwitchClip({ clip_id, time }: { clip_id: string; time: number }) {
       <iframe
         src={`https://clips.twitch.tv/embed?clip=${clip_id}&parent=${window.location.hostname}`}
         width="100%"
-        className="aspect-video max-w-2xl"
+        className="aspect-video"
         allowFullScreen={true}
       />
     </>
