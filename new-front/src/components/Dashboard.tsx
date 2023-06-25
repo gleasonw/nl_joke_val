@@ -287,14 +287,12 @@ export default function Dashboard(props: DataProps) {
             </MultiSelect>
           </div>
         </div>
-        <div className={chartData.isRefetching ? "opacity-50" : ""}>
-          {chartData.isSuccess && (
-            <HighchartsReact
-              highcharts={Highcharts}
-              options={highChartsOptions}
-            />
-          )}
-        </div>
+        {chartData.isSuccess && (
+          <HighchartsReact
+            highcharts={Highcharts}
+            options={highChartsOptions}
+          />
+        )}
       </Col>
       <TwitchClipAtTime time={clickedUnixSeconds} />
       <TopTwitchClips
