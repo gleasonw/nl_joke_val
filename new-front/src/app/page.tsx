@@ -30,7 +30,7 @@ export default async function Home() {
   };
   async function jsonFetcher(url: string) {
     const res = await fetch(url);
-    console.log(url);
+    return res.json();
   }
   const { emote, clipTimeSpan } = initialArgState.clips;
   const { functionType, timeSpan, timeGrouping } = initialArgState.chart;
@@ -55,11 +55,8 @@ export default async function Home() {
       </Head>
       <App
         initialArgState={initialArgState}
-        //@ts-ignore
         initialSeries={initialSeries}
-        //@ts-ignore
         initialMaxClips={initialMaxClips}
-        //@ts-ignore
         initialMinClips={initialMinClips}
       />
     </div>
