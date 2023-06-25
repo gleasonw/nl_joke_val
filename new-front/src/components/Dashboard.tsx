@@ -364,7 +364,7 @@ function TopTwitchClips({
     initialState.emote
   );
 
-  const { isSuccess, data, isLoading, isFetching } = useQuery({
+  const { isSuccess, data, isLoading } = useQuery({
     queryKey: ["top_clips", timeSpan, grouping, emote],
     queryFn: async () => {
       const res = await fetch(
@@ -377,7 +377,7 @@ function TopTwitchClips({
   });
 
   return (
-    <Card className={isFetching ? "opacity-50" : ""}>
+    <Card>
       {isLoading && <Text>Loading...</Text>}
       <div className={"flex flex-row gap-2 flex-wrap"}>
         <Title>Top</Title>
@@ -446,7 +446,7 @@ function MostMinusTwosClips({
   >(initialState.clipTimeSpan);
   const [grouping, setGrouping] = useState<TimeGroupings>("second");
 
-  const { isSuccess, data, isLoading, isFetching } = useQuery({
+  const { isSuccess, data, isLoading } = useQuery({
     queryKey: ["minus_twos", timeSpan, grouping],
     queryFn: async () => {
       const rest = await fetch(
@@ -462,7 +462,7 @@ function MostMinusTwosClips({
     return <Text>Loading...</Text>;
   } else if (isSuccess) {
     return (
-      <Card className={isFetching ? "opacity-50" : ""}>
+      <Card>
         <div className={"flex flex-row gap-2 flex-wrap"}>
           <Title>Lowest 2 count grouped by</Title>
           <Select
