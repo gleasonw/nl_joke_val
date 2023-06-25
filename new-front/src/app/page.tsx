@@ -39,10 +39,10 @@ export default async function Home() {
     `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${timeGrouping}`
   );
   const initialMaxClips = await jsonFetcher(
-    `https://nljokeval-production.up.railway.app/api/max_clip?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}`
+    `https://nljokeval-production.up.railway.app/api/clip_counts?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=desc`
   );
   const initialMinClips = await jsonFetcher(
-    `https://nljokeval-production.up.railway.app/api/min_clip?span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}`
+    `https://nljokeval-production.up.railway.app/api/clip_counts?column=two&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=asc`
   );
 
   return (

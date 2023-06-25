@@ -368,7 +368,7 @@ function TopTwitchClips({
     queryKey: ["top_clips", timeSpan, grouping, emote],
     queryFn: async () => {
       const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/max_clip?column=${emote}&span=${timeSpan}&grouping=${grouping}`
+        `https://nljokeval-production.up.railway.app/api/clip_counts?column=${emote}&span=${timeSpan}&grouping=${grouping}&order=desc`
       );
       return (await res.json()) as ClipBatch;
     },
@@ -450,7 +450,7 @@ function MostMinusTwosClips({
     queryKey: ["minus_twos", timeSpan, grouping],
     queryFn: async () => {
       const rest = await fetch(
-        `https://nljokeval-production.up.railway.app/api/min_clip?span=${timeSpan}&grouping=${grouping}`
+        `https://nljokeval-production.up.railway.app/api/clip_counts?span=${timeSpan}&grouping=${grouping}&column=two&order=asc`
       );
       return (await rest.json()) as ClipBatch;
     },

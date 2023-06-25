@@ -114,16 +114,26 @@ func main() {
 		marshal_json_and_write(w, result)
 	})
 
-	http.HandleFunc("/api/max_clip", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/clip_counts", func(w http.ResponseWriter, r *http.Request) {
 		column_to_select := r.URL.Query().Get("column")
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
+		order := r.URL.Query().Get("order")
 
 		switch grouping {
 		case "second", "minute", "hour", "day" :
 			break
 		default:
 			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
+			return
+		}
+
+		switch order {
+		case "asc", "desc":
+			break
+		default:
+			http.Error(w, fmt.Sprintf("invalid order: %s", order), http.StatusBadRequest)
+			return
 		}
 
 		var query string
@@ -170,58 +180,11 @@ func main() {
 				%s
 			) sub
 			GROUP BY time
-			ORDER BY count DESC
+			ORDER BY count %s
 			LIMIT 10
-		`, column_to_select, grouping, timeSpan)
+		`, column_to_select, grouping, timeSpan, order)
 		
 		fmt.Println(query)
-
-		minMaxClipGetter(w, query, db)
-	})
-
-	http.HandleFunc("/api/min_clip", func(w http.ResponseWriter, r *http.Request) {
-		span := r.URL.Query().Get("span")
-		grouping := r.URL.Query().Get("grouping")
-		var query string
-		var timeSpan string
-
-		switch grouping {
-		case "second", "minute", "hour", "day" :
-			break
-		default:
-			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
-		}
-
-		switch span {
-		case "day", "week", "month", "year":
-			if span == "day" {
-				// a full day pulls clips from prior streams
-				span = "9 hours"
-			}
-
-			timeSpan = fmt.Sprintf(
-				`AND created_at >= (
-					SELECT MAX(created_at) - INTERVAL '1 %s'
-					FROM chat_counts
-				)
-			`, span)
-			default: 
-				http.Error(w, fmt.Sprintf("invalid span: %s", span), http.StatusBadRequest)
-		}
-
-		// selecting the min string clip should give a random clip
-		query = fmt.Sprintf(`
-		SELECT MIN(clip_id) as clip_id, SUM(sub.count) as count, EXTRACT(epoch from sub.time) as time
-		FROM (
-				SELECT date_trunc('%s', created_at) as time, clip_id, two as count
-				FROM chat_counts
-				WHERE clip_id != ''
-				%s
-		) sub
-		GROUP BY time
-		ORDER BY count ASC
-		LIMIT 10;
-		`, grouping, timeSpan)
 
 		minMaxClipGetter(w, query, db)
 	})
