@@ -121,7 +121,7 @@ func main() {
 		order := r.URL.Query().Get("order")
 
 		switch grouping {
-		case "second", "minute", "hour", "day" :
+		case "second", "minute", "hour", "day", "week", "month", "year" :
 			break
 		default:
 			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
