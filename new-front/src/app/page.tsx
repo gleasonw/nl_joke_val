@@ -30,7 +30,8 @@ export default async function Home() {
   };
   async function jsonFetcher(url: string) {
     const res = await fetch(url);
-    return res.json();
+    console.log(res);
+    return;
   }
   const { emote, clipTimeSpan } = initialArgState.clips;
   const { functionType, timeSpan, timeGrouping } = initialArgState.chart;
