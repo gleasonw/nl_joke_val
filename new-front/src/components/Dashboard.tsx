@@ -132,7 +132,7 @@ export default function Dashboard(props: DataProps) {
     },
     refetchInterval: 10000,
     keepPreviousData: true,
-    initialData: props.initialSeries,
+    placeholderData: props.initialSeries,
   });
 
   const emoteSeries =
