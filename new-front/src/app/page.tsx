@@ -30,8 +30,7 @@ export default async function Home() {
   };
   async function jsonFetcher(url: string) {
     const res = await fetch(url);
-    console.log(res);
-    return;
+    console.log(url);
   }
   const { emote, clipTimeSpan } = initialArgState.clips;
   const { functionType, timeSpan, timeGrouping } = initialArgState.chart;
@@ -39,11 +38,13 @@ export default async function Home() {
   const initialSeries = await jsonFetcher(
     `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${timeGrouping}`
   );
-  const initialMaxClips = await jsonFetcher(
-    `https://nljokeval-production.up.railway.app/api/clip_counts?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=desc`
-  );
+
   const initialMinClips = await jsonFetcher(
     `https://nljokeval-production.up.railway.app/api/clip_counts?column=two&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=asc`
+  );
+
+  const initialMaxClips = await jsonFetcher(
+    `https://nljokeval-production.up.railway.app/api/clip_counts?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=desc`
   );
 
   return (
@@ -54,8 +55,11 @@ export default async function Home() {
       </Head>
       <App
         initialArgState={initialArgState}
+        //@ts-ignore
         initialSeries={initialSeries}
+        //@ts-ignore
         initialMaxClips={initialMaxClips}
+        //@ts-ignore
         initialMinClips={initialMinClips}
       />
     </div>
