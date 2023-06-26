@@ -31,7 +31,7 @@ export default async function Home() {
   async function jsonFetcher(url: string) {
     const res = await fetch(url, {
       next: {
-        revalidate: 0,
+        revalidate: 1,
       },
     });
     return res.json();
