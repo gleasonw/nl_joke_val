@@ -18,7 +18,7 @@ export type InitialArgState = {
 export default async function Home() {
   const initialArgState: InitialArgState = {
     chart: {
-      timeSpan: "9 hours",
+      timeSpan: "1 hour",
       timeGrouping: "second",
       functionType: "instant",
     },
