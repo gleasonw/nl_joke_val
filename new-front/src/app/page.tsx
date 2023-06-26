@@ -19,7 +19,7 @@ export default async function Home() {
   const initialArgState: InitialArgState = {
     chart: {
       timeSpan: "9 hours",
-      timeGrouping: "minute",
+      timeGrouping: "second",
       functionType: "instant",
     },
     clips: {
