@@ -326,8 +326,7 @@ function TwitchClipAtTime(props: { time?: number }) {
   return (
     <Card
       className={
-        "flex flex-col items-center gap-10 justify-center " +
-        (isFetching && "opacity-50")
+        "flex flex-col items-center gap-10 justify-center"
       }
     >
       {!props.time && (
