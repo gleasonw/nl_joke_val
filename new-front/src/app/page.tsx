@@ -29,7 +29,11 @@ export default async function Home() {
     },
   };
   async function jsonFetcher(url: string) {
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      next: {
+        revalidate: 0,
+      },
+    });
     return res.json();
   }
   const { emote, clipTimeSpan } = initialArgState.clips;
