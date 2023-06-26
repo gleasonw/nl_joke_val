@@ -228,7 +228,7 @@ export default function Dashboard(props: DataProps) {
             <Tab>6M</Tab>
           </TabList>
         </TabGroup>
-        <div className={"flex flex-row gap-5 m-5 flex-wrap"}>
+        <div className={"flex flex-row gap-3 m-1 flex-wrap"}>
           <div className="flex flex-col">
             <label htmlFor="chartTypeSelect">Chart Type</label>
             <Select
@@ -326,8 +326,7 @@ function TwitchClipAtTime(props: { time?: number }) {
   return (
     <Card
       className={
-        "flex flex-col items-center gap-10 justify-center " +
-        (isFetching && "opacity-50")
+        "flex flex-col items-center gap-10 justify-center"
       }
     >
       {!props.time && (
