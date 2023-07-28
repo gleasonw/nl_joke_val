@@ -215,7 +215,7 @@ export default function Dashboard(props: DataProps) {
           NL Chat Dashboard (est. 4/18/23)
         </h1>
         <TabGroup
-          defaultIndex={2}
+          defaultIndex={1}
           onIndexChange={(i) => {
             setTimeSpan(timeSpans[i]);
             if (["1 week", "1 month", "1 year"].includes(timeSpans[i])) {

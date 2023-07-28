@@ -18,7 +18,7 @@ export type InitialArgState = {
 export default async function Home() {
   const initialArgState: InitialArgState = {
     chart: {
-      timeSpan: "9 hours",
+      timeSpan: "1 hour",
       timeGrouping: "second",
       functionType: "instant",
     },
@@ -31,7 +31,7 @@ export default async function Home() {
   async function jsonFetcher(url: string) {
     const res = await fetch(url, {
       next: {
-        revalidate: 0,
+        revalidate: 1,
       },
     });
     return res.json();
