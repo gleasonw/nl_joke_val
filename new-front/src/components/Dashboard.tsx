@@ -329,11 +329,6 @@ function TwitchClipAtTime(props: { time?: number }) {
   });
   return (
     <Card className={"flex flex-col items-center gap-10 justify-center"}>
-      {!props.time && (
-        <Title className={"m-10 text-center"}>
-          Click on the graph to pull the nearest clip
-        </Title>
-      )}
       {data && isSuccess && props.time && (
         <TwitchClip clip_id={data.clip_id} time={data.time} />
       )}
@@ -542,9 +537,11 @@ function TwitchClipThumbnail(props: Clip) {
 function TwitchClip({ clip_id, time }: { clip_id: string; time: number }) {
   return (
     <>
-      <Text className={"text-lg"}>
-        {new Date(time * 1000).toLocaleString()}
-      </Text>
+      {time && (
+        <span className={"m-5 text-center text-xl"}>
+          {new Date(time * 1000).toLocaleString()}
+        </span>
+      )}
       <iframe
         src={`https://clips.twitch.tv/embed?clip=${clip_id}&parent=${window.location.hostname}`}
         width="100%"
