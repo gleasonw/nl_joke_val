@@ -122,11 +122,17 @@ export default function Dashboard(props: DataProps) {
         `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${grouping}`
       );
       const jsonResponse = await res.json();
-      const data = SeriesData.safeParse(jsonResponse);
-      if (data.success) {
-        return data.data;
+      const zodParse = SeriesData.safeParse(jsonResponse);
+
+      if (zodParse.success) {
+        const latestTime = zodParse.data?.[zodParse.data.length - 2]?.time;
+
+        if (latestTime && !clickedUnixSeconds) {
+          setClickedUnixSeconds(latestTime);
+        }
+        return zodParse.data;
       } else {
-        console.error(data.error);
+        console.error(zodParse.error);
         throw new Error("Failed to parse data");
       }
     },
@@ -146,8 +152,6 @@ export default function Dashboard(props: DataProps) {
         },
       },
     })) || ([] as Highcharts.SeriesOptionsType[]);
-
-  console.log(emoteSeries);
 
   const highChartsOptions: Highcharts.Options = {
     time: {
@@ -324,11 +328,7 @@ function TwitchClipAtTime(props: { time?: number }) {
     keepPreviousData: true,
   });
   return (
-    <Card
-      className={
-        "flex flex-col items-center gap-10 justify-center"
-      }
-    >
+    <Card className={"flex flex-col items-center gap-10 justify-center"}>
       {!props.time && (
         <Title className={"m-10 text-center"}>
           Click on the graph to pull the nearest clip
