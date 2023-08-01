@@ -518,6 +518,7 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 		fmt.Println("Error unmarshaling JSON:", err)
 		return
 	}
+	fmt.Println(responseObject)
 	data, ok := responseObject["data"].([]interface{})
 	if !ok {
 		fmt.Println("error creating clip")
