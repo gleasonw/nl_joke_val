@@ -139,7 +139,6 @@ func main() {
 		var query string
 		timeSpan := "FROM chat_counts"
 
-		// sanitize column_to_select
 		val := reflect.ValueOf(ChatCounts{})
 		typeOfChatCounts := val.Type()
 		for i := 0; i < val.NumField(); i++ {
@@ -153,7 +152,6 @@ func main() {
 			}
 		}
 		
-		// sanitize span
 		switch span {
 		case "day", "week", "month", "year":
 
@@ -267,8 +265,6 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 	}
 	fmt.Println(clips)
 
-
-	// make request to helix api for thumbnail url for each clip, checking if present in db first, and updating if not
 	for i, clip := range clips {
 		var instantFromDB ChatCounts
 		db.Where("clip_id = ?", clip.ClipID).First(&instantFromDB)
@@ -343,7 +339,6 @@ func connect_to_nl_chat(db *gorm.DB) {
 	chat_closed := make(chan error)
 
 	go func() {
-		// connect to NL chat
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
 		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
@@ -353,7 +348,6 @@ func connect_to_nl_chat(db *gorm.DB) {
 		lionIsLive := false
 
 		go func() {
-			// Read messages from chat
 			for {
 				messageType, messageData, err := conn.ReadMessage()
 				text := string(messageData)
@@ -403,8 +397,6 @@ func connect_to_nl_chat(db *gorm.DB) {
 					}
 				}
 
-				// modify the twos score
-
 				if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
 					counter.Two += parse_val(split_and_get_last(only_message_text, "+"))
 				} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
@@ -413,7 +405,6 @@ func connect_to_nl_chat(db *gorm.DB) {
 
 			case <-post_count_ticker.C:
 
-				// post 10 second count bins to postgres if NL is live
 				var timestamp time.Time
 
 				if lionIsLive {
@@ -468,14 +459,12 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 		"duration":       "90",
 	}
 
-	// Convert the request body to a JSON string
 	requestBodyBytes, err := json.Marshal(requestBody)
 	if err != nil {
 		fmt.Println("Error marshaling JSON:", err)
 		return
 	}
 
-	// Create a new HTTP POST request to the Twitch Clip API
 	req, err := http.NewRequest("POST", "https://api.twitch.tv/helix/clips", bytes.NewBuffer(requestBodyBytes))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
@@ -485,15 +474,12 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	auth := split_and_get_last(auth_token, ":")
 	bearer := fmt.Sprintf("Bearer %s", auth)
 
-	// Set the required headers for the request
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Client-Id", client_id)
 	req.Header.Set("Authorization", bearer)
 
-	// Send the request and get the response
 	client := &http.Client{}
 	resp, err := client.Do(req)
-	//check if 404, live status
 	if resp.StatusCode == 404 {
 		isLive <- false
 		return
@@ -504,14 +490,12 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response body:", err)
 		return
 	}
 
-	// get clip_id from json response
 	var responseObject map[string]interface{}
 	err = json.Unmarshal(responseBody, &responseObject)
 	if err != nil {
