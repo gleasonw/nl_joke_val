@@ -41,6 +41,7 @@ enum SeriesKeys {
   shock = "shock",
   who_asked = "who_asked",
   copium = "copium",
+  ratjam = "ratjam",
 }
 
 const seriesColors: Record<SeriesKeys, string> = {
@@ -56,6 +57,7 @@ const seriesColors: Record<SeriesKeys, string> = {
   [SeriesKeys.shock]: "#8d4654",
   [SeriesKeys.who_asked]: "#91e8e1",
   [SeriesKeys.copium]: "#696969",
+  [SeriesKeys.ratjam]: "#000000",
 };
 
 const SeriesDataSchema = z.object({
@@ -71,6 +73,7 @@ const SeriesDataSchema = z.object({
   [SeriesKeys.shock]: z.number(),
   [SeriesKeys.who_asked]: z.number(),
   [SeriesKeys.copium]: z.number(),
+  [SeriesKeys.ratjam]: z.number(),
   time: z.number(),
 });
 

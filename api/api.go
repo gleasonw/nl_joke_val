@@ -32,6 +32,7 @@ type ChatCounts struct {
 	WhoAsked     int       `json:"who_asked"`
 	Shock        int       `json:"shock"`
 	Copium       int       `json:"copium"`
+	Ratjam int `json:"ratjam"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail string `json:"-"`
@@ -389,6 +390,7 @@ func connect_to_nl_chat(db *gorm.DB) {
 					"Copium":   &counter.Copium,
 					"D:":       &counter.Shock,
 					"WhoAsked": &counter.WhoAsked,
+					"ratJAM":  &counter.Ratjam,
 				}
 
 				for keyword, count := range emotesAndKeywords {
