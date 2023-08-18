@@ -163,6 +163,7 @@ export default function Dashboard(props: DataProps) {
   });
 
   const chartRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   useClickAway(chartRef, () => setTooltip(undefined));
 
   const emoteSeries =
@@ -232,9 +233,6 @@ export default function Dashboard(props: DataProps) {
     title: {
       text: "",
     },
-    tooltip: {
-      enabled: false,
-    },
     xAxis: {
       type: "datetime",
       title: {
@@ -249,6 +247,32 @@ export default function Dashboard(props: DataProps) {
     // @ts-ignore
     series: emoteSeries,
   };
+
+  function getTooltipStyle() {
+    if (window.innerWidth < 768) {
+      return {
+        position: "absolute",
+        top: tooltip?.y,
+        left: "0",
+        transform: "translate('-50%', '-50%')",
+      };
+    }
+    let xDistance = "-50%";
+    let yDistance = "-10%";
+    if (tooltip && tooltipRef.current) {
+      if (tooltip.x + tooltipRef.current.clientWidth > window.innerWidth) {
+        xDistance = "-100%";
+      } else if (tooltip.x - tooltipRef.current.clientWidth < 0) {
+        xDistance = "0%";
+      }
+    }
+    return {
+      position: "absolute",
+      top: tooltip?.y,
+      left: tooltip?.x,
+      transform: `translate(${xDistance}, ${yDistance})`,
+    };
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -275,7 +299,7 @@ export default function Dashboard(props: DataProps) {
           </TabList>
         </TabGroup>
         <div className="flex flex-col">
-          <div className="flex flex-row flex-wrap gap-3 m-1">
+          <div className="flex flex-row flex-wrap gap-3 m-2">
             {Object.keys(SeriesKeys).map((key) => (
               <button
                 className={"w-auto hover:shadow-lg rounded-lg p-3"}
@@ -312,12 +336,8 @@ export default function Dashboard(props: DataProps) {
             {tooltip && (
               <div
                 className={"w-96 transition-all"}
-                style={{
-                  position: "absolute",
-                  top: tooltip?.y,
-                  left: tooltip?.x,
-                  transform: "translate(-50%)",
-                }}
+                style={getTooltipStyle()}
+                ref={tooltipRef}
               >
                 <button
                   onClick={() => setTooltip(undefined)}
@@ -330,7 +350,11 @@ export default function Dashboard(props: DataProps) {
             )}
           </div>
         )}
-        <div className={"flex flex-row gap-5 m-1 flex-wrap items-center"}>
+        <div
+          className={
+            "flex flex-row gap-5 justify-center flex-wrap items-center w-full"
+          }
+        >
           <div className="flex flex-col">
             <label htmlFor="chartTypeSelect">Chart Type</label>
             <Select
