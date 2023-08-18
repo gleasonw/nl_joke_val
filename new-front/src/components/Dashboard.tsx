@@ -16,7 +16,7 @@ import {
   List,
   ListItem,
 } from "@tremor/react";
-import { useRef, useState } from "react";
+import { CSSProperties, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import Highcharts, { RectangleObject } from "highcharts";
@@ -248,11 +248,11 @@ export default function Dashboard(props: DataProps) {
     series: emoteSeries,
   };
 
-  function getTooltipStyle() {
+  function getTooltipStyle(): CSSProperties {
     if (window.innerWidth < 768) {
       return {
         position: "absolute",
-        top: tooltip?.y,
+        top: tooltip?.y ?? 0,
         left: "0",
         transform: "translate('-50%', '-50%')",
       };
