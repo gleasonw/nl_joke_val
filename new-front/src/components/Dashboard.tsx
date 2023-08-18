@@ -8,17 +8,15 @@ import {
   TabList,
   Tab,
   Text,
-  Flex,
   Select,
   SelectItem,
   MultiSelect,
   MultiSelectItem,
   Card,
-  Metric,
   List,
   ListItem,
 } from "@tremor/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import Highcharts from "highcharts";
@@ -26,7 +24,7 @@ import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
 import { DataProps } from "@/components/App";
 import { InitialArgState } from "@/app/page";
-import { init } from "next/dist/compiled/@vercel/og/satori";
+import { useClickAway } from "react-use";
 
 enum SeriesKeys {
   two = "two",
@@ -116,6 +114,9 @@ export default function Dashboard(props: DataProps) {
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
   >(undefined);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | undefined>(
+    undefined
+  );
 
   const SeriesData = SeriesDataSchema.array();
   const chartData = useQuery({
@@ -128,11 +129,6 @@ export default function Dashboard(props: DataProps) {
       const zodParse = SeriesData.safeParse(jsonResponse);
 
       if (zodParse.success) {
-        const latestTime = zodParse.data?.[zodParse.data.length - 2]?.time;
-
-        if (latestTime && !clickedUnixSeconds) {
-          setClickedUnixSeconds(latestTime);
-        }
         return zodParse.data;
       } else {
         console.error(zodParse.error);
@@ -144,10 +140,14 @@ export default function Dashboard(props: DataProps) {
     placeholderData: props.initialSeries,
   });
 
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  useClickAway(chartRef, () => setTooltip(undefined));
+
   const emoteSeries =
     series.map((key) => ({
       name: key,
-      data: chartData.data?.map((d) => [d.time * 1000 ?? 0, d[key] ?? ""]),
+      data:
+        chartData.data?.map((d) => [d.time * 1000 ?? 0, d[key] ?? ""]) ?? [],
       color: seriesColors[key as keyof typeof seriesColors],
       events: {
         click: function (e: any) {
@@ -172,6 +172,19 @@ export default function Dashboard(props: DataProps) {
           enabled: false,
         },
         cursor: "pointer",
+        point: {
+          events: {
+            click: function (e: any) {
+              const chart = this.series.chart;
+              if (this.plotX && this.plotY) {
+                setTooltip({
+                  x: this.plotX + chart.plotLeft,
+                  y: this.plotY + chart.plotTop,
+                });
+              }
+            },
+          },
+        },
       },
       line: {
         linecap: "round",
@@ -186,6 +199,7 @@ export default function Dashboard(props: DataProps) {
       },
       events: {
         click: function (e: any) {
+          console.log(e);
           let xVal = e?.xAxis?.[0]?.value;
           if (xVal) {
             setClickedUnixSeconds(xVal / 1000);
@@ -195,6 +209,9 @@ export default function Dashboard(props: DataProps) {
     },
     title: {
       text: "",
+    },
+    tooltip: {
+      enabled: false,
     },
     xAxis: {
       type: "datetime",
@@ -212,7 +229,7 @@ export default function Dashboard(props: DataProps) {
   };
 
   return (
-    <Grid numItems={1} numItemsLg={2} className="gap-5">
+    <Grid numItems={1} className="gap-5">
       <Col numColSpan={1}>
         <h1 className={"text-2xl m-5 font-semibold"}>
           NL Chat Dashboard (est. 4/18/23)
@@ -295,13 +312,32 @@ export default function Dashboard(props: DataProps) {
           </div>
         </div>
         {chartData.isSuccess && (
-          <HighchartsReact
-            highcharts={Highcharts}
-            options={highChartsOptions}
-          />
+          <div ref={chartRef}>
+            <HighchartsReact
+              highcharts={Highcharts}
+              options={highChartsOptions}
+            />
+            <span className="text-center w-full m-5">
+              Select a point in the graph to pull the nearest clip, click away
+              to close clip
+            </span>
+            {tooltip && (
+              <div
+                className={"w-96 transition-all"}
+                style={{
+                  position: "absolute",
+                  top: tooltip?.y,
+                  left: tooltip?.x,
+                  transform: "translate(-50%, -30%)",
+                  zIndex: 2,
+                }}
+              >
+                <TwitchClipAtTime time={clickedUnixSeconds} />
+              </div>
+            )}
+          </div>
         )}
       </Col>
-      <TwitchClipAtTime time={clickedUnixSeconds} />
       <TopTwitchClips
         initialClips={props.initialMaxClips}
         initialState={props.initialArgState.clips}
@@ -320,7 +356,7 @@ function TwitchClipAtTime(props: { time?: number }) {
     time: number;
   };
 
-  const { isSuccess, data, isFetching } = useQuery({
+  const { isSuccess, data } = useQuery({
     queryKey: ["clip", props.time],
     queryFn: async () => {
       const res = await fetch(
@@ -331,11 +367,9 @@ function TwitchClipAtTime(props: { time?: number }) {
     keepPreviousData: true,
   });
   return (
-    <Card className={"flex flex-col items-center gap-10 justify-center"}>
-      {data && isSuccess && props.time && (
-        <TwitchClip clip_id={data.clip_id} time={data.time} />
-      )}
-    </Card>
+    data &&
+    isSuccess &&
+    props.time && <TwitchClip clip_id={data.clip_id} time={props.time} />
   );
 }
 
@@ -510,9 +544,8 @@ function MostMinusTwosClips({
   }
 }
 
-function TwitchClipThumbnail(props: Clip) {
+function TwitchClipThumbnail({ clip_id, count, time, thumbnail }: Clip) {
   const [isClipRevealed, setIsClipRevealed] = useState(false);
-  const { clip_id, count, time, thumbnail } = props;
   const timeString = new Date(time * 1000).toLocaleString();
   if (isClipRevealed) {
     return <TwitchClip clip_id={clip_id} time={time} />;
@@ -537,7 +570,7 @@ function TwitchClipThumbnail(props: Clip) {
   }
 }
 
-function TwitchClip({ clip_id, time }: { clip_id: string; time: number }) {
+function TwitchClip({ clip_id, time }: { clip_id: string; time?: number }) {
   return (
     <>
       {time && (

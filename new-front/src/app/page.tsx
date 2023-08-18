@@ -15,6 +15,11 @@ export type InitialArgState = {
   };
 };
 
+export const metadata = {
+  title: "The NL Chat Dashboard",
+  description: "Tracks +2s, -2s, luls, ratJams, the works.",
+};
+
 export default async function Home() {
   const initialArgState: InitialArgState = {
     chart: {
