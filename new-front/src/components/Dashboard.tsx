@@ -274,6 +274,62 @@ export default function Dashboard(props: DataProps) {
             <Tab>6M</Tab>
           </TabList>
         </TabGroup>
+        <div className="flex flex-col">
+          <div className="flex flex-row flex-wrap">
+            {Object.keys(SeriesKeys).map((key) => (
+              <button
+                className={"w-auto hover:shadow-lg rounded-lg m-5"}
+                style={
+                  series.includes(key as SeriesKey)
+                    ? {
+                        boxShadow: `0 0 0 4px ${
+                          seriesColors[key as SeriesKey]
+                        }`,
+                      }
+                    : {}
+                }
+                key={key}
+                onClick={() => {
+                  series.includes(key as SeriesKey)
+                    ? setSeries(series.filter((series) => series !== key))
+                    : setSeries([...series, key as SeriesKey]);
+                }}
+              >
+                {seriesEmotes[key as SeriesKey]}
+              </button>
+            ))}
+          </div>
+          <span className="text-center w-full m-5">
+            Select a point in the graph to pull the nearest clip
+          </span>
+        </div>
+        {chartData.isSuccess && (
+          <div ref={chartRef}>
+            <HighchartsReact
+              highcharts={Highcharts}
+              options={highChartsOptions}
+            />
+            {tooltip && (
+              <div
+                className={"w-96 transition-all"}
+                style={{
+                  position: "absolute",
+                  top: tooltip?.y,
+                  left: tooltip?.x,
+                  transform: "translate(-50%)",
+                }}
+              >
+                <button
+                  onClick={() => setTooltip(undefined)}
+                  className={"absolute -top-10 right-0 p-5 bg-white rounded"}
+                >
+                  X
+                </button>
+                <TwitchClipAtTime time={clickedUnixSeconds} />
+              </div>
+            )}
+          </div>
+        )}
         <div className={"flex flex-row gap-5 m-1 flex-wrap items-center"}>
           <div className="flex flex-col">
             <label htmlFor="chartTypeSelect">Chart Type</label>
@@ -316,61 +372,7 @@ export default function Dashboard(props: DataProps) {
               ))}
             </Select>
           </div>
-
-          <div className="flex flex-col">
-            <label htmlFor="seriesMultiSelect">Series</label>
-            <div className="flex flex-row flex-wrap">
-              {Object.keys(SeriesKeys).map((key) => (
-                <button
-                  className={"w-auto hover:shadow-lg rounded-lg m-5"}
-                  style={
-                    series.includes(key as SeriesKey)
-                      ? {
-                          boxShadow: `0 0 0 4px ${
-                            seriesColors[key as SeriesKey]
-                          }`,
-                        }
-                      : {}
-                  }
-                  key={key}
-                  onClick={() => {
-                    series.includes(key as SeriesKey)
-                      ? setSeries(series.filter((series) => series !== key))
-                      : setSeries([...series, key as SeriesKey]);
-                  }}
-                >
-                  {seriesEmotes[key as SeriesKey]}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
-        {chartData.isSuccess && (
-          <div ref={chartRef}>
-            <HighchartsReact
-              highcharts={Highcharts}
-              options={highChartsOptions}
-            />
-            <span className="text-center w-full m-5">
-              Select a point in the graph to pull the nearest clip, click away
-              to close clip
-            </span>
-            {tooltip && (
-              <div
-                className={"w-96 transition-all"}
-                style={{
-                  position: "absolute",
-                  top: tooltip?.y,
-                  left: tooltip?.x,
-                  transform: "translate(-50%)",
-                  zIndex: 2,
-                }}
-              >
-                <TwitchClipAtTime time={clickedUnixSeconds} />
-              </div>
-            )}
-          </div>
-        )}
       </div>
       <div className={"flex flex-wrap md:flex-nowrap md:gap-5"}>
         <TopTwitchClips
