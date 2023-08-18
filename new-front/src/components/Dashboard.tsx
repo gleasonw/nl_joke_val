@@ -19,30 +19,32 @@ import {
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import Highcharts from "highcharts";
+import Highcharts, { RectangleObject } from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
 import { DataProps } from "@/components/App";
 import { InitialArgState } from "@/app/page";
 import { useClickAway } from "react-use";
 
-enum SeriesKeys {
-  two = "two",
-  lol = "lol",
-  cereal = "cereal",
-  monkas = "monkas",
-  joel = "joel",
-  pog = "pog",
-  huh = "huh",
-  no = "no",
-  cocka = "cocka",
-  shock = "shock",
-  who_asked = "who_asked",
-  copium = "copium",
-  ratjam = "ratjam",
-}
+const SeriesKeys = {
+  two: "two",
+  lol: "lol",
+  cereal: "cereal",
+  monkas: "monkas",
+  joel: "joel",
+  pog: "pog",
+  huh: "huh",
+  no: "no",
+  cocka: "cocka",
+  shock: "shock",
+  who_asked: "who_asked",
+  copium: "copium",
+  ratjam: "ratjam",
+} as const;
 
-const seriesColors: Record<SeriesKeys, string> = {
+type SeriesKey = (typeof SeriesKeys)[keyof typeof SeriesKeys];
+
+const seriesColors: Record<SeriesKey, string> = {
   [SeriesKeys.two]: "#7cb5ec",
   [SeriesKeys.lol]: "#434348",
   [SeriesKeys.cereal]: "#90ed7d",
@@ -56,7 +58,27 @@ const seriesColors: Record<SeriesKeys, string> = {
   [SeriesKeys.who_asked]: "#91e8e1",
   [SeriesKeys.copium]: "#696969",
   [SeriesKeys.ratjam]: "#000000",
-};
+} as const;
+
+const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
+  [SeriesKeys.two]: <div className={"text-xl "}>∑ ± 2</div>,
+  [SeriesKeys.lol]: <Emote src={"lul.jpg"} />,
+  [SeriesKeys.cereal]: <Emote src={"cereal.webp"} />,
+  [SeriesKeys.monkas]: <Emote src={"monkaS.webp"} />,
+  [SeriesKeys.joel]: <Emote src={"Joel.webp"} />,
+  [SeriesKeys.pog]: <Emote src={"Pog.webp"} />,
+  [SeriesKeys.huh]: <Emote src={"huhh.webp"} />,
+  [SeriesKeys.no]: <Emote src={"nooo.webp"} />,
+  [SeriesKeys.cocka]: <Emote src={"cocka.webp"} />,
+  [SeriesKeys.shock]: <Emote src={"shockface.png"} />,
+  [SeriesKeys.who_asked]: <Emote src={"whoasked.webp"} />,
+  [SeriesKeys.copium]: <Emote src={"copium.webp"} />,
+  [SeriesKeys.ratjam]: <Emote src={"ratJAM.webp"} />,
+} as const;
+
+function Emote({ src }: { src: string }) {
+  return <Image src={`/${src}`} alt={src} width={32} height={32} />;
+}
 
 const SeriesDataSchema = z.object({
   [SeriesKeys.two]: z.number(),
@@ -105,7 +127,7 @@ export default function Dashboard(props: DataProps) {
   const [functionType, setFunctionType] = useState<"rolling_sum" | "instant">(
     initArgs.functionType
   );
-  const [series, setSeries] = useState<SeriesKeys[]>([SeriesKeys.two]);
+  const [series, setSeries] = useState<SeriesKey[]>([SeriesKeys.two]);
 
   const [timeSpan, setTimeSpan] = useState<TimeSpans>(initArgs.timeSpan);
   const [grouping, setGrouping] = useState<
@@ -297,18 +319,30 @@ export default function Dashboard(props: DataProps) {
 
           <div className="flex flex-col">
             <label htmlFor="seriesMultiSelect">Series</label>
-            <MultiSelect
-              id="seriesMultiSelect"
-              placeholder={"Series"}
-              value={series}
-              onValueChange={(value) => setSeries(value as SeriesKeys[])}
-            >
-              {Object.keys(SeriesKeys).map((series) => (
-                <MultiSelectItem value={series} key={series}>
-                  {series}
-                </MultiSelectItem>
+            <div className="flex flex-row flex-wrap">
+              {Object.keys(SeriesKeys).map((key) => (
+                <button
+                  className={"w-auto hover:shadow-lg rounded-lg m-5"}
+                  style={
+                    series.includes(key as SeriesKey)
+                      ? {
+                          boxShadow: `0 0 0 4px ${
+                            seriesColors[key as SeriesKey]
+                          }`,
+                        }
+                      : {}
+                  }
+                  key={key}
+                  onClick={() => {
+                    series.includes(key as SeriesKey)
+                      ? setSeries(series.filter((series) => series !== key))
+                      : setSeries([...series, key as SeriesKey]);
+                  }}
+                >
+                  {seriesEmotes[key as SeriesKey]}
+                </button>
               ))}
-            </MultiSelect>
+            </div>
           </div>
         </div>
         {chartData.isSuccess && (
@@ -418,13 +452,24 @@ function TopTwitchClips({
       {isLoading && <Text>Loading...</Text>}
       <div className={"flex flex-row gap-2 flex-wrap"}>
         <Title>Top</Title>
-        <Select value={emote} onValueChange={(value) => setEmote(value as any)}>
-          {Object.keys(SeriesKeys).map((e) => (
-            <SelectItem value={e} key={e}>
-              {e}
-            </SelectItem>
+        <div className="flex flex-row flex-wrap">
+          {Object.keys(SeriesKeys).map((key) => (
+            <button
+              className={"w-auto hover:shadow-lg rounded-lg m-5"}
+              style={
+                emote === key
+                  ? {
+                      boxShadow: `0 0 0 4px ${seriesColors[key as SeriesKey]}`,
+                    }
+                  : {}
+              }
+              key={key}
+              onClick={() => setEmote(key as SeriesKey)}
+            >
+              {seriesEmotes[key as SeriesKey]}
+            </button>
           ))}
-        </Select>
+        </div>
         <Title>grouped by</Title>
         <Select
           value={grouping}
