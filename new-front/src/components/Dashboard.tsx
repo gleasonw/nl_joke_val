@@ -274,7 +274,7 @@ export default function Dashboard(props: DataProps) {
             <Tab>6M</Tab>
           </TabList>
         </TabGroup>
-        <div className={"flex flex-row gap-3 m-1 flex-wrap"}>
+        <div className={"flex flex-row gap-5 m-1 flex-wrap items-center"}>
           <div className="flex flex-col">
             <label htmlFor="chartTypeSelect">Chart Type</label>
             <Select
@@ -362,7 +362,7 @@ export default function Dashboard(props: DataProps) {
                   position: "absolute",
                   top: tooltip?.y,
                   left: tooltip?.x,
-                  transform: "translate(-50%, -30%)",
+                  transform: "translate(-50%)",
                   zIndex: 2,
                 }}
               >
