@@ -275,10 +275,10 @@ export default function Dashboard(props: DataProps) {
           </TabList>
         </TabGroup>
         <div className="flex flex-col">
-          <div className="flex flex-row flex-wrap">
+          <div className="flex flex-row flex-wrap gap-3 m-1">
             {Object.keys(SeriesKeys).map((key) => (
               <button
-                className={"w-auto hover:shadow-lg rounded-lg m-5"}
+                className={"w-auto hover:shadow-lg rounded-lg p-3"}
                 style={
                   series.includes(key as SeriesKey)
                     ? {
@@ -454,10 +454,10 @@ function TopTwitchClips({
       {isLoading && <Text>Loading...</Text>}
       <div className={"flex flex-row gap-2 flex-wrap"}>
         <Title>Top</Title>
-        <div className="flex flex-row flex-wrap">
+        <div className="flex flex-row flex-wrap gap-3">
           {Object.keys(SeriesKeys).map((key) => (
             <button
-              className={"w-auto hover:shadow-lg rounded-lg m-5"}
+              className={"w-auto hover:shadow-lg rounded-lg p-3"}
               style={
                 emote === key
                   ? {
