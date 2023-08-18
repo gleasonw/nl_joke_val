@@ -229,8 +229,8 @@ export default function Dashboard(props: DataProps) {
   };
 
   return (
-    <Grid numItems={1} className="gap-5">
-      <Col numColSpan={1}>
+    <div className="flex flex-col gap-5">
+      <div>
         <h1 className={"text-2xl m-5 font-semibold"}>
           NL Chat Dashboard (est. 4/18/23)
         </h1>
@@ -337,16 +337,18 @@ export default function Dashboard(props: DataProps) {
             )}
           </div>
         )}
-      </Col>
-      <TopTwitchClips
-        initialClips={props.initialMaxClips}
-        initialState={props.initialArgState.clips}
-      />
-      <MostMinusTwosClips
-        initialClips={props.initialMinClips}
-        initialState={props.initialArgState.clips}
-      />
-    </Grid>
+      </div>
+      <div className={"flex flex-wrap md:flex-nowrap md:gap-5"}>
+        <TopTwitchClips
+          initialClips={props.initialMaxClips}
+          initialState={props.initialArgState.clips}
+        />
+        <MostMinusTwosClips
+          initialClips={props.initialMinClips}
+          initialState={props.initialArgState.clips}
+        />
+      </div>
+    </div>
   );
 }
 
