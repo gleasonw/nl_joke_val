@@ -15,6 +15,7 @@ import {
   Card,
   List,
   ListItem,
+  Button,
 } from "@tremor/react";
 import { CSSProperties, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -314,9 +315,7 @@ export default function Dashboard(props: DataProps) {
                 }
                 key={key}
                 onClick={() => {
-                  series.includes(key as SeriesKey)
-                    ? setSeries(series.filter((series) => series !== key))
-                    : setSeries([...series, key as SeriesKey]);
+                  setSeries(getNewList<SeriesKey>(series, key as SeriesKey));
                 }}
               >
                 {seriesEmotes[key as SeriesKey]}
@@ -412,6 +411,14 @@ export default function Dashboard(props: DataProps) {
   );
 }
 
+function getNewList<T>(list: T[], item: T) {
+  if (list.includes(item)) {
+    return list.filter((listItem) => listItem !== item);
+  } else {
+    return [...list, item];
+  }
+}
+
 function TwitchClipAtTime(props: { time?: number }) {
   type ClipData = {
     clip_id: string;
@@ -457,15 +464,15 @@ function TopTwitchClips({
     "day" | "week" | "month" | "year" | ""
   >(initialState.clipTimeSpan);
   const [grouping, setGrouping] = useState<TimeGroupings>("second");
-  const [emote, setEmote] = useState<keyof typeof SeriesKeys>(
-    initialState.emote
-  );
+  const [emotes, setEmotes] = useState<SeriesKey[]>([initialState.emote]);
+  const [sumEmotes, setSumEmotes] = useState(false);
 
   const { isSuccess, data, isLoading } = useQuery({
-    queryKey: ["top_clips", timeSpan, grouping, emote],
+    queryKey: ["top_clips", timeSpan, grouping, emotes],
     queryFn: async () => {
+      const queryStrings = emotes.map((emote) => `column=${emote}`).join("&");
       const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/clip_counts?column=${emote}&span=${timeSpan}&grouping=${grouping}&order=desc`
+        `https://nljokeval-production.up.railway.app/api/clip_counts?${queryStrings}&span=${timeSpan}&grouping=${grouping}&order=desc`
       );
       return (await res.json()) as ClipBatch;
     },
@@ -476,26 +483,38 @@ function TopTwitchClips({
   return (
     <Card>
       {isLoading && <Text>Loading...</Text>}
-      <div className={"flex flex-row gap-2 flex-wrap"}>
+      <div className={"flex flex-col gap-2"}>
         <Title>Top</Title>
         <div className="flex flex-row flex-wrap gap-3">
           {Object.keys(SeriesKeys).map((key) => (
             <button
               className={"w-auto hover:shadow-lg rounded-lg p-3"}
               style={
-                emote === key
+                emotes.includes(key as SeriesKey)
                   ? {
                       boxShadow: `0 0 0 4px ${seriesColors[key as SeriesKey]}`,
                     }
                   : {}
               }
               key={key}
-              onClick={() => setEmote(key as SeriesKey)}
+              onClick={() =>
+                setEmotes(
+                  sumEmotes
+                    ? getNewList<SeriesKey>(emotes, key as SeriesKey)
+                    : [key as SeriesKey]
+                )
+              }
             >
               {seriesEmotes[key as SeriesKey]}
             </button>
           ))}
         </div>
+        <Button
+          onClick={() => setSumEmotes(!sumEmotes)}
+          variant={sumEmotes ? "primary" : "secondary"}
+        >
+          Sum multiple emotes
+        </Button>
         <Title>grouped by</Title>
         <Select
           value={grouping}
