@@ -176,12 +176,13 @@ func main() {
 				SELECT %s AS count, date_trunc('%s', created_at) as time, clip_id
 				FROM chat_counts
 				WHERE clip_id != ''
+				AND %s IS NOT NULL
 				%s
 			) sub
 			GROUP BY time
 			ORDER BY count %s
 			LIMIT 10
-		`, column_to_select, grouping, timeSpan, order)
+		`, column_to_select, grouping, column_to_select, timeSpan, order)
 		
 		fmt.Println(query)
 
