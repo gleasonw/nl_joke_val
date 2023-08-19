@@ -39,6 +39,10 @@ type ChatCounts struct {
 	CreatedEpoch float64   `json:"time"`
 }
 
+var val = reflect.ValueOf(ChatCounts{})
+var validColumnSet = make(map[string]bool)
+
+
 type Clip struct {
 	ClipID string  `json:"clip_id"`
 	Count  int     `json:"count"`
@@ -57,7 +61,7 @@ var db_url string = os.Getenv("DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
 
 
-//TODO: refresh token every month. URL on Railway vars
+// TODO: refresh token every month. URL on Railway vars
 
 func main() {
 	if auth_token == "" {
@@ -77,6 +81,14 @@ func main() {
 		return
 	}
 	db.AutoMigrate(&ChatCounts{})
+
+	for i := 0; i < val.NumField(); i++ {
+		jsonTag := val.Type().Field(i).Tag.Get("json")
+		if jsonTag != "-" && jsonTag != "time" {
+			validColumnSet[jsonTag] = true
+		}
+	}
+
 	go connect_to_nl_chat(db)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
@@ -116,7 +128,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/clip_counts", func(w http.ResponseWriter, r *http.Request) {
-		column_to_select := r.URL.Query().Get("column")
+		column_to_select := r.URL.Query()["column"]
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
 		order := r.URL.Query().Get("order")
@@ -140,14 +152,10 @@ func main() {
 		var query string
 		timeSpan := "FROM chat_counts"
 
-		val := reflect.ValueOf(ChatCounts{})
-		typeOfChatCounts := val.Type()
-		for i := 0; i < val.NumField(); i++ {
-			jsonTag := typeOfChatCounts.Field(i).Tag.Get("json")
-			if jsonTag == column_to_select {
-				break
-			}
-			if i == val.NumField()-1 {
+
+		for _, column := range column_to_select {
+			_, ok := validColumnSet[column]
+			if !ok {
 				http.Error(w, fmt.Sprintf("invalid column: %s", column_to_select), http.StatusBadRequest)
 				return
 			}
@@ -170,19 +178,28 @@ func main() {
 				)`, span)
 		}
 
+		sum_clause := strings.Join(column_to_select, " + ")
+		not_null_clause := make([]string, 0, len(column_to_select))
+		for _, column := range column_to_select {
+			not_null_clause = append(not_null_clause, fmt.Sprintf("%s IS NOT NULL", column))
+		}
+
+		not_null_string := strings.Join(not_null_clause, " AND ")
+
 		query = fmt.Sprintf(`
 			SELECT SUM(sub.count) AS count, EXTRACT(epoch from time) as time, MIN(clip_id) as clip_id
 			FROM (
 				SELECT %s AS count, date_trunc('%s', created_at) as time, clip_id
 				FROM chat_counts
 				WHERE clip_id != ''
-				AND %s IS NOT NULL
+				AND
+				%s
 				%s
 			) sub
 			GROUP BY time
 			ORDER BY count %s
 			LIMIT 10
-		`, column_to_select, grouping, column_to_select, timeSpan, order)
+		`, sum_clause, grouping, not_null_string, timeSpan, order)
 		
 		fmt.Println(query)
 
@@ -265,7 +282,6 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	fmt.Println(clips)
 
 	for i, clip := range clips {
 		var instantFromDB ChatCounts
