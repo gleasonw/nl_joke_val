@@ -129,7 +129,7 @@ export default function Dashboard(props: DataProps) {
     initArgs.functionType
   );
   const [series, setSeries] = useState<SeriesKey[]>([SeriesKeys.two]);
-
+  console.log(initArgs.timeSpan);
   const [timeSpan, setTimeSpan] = useState<TimeSpans>(initArgs.timeSpan);
   const [grouping, setGrouping] = useState<
     "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
@@ -282,10 +282,10 @@ export default function Dashboard(props: DataProps) {
           NL Chat Dashboard (est. 4/18/23)
         </h1>
         <TabGroup
-          defaultIndex={1}
+          defaultIndex={2}
           onIndexChange={(i) => {
             setTimeSpan(timeSpans[i]);
-            if (["1 week", "1 month", "1 year"].includes(timeSpans[i])) {
+            if (["1 month", "1 year"].includes(timeSpans[i])) {
               setGrouping("day");
             }
           }}
@@ -299,7 +299,7 @@ export default function Dashboard(props: DataProps) {
             <Tab>6M</Tab>
           </TabList>
         </TabGroup>
-        <div className="flex flex-col">
+        <div className="flex flex-col p-3">
           <div className="flex flex-row flex-wrap gap-3 m-2">
             {Object.keys(SeriesKeys).map((key) => (
               <button
@@ -322,81 +322,78 @@ export default function Dashboard(props: DataProps) {
               </button>
             ))}
           </div>
-          <span className="text-center w-full m-5">
-            Select a point in the graph to pull the nearest clip
-          </span>
-        </div>
-        {chartData.isSuccess && (
-          <div ref={chartRef}>
-            <HighchartsReact
-              highcharts={Highcharts}
-              options={highChartsOptions}
-            />
-            {tooltip && (
-              <div
-                className={"w-96 transition-all"}
-                style={getTooltipStyle()}
-                ref={tooltipRef}
+          <div className={"flex flex-row gap-5 flex-wrap items-center w-full"}>
+            <div className="flex flex-col">
+              <label htmlFor="chartTypeSelect">Chart Type</label>
+              <Select
+                id="chartTypeSelect"
+                value={chartType}
+                placeholder={"Chart type"}
+                onValueChange={(value) => setChartType(value as "line" | "bar")}
               >
-                <button
-                  onClick={() => setTooltip(undefined)}
-                  className={"absolute -top-10 right-0 p-5 bg-white rounded"}
-                >
-                  X
-                </button>
-                <TwitchClipAtTime time={clickedUnixSeconds} />
-              </div>
-            )}
-          </div>
-        )}
-        <div
-          className={
-            "flex flex-row gap-5 justify-center flex-wrap items-center w-full"
-          }
-        >
-          <div className="flex flex-col">
-            <label htmlFor="chartTypeSelect">Chart Type</label>
-            <Select
-              id="chartTypeSelect"
-              value={chartType}
-              placeholder={"Chart type"}
-              onValueChange={(value) => setChartType(value as "line" | "bar")}
-            >
-              <SelectItem value="line">Line</SelectItem>
-              <SelectItem value="bar">Bar</SelectItem>
-            </Select>
-          </div>
+                <SelectItem value="line">Line</SelectItem>
+                <SelectItem value="bar">Bar</SelectItem>
+              </Select>
+            </div>
 
-          <div className="flex flex-col">
-            <label htmlFor="sumTypeSelect">Sum Type</label>
-            <Select
-              id="sumTypeSelect"
-              value={functionType}
-              placeholder={"Sum type"}
-              onValueChange={(value) =>
-                setFunctionType(value as "rolling_sum" | "instant")
-              }
-            >
-              <SelectItem value="rolling_sum">Rolling sum</SelectItem>
-              <SelectItem value="instant">Instant</SelectItem>
-            </Select>
-          </div>
+            <div className="flex flex-col">
+              <label htmlFor="sumTypeSelect">Sum Type</label>
+              <Select
+                id="sumTypeSelect"
+                value={functionType}
+                placeholder={"Sum type"}
+                onValueChange={(value) =>
+                  setFunctionType(value as "rolling_sum" | "instant")
+                }
+              >
+                <SelectItem value="rolling_sum">Rolling sum</SelectItem>
+                <SelectItem value="instant">Instant</SelectItem>
+              </Select>
+            </div>
 
-          <div className="flex flex-col">
-            <label htmlFor="groupBySelect">Group By</label>
-            <Select
-              id="groupBySelect"
-              value={grouping}
-              placeholder={"Group by"}
-              onValueChange={(value) => setGrouping(value as TimeGroupings)}
-            >
-              {timeGroupings.map((grouping) => (
-                <SelectItem value={grouping} key={grouping} />
-              ))}
-            </Select>
+            <div className="flex flex-col">
+              <label htmlFor="groupBySelect">Group By</label>
+              <Select
+                id="groupBySelect"
+                value={grouping}
+                placeholder={"Group by"}
+                onValueChange={(value) => setGrouping(value as TimeGroupings)}
+              >
+                {timeGroupings.map((grouping) => (
+                  <SelectItem value={grouping} key={grouping} />
+                ))}
+              </Select>
+            </div>
+            <span className="text-center">
+              Select a point in the graph to pull the nearest clip
+            </span>
           </div>
         </div>
       </div>
+      {chartData.isSuccess && (
+        <div ref={chartRef}>
+          <HighchartsReact
+            highcharts={Highcharts}
+            options={highChartsOptions}
+          />
+          {tooltip && (
+            <div
+              className={"w-96 transition-all"}
+              style={getTooltipStyle()}
+              ref={tooltipRef}
+            >
+              <button
+                onClick={() => setTooltip(undefined)}
+                className={"absolute -top-10 right-0 p-5 bg-white rounded"}
+              >
+                X
+              </button>
+              <TwitchClipAtTime time={clickedUnixSeconds} />
+            </div>
+          )}
+        </div>
+      )}
+
       <div className={"flex flex-wrap md:flex-nowrap md:gap-5"}>
         <TopTwitchClips
           initialClips={props.initialMaxClips}

@@ -106,6 +106,7 @@ func main() {
 
 		var result []ChatCounts
 
+		fmt.Println(sumQuery)
 		err := db.Raw(sumQuery, grouping, span).Scan(&result).Error
 		if err != nil {
 			fmt.Println(err)

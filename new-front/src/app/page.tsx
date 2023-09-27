@@ -1,6 +1,6 @@
 import App from "@/components/App";
 import Head from "next/head";
-import { TimeSpans, TimeGroupings, SeriesData } from "@/components/Dashboard";
+import { TimeSpans, TimeGroupings } from "@/components/Dashboard";
 
 export type InitialArgState = {
   chart: {
@@ -23,8 +23,8 @@ export const metadata = {
 export default async function Home() {
   const initialArgState: InitialArgState = {
     chart: {
-      timeSpan: "1 hour",
-      timeGrouping: "second",
+      timeSpan: "9 hours",
+      timeGrouping: "minute",
       functionType: "instant",
     },
     clips: {
@@ -60,7 +60,6 @@ export default async function Home() {
     <div>
       <Head>
         <title>NL Chat Dashboard</title>
-        <meta name="description" content="NL Chat Dashboard" />
       </Head>
       <App
         initialArgState={initialArgState}
