@@ -128,7 +128,7 @@ func main() {
 		rollingSum := r.URL.Query().Get("rolling_sum")
 
 
-		if rollingSum != "0" || rollingSum != ""{
+		if rollingSum != "0" && rollingSum != ""{
 			parseIntRollingSum, err := strconv.Atoi(rollingSum)
 
 			if err != nil {
