@@ -131,6 +131,7 @@ export default function Dashboard(props: DataProps) {
   const [series, setSeries] = useState<SeriesKey[]>([SeriesKeys.two]);
   console.log(initArgs.timeSpan);
   const [timeSpan, setTimeSpan] = useState<TimeSpans>(initArgs.timeSpan);
+  const [rollingSum, setRollingSum] = useState(5);
   const [grouping, setGrouping] = useState<
     "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
   >(initArgs.timeGrouping);
@@ -143,10 +144,10 @@ export default function Dashboard(props: DataProps) {
 
   const SeriesData = SeriesDataSchema.array();
   const chartData = useQuery({
-    queryKey: [functionType, timeSpan, grouping],
+    queryKey: [functionType, timeSpan, grouping, rollingSum],
     queryFn: async () => {
       const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${grouping}`
+        `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${grouping}&rolling_sum=${rollingSum}`
       );
       const jsonResponse = await res.json();
       const zodParse = SeriesData.safeParse(jsonResponse);
@@ -361,6 +362,21 @@ export default function Dashboard(props: DataProps) {
               >
                 {timeGroupings.map((grouping) => (
                   <SelectItem value={grouping} key={grouping} />
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col">
+              <label htmlFor="groupBySelect">Smoothing</label>
+              <Select
+                id="smoothing"
+                value={rollingSum.toString()}
+                placeholder={"Smoothing"}
+                onValueChange={(value) => setRollingSum(parseInt(value))}
+              >
+                {[0, 5, 10, 15, 30].map((smoothing) => (
+                  <SelectItem value={smoothing.toString()} key={smoothing}>
+                    {smoothing === 0 ? "None" : smoothing}
+                  </SelectItem>
                 ))}
               </Select>
             </div>

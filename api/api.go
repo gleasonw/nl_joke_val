@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,27 @@ type ChatCounts struct {
 	ClipId       string    `json:"-"`
 	Thumbnail string `json:"-"`
 	CreatedEpoch float64   `json:"time"`
+}
+
+// keep the json the same, but we need the name to reflect the db avg_*
+type AveragedChatCounts struct {
+	AvgTwo 				float64       `json:"two"`
+	AvgLol 				float64       `json:"lol"`
+	AvgCereal 			float64       `json:"cereal"`
+	AvgMonkas 			float64       `json:"monkas"`
+	AvgJoel 			float64       `json:"joel"`
+	AvgPog 				float64       `json:"pog"`
+	AvgHuh 				float64       `json:"huh"`
+	AvgNo 				float64       `json:"no"`
+	AvgCocka 			float64       `json:"cocka"`
+	AvgWhoAsked 		float64       `json:"who_asked"`
+	AvgShock 			float64       `json:"shock"`
+	AvgCopium 			float64       `json:"copium"`
+	AvgRatjam 			float64       `json:"ratjam"`
+	CreatedAt 			time.Time `gorm:"index" json:"-"`
+	ClipId 				string    `json:"-"`
+	Thumbnail 			string `json:"-"`
+	CreatedEpoch 		float64   `json:"time"`
 }
 
 var val = reflect.ValueOf(ChatCounts{})
@@ -103,17 +125,38 @@ func main() {
 	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
+		rollingSum := r.URL.Query().Get("rolling_sum")
 
-		var result []ChatCounts
 
-		fmt.Println(sumQuery)
-		err := db.Raw(sumQuery, grouping, span).Scan(&result).Error
-		if err != nil {
-			fmt.Println(err)
-			return
+		if rollingSum != "0" {
+			parseIntRollingSum, err := strconv.Atoi(rollingSum)
+
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			avgQuery := buildRollingAverageQuery(ChatCounts{}, parseIntRollingSum)
+			result := []AveragedChatCounts{}
+			dbError := db.Raw(avgQuery, grouping, span).Scan(&result).Error
+			if dbError != nil {
+				fmt.Println(err)
+				return
+			}
+			marshal_json_and_write(w, result)
+		} else {
+			result := []ChatCounts{}
+			dbError := db.Raw(sumQuery, grouping, span).Scan(&result).Error
+			if dbError != nil {
+				fmt.Println(err)
+				return
+			}
+			marshal_json_and_write(w, result)
+
 		}
 
-		marshal_json_and_write(w, result)
+
+
 	})
 
 	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
@@ -274,6 +317,52 @@ func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
 
 	return sumQuery, overQuery, nil
 }
+
+
+func buildRollingAverageQuery(s interface{}, rollingSum int) (string) {
+	val := reflect.ValueOf(s)
+	typeOfS := val.Type()
+
+	sumFields := make([]string, 0, val.NumField())
+	avgOverFields := make([]string, 0, val.NumField())
+
+	for i := 0; i < val.NumField(); i++ {
+		fieldName := typeOfS.Field(i).Tag.Get("json")
+
+		if fieldName != "-" && fieldName != "time" {
+			sumField := fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
+			sumFields = append(sumFields, sumField)
+			
+			avgOverField := fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, rollingSum, fieldName)
+			avgOverFields = append(avgOverFields, avgOverField)
+		}
+	}
+
+	sumFieldStr := strings.Join(sumFields, ",\n\t\t")
+	avgOverFieldStr := strings.Join(avgOverFields, ",\n\t\t")
+
+	baseQuery := fmt.Sprintf(`
+		WITH base_query AS (
+			SELECT %s,
+				EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+			FROM chat_counts
+			WHERE created_at >= (SELECT MAX(created_at) - $2::interval from chat_counts)
+			GROUP BY date_trunc($1, created_at)
+			ORDER BY date_trunc($1, created_at) asc
+		)
+	`, sumFieldStr)
+
+	avgOverQuery := fmt.Sprintf(`
+		SELECT %s,
+			created_epoch
+		FROM base_query;
+	`, avgOverFieldStr)
+
+	fullQuery := baseQuery + avgOverQuery
+
+	return fullQuery
+}
+
 
 
 func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
