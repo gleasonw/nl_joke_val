@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Grid,
-  Col,
   Title,
   TabGroup,
   TabList,
@@ -10,12 +8,14 @@ import {
   Text,
   Select,
   SelectItem,
-  MultiSelect,
-  MultiSelectItem,
   Card,
   List,
   ListItem,
   Button,
+  DatePicker,
+  DateRangePicker,
+  DateRangePickerItem,
+  DateRangePickerValue,
 } from "@tremor/react";
 import { CSSProperties, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -141,6 +141,10 @@ export default function Dashboard(props: DataProps) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | undefined>(
     undefined
   );
+  const [dateRange, setValue] = useState<DateRangePickerValue>({
+    from: new Date(),
+    to: undefined,
+  });
 
   const SeriesData = SeriesDataSchema.array();
   const chartData = useQuery({
@@ -282,24 +286,64 @@ export default function Dashboard(props: DataProps) {
         <h1 className={"text-2xl m-5 font-semibold"}>
           NL Chat Dashboard (est. 4/18/23)
         </h1>
-        <TabGroup
-          defaultIndex={2}
-          onIndexChange={(i) => {
-            setTimeSpan(timeSpans[i]);
-            if (["1 month", "1 year"].includes(timeSpans[i])) {
-              setGrouping("day");
-            }
-          }}
-        >
-          <TabList>
-            <Tab>1M</Tab>
-            <Tab>1H</Tab>
-            <Tab>9H</Tab>
-            <Tab>1W</Tab>
-            <Tab>1M</Tab>
-            <Tab>6M</Tab>
-          </TabList>
-        </TabGroup>
+        <div className="flex flex-col">
+          <DateRangePicker
+            className="max-w-md mx-auto"
+            value={dateRange}
+            onValueChange={setValue}
+            selectPlaceholder="Select a date"
+          >
+            <DateRangePickerItem
+              key="half"
+              value="half"
+              from={new Date(2023, 0, 1)}
+              to={new Date(2023, 5, 31)}
+            >
+              Past day
+            </DateRangePickerItem>
+            <DateRangePickerItem
+              key="half"
+              value="half"
+              from={new Date(2023, 0, 1)}
+              to={new Date(2023, 5, 31)}
+            >
+              Past week
+            </DateRangePickerItem>
+            <DateRangePickerItem
+              key="half"
+              value="half"
+              from={new Date(2023, 0, 1)}
+              to={new Date(2023, 5, 31)}
+            >
+              Past month
+            </DateRangePickerItem>
+
+            <DateRangePickerItem
+              key="ytd"
+              value="ytd"
+              from={new Date(2023, 0, 1)}
+            >
+              Past year
+            </DateRangePickerItem>
+          </DateRangePicker>
+          <TabGroup
+            about="Past"
+            defaultIndex={2}
+            onIndexChange={(i) => {
+              setTimeSpan(timeSpans[i]);
+              if (["1 month", "1 year"].includes(timeSpans[i])) {
+                setGrouping("day");
+              }
+            }}
+          >
+            <TabList>
+              <Tab>1M</Tab>
+              <Tab>1H</Tab>
+              <Tab>9H</Tab>
+            </TabList>
+          </TabGroup>
+        </div>
+
         <div className="flex flex-col p-3">
           <div className="flex flex-row flex-wrap gap-3 m-2">
             {Object.keys(SeriesKeys).map((key) => (
