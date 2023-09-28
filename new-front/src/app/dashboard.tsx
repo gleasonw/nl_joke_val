@@ -17,7 +17,7 @@ import {
   DateRangePickerItem,
   DateRangePickerValue,
 } from "@tremor/react";
-import { CSSProperties, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Highcharts, { RectangleObject } from "highcharts";
 import HighchartsReact from "highcharts-react-official";
@@ -25,6 +25,7 @@ import Image from "next/image";
 import { SeriesDataSchema, SeriesKeys, SeriesData } from "@/app/page";
 import { useClickAway } from "react-use";
 import { useSearchParams, useRouter } from "next/navigation";
+import { addQueryParamsIfExist } from "@/app/utils";
 
 type SeriesKey = keyof typeof SeriesKeys;
 
@@ -101,6 +102,11 @@ export default function Dashboard({
 
   const params = useSearchParams();
   const router = useRouter();
+  const series =
+    params.getAll("series").length > 0 ? params.getAll("series") : ["two"];
+
+  const chartType = params.get("chartType") ?? "line";
+  const grouping = params.get("timeGrouping") ?? "minute";
 
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
@@ -113,13 +119,40 @@ export default function Dashboard({
     to: undefined,
   });
 
-  function handleNavigate(newParam: { [key: string]: string }) {
-    let url = "";
-    Object.entries({ ...params, ...newParam }).forEach(([key, value]) => {
-      url += `${key}=${value}&`;
-    });
-    router.push(url);
-  }
+  const handleNavigate = useCallback(
+    (newParam: { [key: string]: string | string[] }) => {
+      const paramsObject: { [key: string]: string | string[] } = {};
+      params.forEach((value, key) => {
+        const item = paramsObject[key];
+        if (item) {
+          if (Array.isArray(item)) {
+            item.push(value);
+          } else {
+            paramsObject[key] = [item, value];
+          }
+        } else {
+          paramsObject[key] = value;
+        }
+      });
+      router.push(
+        addQueryParamsIfExist("/", {
+          ...paramsObject,
+          ...newParam,
+        })
+      );
+    },
+    [params, router]
+  );
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      router.refresh();
+    }, 5000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [router]);
 
   const chartRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -232,6 +265,14 @@ export default function Dashboard({
     };
   }
 
+  function getNewSeriesList(emote: string) {
+    if (series.includes(emote)) {
+      return series.filter((item) => item !== emote);
+    } else {
+      return [...series, emote];
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -310,8 +351,8 @@ export default function Dashboard({
                 }
                 key={key}
                 onClick={() => {
-                  handleNaviate({
-                    series: getNewList<SeriesKey>(key as SeriesKey),
+                  handleNavigate({
+                    series: getNewSeriesList(key),
                   });
                 }}
               >
@@ -344,7 +385,7 @@ export default function Dashboard({
                 value={params.get("functionType") ?? "instant"}
                 placeholder={"Sum type"}
                 onValueChange={(value) =>
-                  handleNaviate({
+                  handleNavigate({
                     functionType: value,
                   })
                 }
@@ -361,7 +402,7 @@ export default function Dashboard({
                 value={params.get("timeGrouping") ?? "minute"}
                 placeholder={"Group by"}
                 onValueChange={(value) =>
-                  handleNaviate({ timeGrouping: value })
+                  handleNavigate({ timeGrouping: value })
                 }
               >
                 {timeGroupings.map((grouping) => (
@@ -375,9 +416,9 @@ export default function Dashboard({
                 id="smoothing"
                 value={params.get("rollingSum") ?? "5"}
                 placeholder={"Smoothing"}
-                onValueChange={(value) => handleNaviate({ rollingSum: value })}
+                onValueChange={(value) => handleNavigate({ rollingSum: value })}
               >
-                {[0, 5, 10, 15, 30].map((smoothing) => (
+                {[0, 5, 10, 15, 30, 60].map((smoothing) => (
                   <SelectItem value={smoothing.toString()} key={smoothing}>
                     {smoothing === 0 ? "None" : smoothing}
                   </SelectItem>
@@ -421,14 +462,6 @@ export default function Dashboard({
       </div>
     </div>
   );
-}
-
-function getNewList<T>(list: T[], item: T) {
-  if (list.includes(item)) {
-    return list.filter((listItem) => listItem !== item);
-  } else {
-    return [...list, item];
-  }
 }
 
 function TwitchClipAtTime(props: { time?: number }) {
@@ -512,7 +545,7 @@ function TopTwitchClips({
               onClick={() =>
                 setEmotes(
                   sumEmotes
-                    ? getNewList<SeriesKey>(emotes, key as SeriesKey)
+                    ? getNewSeriesList<SeriesKey>(emotes, key as SeriesKey)
                     : [key as SeriesKey]
                 )
               }
