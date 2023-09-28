@@ -19,47 +19,14 @@ import {
 } from "@tremor/react";
 import { CSSProperties, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
 import Highcharts, { RectangleObject } from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
-import { DataProps } from "@/components/App";
-import { InitialArgState } from "@/app/page";
+import { SeriesDataSchema, SeriesKeys, SeriesData } from "@/app/page";
 import { useClickAway } from "react-use";
+import { useSearchParams, useRouter } from "next/navigation";
 
-const SeriesKeys = {
-  two: "two",
-  lol: "lol",
-  cereal: "cereal",
-  monkas: "monkas",
-  joel: "joel",
-  pog: "pog",
-  huh: "huh",
-  no: "no",
-  cocka: "cocka",
-  shock: "shock",
-  who_asked: "who_asked",
-  copium: "copium",
-  ratjam: "ratjam",
-} as const;
-
-type SeriesKey = (typeof SeriesKeys)[keyof typeof SeriesKeys];
-
-const seriesColors: Record<SeriesKey, string> = {
-  [SeriesKeys.two]: "#7cb5ec",
-  [SeriesKeys.lol]: "#434348",
-  [SeriesKeys.cereal]: "#90ed7d",
-  [SeriesKeys.monkas]: "#f7a35c",
-  [SeriesKeys.joel]: "#8085e9",
-  [SeriesKeys.pog]: "#f15c80",
-  [SeriesKeys.huh]: "#e4d354",
-  [SeriesKeys.no]: "#2b908f",
-  [SeriesKeys.cocka]: "#f45b5b",
-  [SeriesKeys.shock]: "#8d4654",
-  [SeriesKeys.who_asked]: "#91e8e1",
-  [SeriesKeys.copium]: "#696969",
-  [SeriesKeys.ratjam]: "#000000",
-} as const;
+type SeriesKey = keyof typeof SeriesKeys;
 
 const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
   [SeriesKeys.two]: <div className={"text-xl "}>∑ ± 2</div>,
@@ -81,25 +48,6 @@ function Emote({ src }: { src: string }) {
   return <Image src={`/${src}`} alt={src} width={32} height={32} />;
 }
 
-const SeriesDataSchema = z.object({
-  [SeriesKeys.two]: z.number(),
-  [SeriesKeys.lol]: z.number(),
-  [SeriesKeys.cereal]: z.number(),
-  [SeriesKeys.monkas]: z.number(),
-  [SeriesKeys.joel]: z.number(),
-  [SeriesKeys.pog]: z.number(),
-  [SeriesKeys.huh]: z.number(),
-  [SeriesKeys.no]: z.number(),
-  [SeriesKeys.cocka]: z.number(),
-  [SeriesKeys.shock]: z.number(),
-  [SeriesKeys.who_asked]: z.number(),
-  [SeriesKeys.copium]: z.number(),
-  [SeriesKeys.ratjam]: z.number(),
-  time: z.number(),
-});
-
-export type SeriesData = z.infer<typeof SeriesDataSchema>;
-
 const timeSpans = [
   "1 minute",
   "1 hour",
@@ -119,22 +67,41 @@ const timeGroupings = [
   "year",
 ] as const;
 
+const seriesColors: Record<SeriesKey, string> = {
+  [SeriesKeys.two]: "#7cb5ec",
+  [SeriesKeys.lol]: "#434348",
+  [SeriesKeys.cereal]: "#90ed7d",
+  [SeriesKeys.monkas]: "#f7a35c",
+  [SeriesKeys.joel]: "#8085e9",
+  [SeriesKeys.pog]: "#f15c80",
+  [SeriesKeys.huh]: "#e4d354",
+  [SeriesKeys.no]: "#2b908f",
+  [SeriesKeys.cocka]: "#f45b5b",
+  [SeriesKeys.shock]: "#8d4654",
+  [SeriesKeys.who_asked]: "#91e8e1",
+  [SeriesKeys.copium]: "#696969",
+  [SeriesKeys.ratjam]: "#000000",
+} as const;
+
 export type TimeSpans = (typeof timeSpans)[number];
 export type TimeGroupings = (typeof timeGroupings)[number];
 
-export default function Dashboard(props: DataProps) {
-  const initArgs = props.initialArgState.chart;
-  const [chartType, setChartType] = useState<"line" | "bar">("line");
-  const [functionType, setFunctionType] = useState<"rolling_sum" | "instant">(
-    initArgs.functionType
-  );
-  const [series, setSeries] = useState<SeriesKey[]>([SeriesKeys.two]);
-  console.log(initArgs.timeSpan);
-  const [timeSpan, setTimeSpan] = useState<TimeSpans>(initArgs.timeSpan);
-  const [rollingSum, setRollingSum] = useState(5);
-  const [grouping, setGrouping] = useState<
-    "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
-  >(initArgs.timeGrouping);
+export default function Dashboard({
+  initialArgState,
+  initialSeries,
+  initialMaxClips,
+  initialMinClips,
+}: {
+  initialArgState: InitialArgState;
+  initialSeries: SeriesData[];
+  initialMaxClips: ClipBatch;
+  initialMinClips: ClipBatch;
+}) {
+  const initArgs = initialArgState.chart;
+
+  const params = useSearchParams();
+  const router = useRouter();
+
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
   >(undefined);
@@ -146,27 +113,13 @@ export default function Dashboard(props: DataProps) {
     to: undefined,
   });
 
-  const SeriesData = SeriesDataSchema.array();
-  const chartData = useQuery({
-    queryKey: [functionType, timeSpan, grouping, rollingSum],
-    queryFn: async () => {
-      const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${grouping}&rolling_sum=${rollingSum}`
-      );
-      const jsonResponse = await res.json();
-      const zodParse = SeriesData.safeParse(jsonResponse);
-
-      if (zodParse.success) {
-        return zodParse.data;
-      } else {
-        console.error(zodParse.error);
-        throw new Error("Failed to parse data");
-      }
-    },
-    refetchInterval: 10000,
-    keepPreviousData: true,
-    placeholderData: props.initialSeries,
-  });
+  function handleNavigate(newParam: { [key: string]: string }) {
+    let url = "";
+    Object.entries({ ...params, ...newParam }).forEach(([key, value]) => {
+      url += `${key}=${value}&`;
+    });
+    router.push(url);
+  }
 
   const chartRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -175,8 +128,7 @@ export default function Dashboard(props: DataProps) {
   const emoteSeries =
     series.map((key) => ({
       name: key,
-      data:
-        chartData.data?.map((d) => [d.time * 1000 ?? 0, d[key] ?? ""]) ?? [],
+      data: initialSeries?.map((d) => [d.time * 1000 ?? 0, d[key] ?? ""]) ?? [],
       color: seriesColors[key as keyof typeof seriesColors],
       events: {
         click: function (e: any) {
@@ -329,12 +281,10 @@ export default function Dashboard(props: DataProps) {
           <TabGroup
             about="Past"
             defaultIndex={2}
-            onIndexChange={(i) => {
-              setTimeSpan(timeSpans[i]);
-              if (["1 month", "1 year"].includes(timeSpans[i])) {
-                setGrouping("day");
-              }
-            }}
+            index={timeSpans.indexOf(initArgs.timeSpan)}
+            onIndexChange={(index) =>
+              handleNavigate({ timeSpan: timeSpans[index] })
+            }
           >
             <TabList>
               <Tab>1M</Tab>
@@ -360,7 +310,9 @@ export default function Dashboard(props: DataProps) {
                 }
                 key={key}
                 onClick={() => {
-                  setSeries(getNewList<SeriesKey>(series, key as SeriesKey));
+                  handleNaviate({
+                    series: getNewList<SeriesKey>(key as SeriesKey),
+                  });
                 }}
               >
                 {seriesEmotes[key as SeriesKey]}
@@ -372,9 +324,13 @@ export default function Dashboard(props: DataProps) {
               <label htmlFor="chartTypeSelect">Chart Type</label>
               <Select
                 id="chartTypeSelect"
-                value={chartType}
+                value={params.get("chartType") ?? "line"}
                 placeholder={"Chart type"}
-                onValueChange={(value) => setChartType(value as "line" | "bar")}
+                onValueChange={(value) =>
+                  handleNavigate({
+                    chartType: value,
+                  })
+                }
               >
                 <SelectItem value="line">Line</SelectItem>
                 <SelectItem value="bar">Bar</SelectItem>
@@ -385,10 +341,12 @@ export default function Dashboard(props: DataProps) {
               <label htmlFor="sumTypeSelect">Sum Type</label>
               <Select
                 id="sumTypeSelect"
-                value={functionType}
+                value={params.get("functionType") ?? "instant"}
                 placeholder={"Sum type"}
                 onValueChange={(value) =>
-                  setFunctionType(value as "rolling_sum" | "instant")
+                  handleNaviate({
+                    functionType: value,
+                  })
                 }
               >
                 <SelectItem value="rolling_sum">Rolling sum</SelectItem>
@@ -400,9 +358,11 @@ export default function Dashboard(props: DataProps) {
               <label htmlFor="groupBySelect">Group By</label>
               <Select
                 id="groupBySelect"
-                value={grouping}
+                value={params.get("timeGrouping") ?? "minute"}
                 placeholder={"Group by"}
-                onValueChange={(value) => setGrouping(value as TimeGroupings)}
+                onValueChange={(value) =>
+                  handleNaviate({ timeGrouping: value })
+                }
               >
                 {timeGroupings.map((grouping) => (
                   <SelectItem value={grouping} key={grouping} />
@@ -413,9 +373,9 @@ export default function Dashboard(props: DataProps) {
               <label htmlFor="groupBySelect">Smoothing</label>
               <Select
                 id="smoothing"
-                value={rollingSum.toString()}
+                value={params.get("rollingSum") ?? "5"}
                 placeholder={"Smoothing"}
-                onValueChange={(value) => setRollingSum(parseInt(value))}
+                onValueChange={(value) => handleNaviate({ rollingSum: value })}
               >
                 {[0, 5, 10, 15, 30].map((smoothing) => (
                   <SelectItem value={smoothing.toString()} key={smoothing}>
@@ -430,38 +390,33 @@ export default function Dashboard(props: DataProps) {
           </div>
         </div>
       </div>
-      {chartData.isSuccess && (
-        <div ref={chartRef}>
-          <HighchartsReact
-            highcharts={Highcharts}
-            options={highChartsOptions}
-          />
-          {tooltip && (
-            <div
-              className={"w-96 transition-all"}
-              style={getTooltipStyle()}
-              ref={tooltipRef}
+      <div ref={chartRef}>
+        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
+        {tooltip && (
+          <div
+            className={"w-96 transition-all"}
+            style={getTooltipStyle()}
+            ref={tooltipRef}
+          >
+            <button
+              onClick={() => setTooltip(undefined)}
+              className={"absolute -top-10 right-0 p-5 bg-white rounded"}
             >
-              <button
-                onClick={() => setTooltip(undefined)}
-                className={"absolute -top-10 right-0 p-5 bg-white rounded"}
-              >
-                X
-              </button>
-              <TwitchClipAtTime time={clickedUnixSeconds} />
-            </div>
-          )}
-        </div>
-      )}
+              X
+            </button>
+            <TwitchClipAtTime time={clickedUnixSeconds} />
+          </div>
+        )}
+      </div>
 
       <div className={"flex flex-wrap md:flex-nowrap md:gap-5"}>
         <TopTwitchClips
-          initialClips={props.initialMaxClips}
-          initialState={props.initialArgState.clips}
+          initialClips={initialMaxClips}
+          initialState={initialArgState.clips}
         />
         <MostMinusTwosClips
-          initialClips={props.initialMinClips}
-          initialState={props.initialArgState.clips}
+          initialClips={initialMinClips}
+          initialState={initialArgState.clips}
         />
       </div>
     </div>

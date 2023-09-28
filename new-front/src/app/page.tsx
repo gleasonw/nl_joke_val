@@ -1,71 +1,104 @@
-import App from "@/components/App";
 import Head from "next/head";
-import { TimeSpans, TimeGroupings } from "@/components/Dashboard";
+import Dashboard, { TimeSpans, TimeGroupings } from "@/app/dashboard";
+import { z } from "zod";
 
-export type InitialArgState = {
-  chart: {
-    timeSpan: TimeSpans;
-    timeGrouping: TimeGroupings;
-    functionType: "rolling_sum" | "instant";
-  };
-  clips: {
-    clipTimeSpan: "day" | "week" | "month" | "year";
-    clipTimeGrouping: TimeGroupings;
-    emote: "two";
-  };
-};
+export type SeriesData = z.infer<typeof SeriesDataSchema>;
 
-export const metadata = {
-  title: "The NL Chat Dashboard",
-  description: "Tracks +2s, -2s, luls, ratJams, the works.",
-};
+export const SeriesKeys = {
+  two: "two",
+  lol: "lol",
+  cereal: "cereal",
+  monkas: "monkas",
+  joel: "joel",
+  pog: "pog",
+  huh: "huh",
+  no: "no",
+  cocka: "cocka",
+  shock: "shock",
+  who_asked: "who_asked",
+  copium: "copium",
+  ratjam: "ratjam",
+} as const;
 
-export default async function Home() {
-  const initialArgState: InitialArgState = {
+export const SeriesDataSchema = z.object({
+  [SeriesKeys.two]: z.number(),
+  [SeriesKeys.lol]: z.number(),
+  [SeriesKeys.cereal]: z.number(),
+  [SeriesKeys.monkas]: z.number(),
+  [SeriesKeys.joel]: z.number(),
+  [SeriesKeys.pog]: z.number(),
+  [SeriesKeys.huh]: z.number(),
+  [SeriesKeys.no]: z.number(),
+  [SeriesKeys.cocka]: z.number(),
+  [SeriesKeys.shock]: z.number(),
+  [SeriesKeys.who_asked]: z.number(),
+  [SeriesKeys.copium]: z.number(),
+  [SeriesKeys.ratjam]: z.number(),
+  time: z.number(),
+});
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Record<string, string>;
+}) {
+  const initialArgState = {
     chart: {
-      timeSpan: "9 hours",
-      timeGrouping: "minute",
-      functionType: "instant",
+      timeSpan: searchParams.timeSpan ?? "9 hours",
+      timeGrouping: searchParams.timeGrouping ?? "minute",
+      functionType: searchParams.functionType ?? "instant",
+      rollingSum: searchParams.rollingSum ?? "5",
     },
     clips: {
-      clipTimeSpan: "day",
-      clipTimeGrouping: "second",
-      emote: "two",
+      clipTimeSpan: searchParams.clipTimeSpan ?? "day",
+      clipTimeGrouping: searchParams.clipTimeGrouping ?? "second",
+      emote: searchParams.emote ?? "two",
     },
   };
-  async function jsonFetcher(url: string) {
-    const res = await fetch(url, {
-      next: {
-        revalidate: 1,
-      },
-    });
-    return res.json();
+  async function doFetch(label: string, url: string) {
+    const res = await fetch(
+      "https://nljokeval-production.up.railway.app/api/" + url,
+      {
+        next: {
+          revalidate: 1,
+        },
+      }
+    );
+    const data = await res.json();
+    return { label, data };
   }
+
   const { emote, clipTimeSpan } = initialArgState.clips;
-  const { functionType, timeSpan, timeGrouping } = initialArgState.chart;
+  const { functionType, timeSpan, timeGrouping, rollingSum } =
+    initialArgState.chart;
 
-  const initialSeries = await jsonFetcher(
-    `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${timeGrouping}`
+  const paramsToFetch = {
+    initialSeries: `${functionType}?span=${timeSpan}&grouping=${timeGrouping}&rolling_sum=${rollingSum}`,
+    initialMaxClips: `clip_counts?column=two&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=asc`,
+    initialMinClips: `clip_counts?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=desc`,
+  };
+
+  const res = await Promise.allSettled(
+    Object.entries(paramsToFetch).map(([label, url]) => doFetch(label, url))
   );
 
-  const initialMinClips = await jsonFetcher(
-    `https://nljokeval-production.up.railway.app/api/clip_counts?column=two&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=asc`
-  );
-
-  const initialMaxClips = await jsonFetcher(
-    `https://nljokeval-production.up.railway.app/api/clip_counts?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=desc`
-  );
+  const data = res.reduce((acc, curr) => {
+    if (curr.status === "fulfilled") {
+      acc[curr.value.label] = curr.value.data;
+    }
+    return acc;
+  }, {} as Record<string, any>);
 
   return (
     <div>
       <Head>
         <title>NL Chat Dashboard</title>
       </Head>
-      <App
+      <Dashboard
         initialArgState={initialArgState}
-        initialSeries={initialSeries}
-        initialMaxClips={initialMaxClips}
-        initialMinClips={initialMinClips}
+        initialSeries={data.initialSeries}
+        initialMaxClips={data.initialMaxClips}
+        initialMinClips={data.initialMinClips}
       />
     </div>
   );
