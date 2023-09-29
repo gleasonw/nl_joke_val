@@ -125,18 +125,18 @@ func main() {
 	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
-		rollingSum := r.URL.Query().Get("rolling_sum")
+		rollingAverage := r.URL.Query().Get("rolling_average")
 
 
-		if rollingSum != "0" && rollingSum != ""{
-			parseIntRollingSum, err := strconv.Atoi(rollingSum)
+		if rollingAverage != "0" && rollingAverage != ""{
+			parseIntRollingAverage, err := strconv.Atoi(rollingAverage)
 
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 
-			avgQuery := buildRollingAverageQuery(ChatCounts{}, parseIntRollingSum)
+			avgQuery := buildRollingAverageQuery(ChatCounts{}, parseIntRollingAverage)
 			result := []AveragedChatCounts{}
 			dbError := db.Raw(avgQuery, grouping, span).Scan(&result).Error
 			if dbError != nil {

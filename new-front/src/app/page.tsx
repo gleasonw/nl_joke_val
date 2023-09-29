@@ -92,32 +92,31 @@ export default async function Home({
     initialArgState.chart;
 
   const urlsToFetch = {
-    initialSeries: addQueryParamsIfExist(
-      "https://nljokeval-production.up.railway.app/instant?",
+    seriesData: addQueryParamsIfExist(
+      `https://nljokeval-production.up.railway.app/api/${functionType}`,
       {
-        column: emote,
         span: timeSpan,
         grouping: timeGrouping,
         function: functionType,
-        rolling: rollingAverage,
+        rolling_sum: rollingAverage,
       }
     ),
-    initialMaxClips: addQueryParamsIfExist(
-      "https://nljokeval-production.up.railway.app/clip_counts?",
+    maxClipData: addQueryParamsIfExist(
+      "https://nljokeval-production.up.railway.app/api/clip_counts",
       {
         column: emote,
         span: maxClipSpan,
         grouping: maxClipGrouping,
-        order: "asc",
+        order: "desc",
       }
     ),
-    initialMinClips: addQueryParamsIfExist(
-      "https://nljokeval-production.up.railway.app/clip_counts?",
+    minClipData: addQueryParamsIfExist(
+      "https://nljokeval-production.up.railway.app/api/clip_counts",
       {
-        column: emote,
+        column: "two",
         span: minClipSpan,
         grouping: minClipGrouping,
-        order: "desc",
+        order: "asc",
       }
     ),
   };
@@ -125,6 +124,8 @@ export default async function Home({
   const res = await Promise.allSettled(
     Object.entries(urlsToFetch).map(([label, url]) => doFetch(label, url))
   );
+
+  console.log(res);
 
   const data = res.reduce((acc, curr) => {
     if (curr.status === "fulfilled") {
@@ -140,9 +141,9 @@ export default async function Home({
       </Head>
       <Dashboard
         initialArgState={initialArgState}
-        initialSeries={data.initialSeries}
-        initialMaxClips={data.initialMaxClips}
-        initialMinClips={data.initialMinClips}
+        initialSeries={data.seriesData}
+        initialMaxClips={data.maxClipData}
+        initialMinClips={data.minClipData}
       />
     </div>
   );

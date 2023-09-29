@@ -143,7 +143,8 @@ export default function Dashboard({
         addQueryParamsIfExist("/", {
           ...paramsObject,
           ...newParam,
-        })
+        }),
+        { scroll: false }
       );
     },
     [params, router]
@@ -518,7 +519,7 @@ function TopTwitchClips({
 }) {
   const [sumEmotes, setSumEmotes] = useState(false);
   const params = useSearchParams();
-  const emotes = params.getAll("emote");
+  const emotes = params.getAll("emote") ?? ["two"];
   const grouping = params.get("maxClipGrouping") ?? "second";
   const span = params.get("maxClipSpan") ?? "day";
 
@@ -544,7 +545,9 @@ function TopTwitchClips({
                     ? {
                         emote: emotes.filter((item) => item !== key),
                       }
-                    : { emote: [...emotes, key] }
+                    : sumEmotes
+                    ? { emote: [...emotes, key] }
+                    : { emote: [key] }
                 )
               }
             >
