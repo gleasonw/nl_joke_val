@@ -1,6 +1,7 @@
 import Head from "next/head";
 import Dashboard, { TimeSpans, TimeGroupings } from "@/app/dashboard";
 import { z } from "zod";
+import { addQueryParamsIfExist } from "@/app/utils";
 
 export type SeriesData = z.infer<typeof SeriesDataSchema>;
 
@@ -37,6 +38,24 @@ export const SeriesDataSchema = z.object({
   time: z.number(),
 });
 
+type ClipSpans = "day" | "week" | "month" | "year";
+
+export type InitialArgState = {
+  chart: {
+    timeSpan: TimeSpans;
+    timeGrouping: TimeGroupings;
+    functionType: "instant" | "rolling";
+    rollingAverage: string;
+  };
+  clips: {
+    maxClipSpan: ClipSpans;
+    minClipSpan: ClipSpans;
+    maxClipGrouping: TimeGroupings;
+    minClipGrouping: TimeGroupings;
+    emote: keyof typeof SeriesKeys;
+  };
+};
+
 export default async function Home({
   searchParams,
 }: {
@@ -47,39 +66,64 @@ export default async function Home({
       timeSpan: searchParams.timeSpan ?? "9 hours",
       timeGrouping: searchParams.timeGrouping ?? "minute",
       functionType: searchParams.functionType ?? "instant",
-      rollingSum: searchParams.rollingSum ?? "5",
+      rollingAverage: searchParams.rollingAverage ?? "5",
     },
     clips: {
-      clipTimeSpan: searchParams.clipTimeSpan ?? "day",
-      clipTimeGrouping: searchParams.clipTimeGrouping ?? "second",
+      maxClipSpan: searchParams.maxClipSpan ?? "day",
+      minClipSpan: searchParams.minClipSpan ?? "day",
+      maxClipGrouping: searchParams.clipTimeGrouping ?? "second",
+      minClipGrouping: searchParams.clipTimeGrouping ?? "second",
       emote: searchParams.emote ?? "two",
     },
   };
   async function doFetch(label: string, url: string) {
-    const res = await fetch(
-      "https://nljokeval-production.up.railway.app/api/" + url,
-      {
-        next: {
-          revalidate: 1,
-        },
-      }
-    );
+    const res = await fetch(url, {
+      next: {
+        revalidate: 1,
+      },
+    });
     const data = await res.json();
     return { label, data };
   }
 
-  const { emote, clipTimeSpan } = initialArgState.clips;
-  const { functionType, timeSpan, timeGrouping, rollingSum } =
+  const { emote, maxClipSpan, minClipGrouping, maxClipGrouping, minClipSpan } =
+    initialArgState.clips;
+  const { functionType, timeSpan, timeGrouping, rollingAverage } =
     initialArgState.chart;
 
-  const paramsToFetch = {
-    initialSeries: `${functionType}?span=${timeSpan}&grouping=${timeGrouping}&rolling_sum=${rollingSum}`,
-    initialMaxClips: `clip_counts?column=two&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=asc`,
-    initialMinClips: `clip_counts?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=desc`,
+  const urlsToFetch = {
+    initialSeries: addQueryParamsIfExist(
+      "https://nljokeval-production.up.railway.app/instant?",
+      {
+        column: emote,
+        span: timeSpan,
+        grouping: timeGrouping,
+        function: functionType,
+        rolling: rollingAverage,
+      }
+    ),
+    initialMaxClips: addQueryParamsIfExist(
+      "https://nljokeval-production.up.railway.app/clip_counts?",
+      {
+        column: emote,
+        span: maxClipSpan,
+        grouping: maxClipGrouping,
+        order: "asc",
+      }
+    ),
+    initialMinClips: addQueryParamsIfExist(
+      "https://nljokeval-production.up.railway.app/clip_counts?",
+      {
+        column: emote,
+        span: minClipSpan,
+        grouping: minClipGrouping,
+        order: "desc",
+      }
+    ),
   };
 
   const res = await Promise.allSettled(
-    Object.entries(paramsToFetch).map(([label, url]) => doFetch(label, url))
+    Object.entries(urlsToFetch).map(([label, url]) => doFetch(label, url))
   );
 
   const data = res.reduce((acc, curr) => {

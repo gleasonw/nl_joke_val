@@ -22,7 +22,12 @@ import { useQuery } from "@tanstack/react-query";
 import Highcharts, { RectangleObject } from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
-import { SeriesDataSchema, SeriesKeys, SeriesData } from "@/app/page";
+import {
+  SeriesDataSchema,
+  SeriesKeys,
+  SeriesData,
+  InitialArgState,
+} from "@/app/page";
 import { useClickAway } from "react-use";
 import { useSearchParams, useRouter } from "next/navigation";
 import { addQueryParamsIfExist } from "@/app/utils";
@@ -161,7 +166,11 @@ export default function Dashboard({
   const emoteSeries =
     series.map((key) => ({
       name: key,
-      data: initialSeries?.map((d) => [d.time * 1000 ?? 0, d[key] ?? ""]) ?? [],
+      data:
+        initialSeries?.map((d) => [
+          d.time * 1000 ?? 0,
+          d[key as keyof typeof SeriesKeys] ?? "",
+        ]) ?? [],
       color: seriesColors[key as keyof typeof seriesColors],
       events: {
         click: function (e: any) {
@@ -414,9 +423,11 @@ export default function Dashboard({
               <label htmlFor="groupBySelect">Smoothing</label>
               <Select
                 id="smoothing"
-                value={params.get("rollingSum") ?? "5"}
+                value={params.get("rollingAverage") ?? "5"}
                 placeholder={"Smoothing"}
-                onValueChange={(value) => handleNavigate({ rollingSum: value })}
+                onValueChange={(value) =>
+                  handleNavigate({ rollingAverage: value })
+                }
               >
                 {[0, 5, 10, 15, 30, 60].map((smoothing) => (
                   <SelectItem value={smoothing.toString()} key={smoothing}>
@@ -453,11 +464,11 @@ export default function Dashboard({
       <div className={"flex flex-wrap md:flex-nowrap md:gap-5"}>
         <TopTwitchClips
           initialClips={initialMaxClips}
-          initialState={initialArgState.clips}
+          onNavigate={handleNavigate}
         />
         <MostMinusTwosClips
           initialClips={initialMinClips}
-          initialState={initialArgState.clips}
+          onNavigate={handleNavigate}
         />
       </div>
     </div>
@@ -500,34 +511,19 @@ export type ClipBatch = {
 
 function TopTwitchClips({
   initialClips,
-  initialState,
+  onNavigate,
 }: {
   initialClips: ClipBatch;
-  initialState: InitialArgState["clips"];
+  onNavigate: (newParam: { [key: string]: string | string[] }) => void;
 }) {
-  const [timeSpan, setTimeSpan] = useState<
-    "day" | "week" | "month" | "year" | ""
-  >(initialState.clipTimeSpan);
-  const [grouping, setGrouping] = useState<TimeGroupings>("second");
-  const [emotes, setEmotes] = useState<SeriesKey[]>([initialState.emote]);
   const [sumEmotes, setSumEmotes] = useState(false);
-
-  const { isSuccess, data, isLoading } = useQuery({
-    queryKey: ["top_clips", timeSpan, grouping, emotes],
-    queryFn: async () => {
-      const queryStrings = emotes.map((emote) => `column=${emote}`).join("&");
-      const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/clip_counts?${queryStrings}&span=${timeSpan}&grouping=${grouping}&order=desc`
-      );
-      return (await res.json()) as ClipBatch;
-    },
-    placeholderData: initialClips,
-    keepPreviousData: true,
-  });
+  const params = useSearchParams();
+  const emotes = params.getAll("emote");
+  const grouping = params.get("maxClipGrouping") ?? "second";
+  const span = params.get("maxClipSpan") ?? "day";
 
   return (
     <Card>
-      {isLoading && <Text>Loading...</Text>}
       <div className={"flex flex-col gap-2"}>
         <Title>Top</Title>
         <div className="flex flex-row flex-wrap gap-3">
@@ -543,10 +539,12 @@ function TopTwitchClips({
               }
               key={key}
               onClick={() =>
-                setEmotes(
-                  sumEmotes
-                    ? getNewSeriesList<SeriesKey>(emotes, key as SeriesKey)
-                    : [key as SeriesKey]
+                onNavigate(
+                  emotes.includes(key as SeriesKey)
+                    ? {
+                        emote: emotes.filter((item) => item !== key),
+                      }
+                    : { emote: [...emotes, key] }
                 )
               }
             >
@@ -563,7 +561,7 @@ function TopTwitchClips({
         <Title>grouped by</Title>
         <Select
           value={grouping}
-          onValueChange={(value) => setGrouping(value as any)}
+          onValueChange={(value) => onNavigate({ maxClipGrouping: value })}
         >
           {timeGroupings.map((grouping) => (
             <SelectItem value={grouping} key={grouping}>
@@ -573,8 +571,8 @@ function TopTwitchClips({
         </Select>
         <Title>over the past</Title>
         <Select
-          value={timeSpan}
-          onValueChange={(value) => setTimeSpan(value as any)}
+          value={span}
+          onValueChange={(value) => onNavigate({ maxClipSpan: value })}
         >
           {["day", "week", "month", "year"].map((span) => (
             <SelectItem value={span} key={span}>
@@ -584,23 +582,21 @@ function TopTwitchClips({
         </Select>
       </div>
       <div>
-        {isSuccess && (
-          <List>
-            {data?.clips
-              .sort((a, b) => b.count - a.count)
-              .map((clip) => (
-                <ListItem key={clip.clip_id} className={"flex flex-col"}>
-                  <span className={"text-3xl"}>{clip.count}</span>
-                  <TwitchClipThumbnail
-                    clip_id={clip.clip_id}
-                    time={clip.time}
-                    thumbnail={clip.thumbnail}
-                    count={clip.count}
-                  />
-                </ListItem>
-              ))}
-          </List>
-        )}
+        <List>
+          {initialClips?.clips
+            .sort((a, b) => b.count - a.count)
+            .map((clip) => (
+              <ListItem key={clip.clip_id} className={"flex flex-col"}>
+                <span className={"text-3xl"}>{clip.count}</span>
+                <TwitchClipThumbnail
+                  clip_id={clip.clip_id}
+                  time={clip.time}
+                  thumbnail={clip.thumbnail}
+                  count={clip.count}
+                />
+              </ListItem>
+            ))}
+        </List>
       </div>
     </Card>
   );
@@ -608,77 +604,58 @@ function TopTwitchClips({
 
 function MostMinusTwosClips({
   initialClips,
-  initialState,
+  onNavigate,
 }: {
   initialClips: ClipBatch;
-  initialState: InitialArgState["clips"];
+  onNavigate: (newParam: { [key: string]: string | string[] }) => void;
 }) {
-  const [timeSpan, setTimeSpan] = useState<
-    "day" | "week" | "month" | "year" | ""
-  >(initialState.clipTimeSpan);
-  const [grouping, setGrouping] = useState<TimeGroupings>("second");
+  const params = useSearchParams();
+  const grouping = params.get("minClipGrouping") ?? "second";
+  const span = params.get("minClipSpan") ?? "day";
 
-  const { isSuccess, data, isLoading } = useQuery({
-    queryKey: ["minus_twos", timeSpan, grouping],
-    queryFn: async () => {
-      const rest = await fetch(
-        `https://nljokeval-production.up.railway.app/api/clip_counts?span=${timeSpan}&grouping=${grouping}&column=two&order=asc`
-      );
-      return (await rest.json()) as ClipBatch;
-    },
-    initialData: initialClips,
-    keepPreviousData: true,
-  });
-
-  if (isLoading) {
-    return <Text>Loading...</Text>;
-  } else if (isSuccess) {
-    return (
-      <Card>
-        <div className={"flex flex-row gap-2 flex-wrap"}>
-          <Title>Lowest 2 count grouped by</Title>
-          <Select
-            value={grouping}
-            onValueChange={(value) => setGrouping(value as any)}
-          >
-            {["second", "minute", "hour"].map((grouping) => (
-              <SelectItem value={grouping} key={grouping}>
-                {grouping == "second" ? "10 seconds" : grouping}
-              </SelectItem>
-            ))}
-          </Select>
-          <Title>over the past</Title>
-          <Select
-            value={timeSpan}
-            onValueChange={(value) => setTimeSpan(value as any)}
-          >
-            {["day", "week", "month", "year"].map((span) => (
-              <SelectItem value={span} key={span}>
-                {span}
-              </SelectItem>
-            ))}
-          </Select>
-        </div>
-        <div>
-          {isSuccess && (
-            <List>
-              {data?.clips.map((clip) => (
-                <ListItem key={clip.clip_id} className={"flex flex-col"}>
-                  <span className={"text-3xl"}>{clip.count}</span>
-                  <TwitchClipThumbnail
-                    clip_id={clip.clip_id}
-                    time={clip.time}
-                    thumbnail={clip.thumbnail}
-                    count={clip.count}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </div>
-      </Card>
-    );
-  }
+  return (
+    <Card>
+      <div className={"flex flex-row gap-2 flex-wrap"}>
+        <Title>Lowest 2 count grouped by</Title>
+        <Select
+          value={grouping}
+          onValueChange={(value) => onNavigate({ minClipGrouping: value })}
+        >
+          {["second", "minute", "hour"].map((grouping) => (
+            <SelectItem value={grouping} key={grouping}>
+              {grouping == "second" ? "10 seconds" : grouping}
+            </SelectItem>
+          ))}
+        </Select>
+        <Title>over the past</Title>
+        <Select
+          value={span}
+          onValueChange={(value) => onNavigate({ minClipSpan: value })}
+        >
+          {["day", "week", "month", "year"].map((span) => (
+            <SelectItem value={span} key={span}>
+              {span}
+            </SelectItem>
+          ))}
+        </Select>
+      </div>
+      <div>
+        <List>
+          {initialClips?.clips.map((clip) => (
+            <ListItem key={clip.clip_id} className={"flex flex-col"}>
+              <span className={"text-3xl"}>{clip.count}</span>
+              <TwitchClipThumbnail
+                clip_id={clip.clip_id}
+                time={clip.time}
+                thumbnail={clip.thumbnail}
+                count={clip.count}
+              />
+            </ListItem>
+          ))}
+        </List>
+      </div>
+    </Card>
+  );
 }
 
 function TwitchClipThumbnail({ clip_id, count, time, thumbnail }: Clip) {
