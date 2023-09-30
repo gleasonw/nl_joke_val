@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"strconv"
@@ -76,10 +76,11 @@ type Message struct {
 	Data []byte
 }
 
-var auth_token string = os.Getenv("AUTH_TOKEN")
 var nickname string = os.Getenv("NICK")
 var db_url string = os.Getenv("DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
+var authToken = ""
+var refreshToken = ""
 
 func buildStringForEachColumn(fn func(string) string) string {
 	val := reflect.ValueOf(ChatCounts{})
@@ -96,17 +97,95 @@ func buildStringForEachColumn(fn func(string) string) string {
 
 // TODO: refresh token every month. URL on Railway vars
 
+type TwitchResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	Scope        string `json:"scope"`
+	TokenType    string `json:"token_type"`
+}
+
+func authorizeTwitch() {
+	data := url.Values{}
+	data.Set("client_id", client_id)
+	data.Set("client_secret", os.Getenv("CLIENT_SECRET"))
+	data.Set("grant_type", "authorization_code")
+	data.Set("code", os.Getenv("CLIENT_CODE"))
+	data.Set("redirect_uri", "http://localhost:3000")
+
+	req, err := http.NewRequest("POST", "https://id.twitch.tv/oauth2/token", strings.NewReader(data.Encode()))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+
+	var twitchResponse TwitchResponse
+	err = json.Unmarshal(body, &twitchResponse)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	authToken = twitchResponse.AccessToken
+	refreshToken = twitchResponse.RefreshToken
+}
+
+func refreshTwitchToken() {
+	data := url.Values{}
+	data.Set("client_id", client_id)
+	data.Set("client_secret", os.Getenv("CLIENT_SECRET"))
+	data.Set("grant_type", "refresh_token")
+	data.Set("refresh_token", refreshToken)
+
+	req, err := http.NewRequest("POST", "https://id.twitch.tv/oauth2/token", strings.NewReader(data.Encode()))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	var twitchResponse TwitchResponse
+	err = json.Unmarshal(body, &twitchResponse)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	authToken = twitchResponse.AccessToken
+	refreshToken = twitchResponse.RefreshToken
+}
+
 func main() {
-	if auth_token == "" {
+	if db_url == "" {
 		//load .env file
 		err := godotenv.Load()
 		if err != nil {
 			fmt.Println("Error loading .env file")
 		}
-		auth_token = os.Getenv("AUTH_TOKEN")
-		nickname = os.Getenv("NICK")
 		db_url = os.Getenv("DATABASE_URL")
-		client_id = os.Getenv("CLIENT_ID")
 	}
 	db, err := gorm.Open(postgres.Open(db_url))
 	if err != nil {
@@ -115,6 +194,8 @@ func main() {
 	}
 	db.AutoMigrate(&ChatCounts{})
 
+
+
 	for i := 0; i < val.NumField(); i++ {
 		jsonTag := val.Type().Field(i).Tag.Get("json")
 		if jsonTag != "-" && jsonTag != "time" {
@@ -122,7 +203,10 @@ func main() {
 		}
 	}
 
-	go connect_to_nl_chat(db)
+	authorizeTwitch()
+
+	go connectToTwitchChat(db)
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
 	})
@@ -217,7 +301,7 @@ func main() {
 				return
 			}
 		}
-		marshal_json_and_write(w, result)
+		marshalJsonAndWrite(w, result)
 
 
 
@@ -313,7 +397,7 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		marshal_json_and_write(w, map[string]string{
+		marshalJsonAndWrite(w, map[string]string{
 			"clip_id": clip.ClipID,
 			"time":    fmt.Sprintf("%f", clip.Time),
 		})
@@ -346,7 +430,7 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 				fmt.Println(err)
 				return
 			}
-			auth := split_and_get_last(auth_token, ":")
+			auth := split_and_get_last(authToken, ":")
 			bearer := fmt.Sprintf("Bearer %s", auth)
 			req.Header.Set("Client-Id", client_id)
 			req.Header.Set("Authorization", bearer)
@@ -355,8 +439,13 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 				fmt.Println(err)
 				return
 			}
+			if resp.StatusCode == 401 {
+				refreshTwitchToken()
+				minMaxClipGetter(w, query, db)
+				return
+			}
 			defer resp.Body.Close()
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -382,12 +471,12 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 		}
 	}
 
-	marshal_json_and_write(w, map[string][]Clip{
+	marshalJsonAndWrite(w, map[string][]Clip{
 		"clips": clips,
 	})
 }
 
-func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
+func marshalJsonAndWrite(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -400,7 +489,7 @@ func marshal_json_and_write(w http.ResponseWriter, data interface{}) {
 	w.Write(jsonData)
 }
 
-func connect_to_nl_chat(db *gorm.DB) {
+func connectToTwitchChat(db *gorm.DB) {
 
 	conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
 	if err != nil {
@@ -411,7 +500,7 @@ func connect_to_nl_chat(db *gorm.DB) {
 	chat_closed := make(chan error)
 
 	go func() {
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", auth_token)))
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", authToken)))
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
 		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
 
@@ -504,7 +593,7 @@ func connect_to_nl_chat(db *gorm.DB) {
 		case err := <-chat_closed:
 			fmt.Println("Chat closed:", err)
 			time.Sleep(30 * time.Second)
-			go connect_to_nl_chat(db)
+			go connectToTwitchChat(db)
 			return
 		default:
 			time.Sleep(100 * time.Millisecond)
@@ -544,7 +633,7 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 		return
 	}
 
-	auth := split_and_get_last(auth_token, ":")
+	auth := split_and_get_last(authToken, ":")
 	bearer := fmt.Sprintf("Bearer %s", auth)
 
 	req.Header.Set("Content-Type", "application/json")
