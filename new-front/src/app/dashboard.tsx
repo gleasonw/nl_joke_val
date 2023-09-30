@@ -22,12 +22,28 @@ import { useQuery } from "@tanstack/react-query";
 import Highcharts, { RectangleObject } from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
-import { SeriesDataSchema, SeriesKeys, SeriesData } from "@/app/page";
 import { useClickAway } from "react-use";
 import { useSearchParams, useRouter } from "next/navigation";
 import { addQueryParamsIfExist } from "@/app/utils";
+import { z } from "zod";
 
 type SeriesKey = keyof typeof SeriesKeys;
+
+export const SeriesKeys = {
+  two: "two",
+  lol: "lol",
+  cereal: "cereal",
+  monkas: "monkas",
+  joel: "joel",
+  pog: "pog",
+  huh: "huh",
+  no: "no",
+  cocka: "cocka",
+  shock: "shock",
+  who_asked: "who_asked",
+  copium: "copium",
+  ratjam: "ratjam",
+} as const;
 
 const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
   [SeriesKeys.two]: <div className={"text-xl "}>∑ ± 2</div>,
@@ -44,6 +60,25 @@ const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
   [SeriesKeys.copium]: <Emote src={"copium.webp"} />,
   [SeriesKeys.ratjam]: <Emote src={"ratJAM.webp"} />,
 } as const;
+
+export type SeriesData = z.infer<typeof SeriesDataSchema>;
+
+export const SeriesDataSchema = z.object({
+  [SeriesKeys.two]: z.number(),
+  [SeriesKeys.lol]: z.number(),
+  [SeriesKeys.cereal]: z.number(),
+  [SeriesKeys.monkas]: z.number(),
+  [SeriesKeys.joel]: z.number(),
+  [SeriesKeys.pog]: z.number(),
+  [SeriesKeys.huh]: z.number(),
+  [SeriesKeys.no]: z.number(),
+  [SeriesKeys.cocka]: z.number(),
+  [SeriesKeys.shock]: z.number(),
+  [SeriesKeys.who_asked]: z.number(),
+  [SeriesKeys.copium]: z.number(),
+  [SeriesKeys.ratjam]: z.number(),
+  time: z.number(),
+});
 
 function Emote({ src }: { src: string }) {
   return <Image src={`/${src}`} alt={src} width={32} height={32} />;
@@ -87,19 +122,7 @@ const seriesColors: Record<SeriesKey, string> = {
 export type TimeSpans = (typeof timeSpans)[number];
 export type TimeGroupings = (typeof timeGroupings)[number];
 
-export default function Dashboard({
-  initialArgState,
-  initialSeries,
-  initialMaxClips,
-  initialMinClips,
-}: {
-  initialArgState: InitialArgState;
-  initialSeries: SeriesData[];
-  initialMaxClips: ClipBatch;
-  initialMinClips: ClipBatch;
-}) {
-  const initArgs = initialArgState.chart;
-
+export default function Dashboard() {
   const params = useSearchParams();
   const router = useRouter();
   const series =
@@ -107,6 +130,9 @@ export default function Dashboard({
 
   const chartType = params.get("chartType") ?? "line";
   const grouping = params.get("timeGrouping") ?? "minute";
+  const functionType = params.get("functionType") ?? "instant";
+  const timeSpan = params.get("timeSpan") ?? "1 hour";
+  const rollingAverage = params.get("rollingAverage") ?? "5";
 
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
@@ -144,15 +170,27 @@ export default function Dashboard({
     [params, router]
   );
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      router.refresh();
-    }, 5000);
+  const SeriesData = SeriesDataSchema.array();
 
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [router]);
+  const { data: chartData } = useQuery({
+    queryKey: [functionType, timeSpan, grouping, rollingAverage],
+    queryFn: async () => {
+      const res = await fetch(
+        `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${grouping}&rolling_average=${rollingAverage}`
+      );
+      const jsonResponse = await res.json();
+      const zodParse = SeriesData.safeParse(jsonResponse);
+
+      if (zodParse.success) {
+        return zodParse.data;
+      } else {
+        console.error(zodParse.error);
+        throw new Error("Failed to parse data");
+      }
+    },
+    refetchInterval: 10000,
+    keepPreviousData: true,
+  });
 
   const chartRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -161,8 +199,12 @@ export default function Dashboard({
   const emoteSeries =
     series.map((key) => ({
       name: key,
-      data: initialSeries?.map((d) => [d.time * 1000 ?? 0, d[key] ?? ""]) ?? [],
-      color: seriesColors[key as keyof typeof seriesColors],
+      data:
+        chartData?.map((d) => [
+          d.time * 1000 ?? 0,
+          d[key as keyof SeriesData] ?? "",
+        ]) ?? [],
+      color: seriesColors[key as keyof typeof SeriesKeys],
       events: {
         click: function (e: any) {
           setClickedUnixSeconds(e.point.x / 1000);
@@ -322,7 +364,7 @@ export default function Dashboard({
           <TabGroup
             about="Past"
             defaultIndex={2}
-            index={timeSpans.indexOf(initArgs.timeSpan)}
+            index={timeSpans.indexOf(timeSpan as TimeSpans)}
             onIndexChange={(index) =>
               handleNavigate({ timeSpan: timeSpans[index] })
             }
@@ -451,14 +493,8 @@ export default function Dashboard({
       </div>
 
       <div className={"flex flex-wrap md:flex-nowrap md:gap-5"}>
-        <TopTwitchClips
-          initialClips={initialMaxClips}
-          initialState={initialArgState.clips}
-        />
-        <MostMinusTwosClips
-          initialClips={initialMinClips}
-          initialState={initialArgState.clips}
-        />
+        <TopTwitchClips />
+        <MostMinusTwosClips />
       </div>
     </div>
   );
@@ -498,13 +534,7 @@ export type ClipBatch = {
   clips: Clip[];
 };
 
-function TopTwitchClips({
-  initialClips,
-  initialState,
-}: {
-  initialClips: ClipBatch;
-  initialState: InitialArgState["clips"];
-}) {
+function TopTwitchClips() {
   const [timeSpan, setTimeSpan] = useState<
     "day" | "week" | "month" | "year" | ""
   >(initialState.clipTimeSpan);
