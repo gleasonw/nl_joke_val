@@ -2,8 +2,6 @@
 
 import {
   Title,
-  TabGroup,
-  TabList,
   Tab,
   Text,
   Select,
@@ -17,7 +15,7 @@ import {
   DateRangePickerValue,
 } from "@tremor/react";
 import { CSSProperties, useCallback, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
@@ -27,10 +25,8 @@ import { addQueryParamsIfExist } from "@/app/utils";
 import {
   SeriesDataSchema,
   SeriesKeys,
-  timeSpans,
   timeGroupings,
   seriesColors,
-  TimeSpans,
   SeriesKey,
   SeriesData,
 } from "./types";
@@ -43,15 +39,10 @@ export default function Dashboard() {
 
   const chartType = params.get("chartType") ?? "line";
   const grouping = params.get("timeGrouping") ?? "minute";
-  const functionType = params.get("functionType") ?? "instant";
-  const timeSpan = params.get("timeSpan") ?? "1 hour";
   const rollingAverage = params.get("rollingAverage") ?? "5";
   const fromParam = params.get("from");
   const toParam = params.get("to");
-  const from = fromParam
-    ? new Date(fromParam)
-    : new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
-  const to = toParam ? new Date(toParam) : new Date();
+  const trailingSpan = params.get("span") ?? "9 hours";
 
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
@@ -88,19 +79,37 @@ export default function Dashboard() {
 
   const SeriesData = SeriesDataSchema.array();
 
+  function getFromParam(): Date {
+    if (fromParam) {
+      return new Date(fromParam);
+    } else {
+      return new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+    }
+  }
+
+  function getToParam(): Date {
+    if (toParam) {
+      return new Date(toParam);
+    } else {
+      return new Date();
+    }
+  }
+
+  const queryClient = useQueryClient();
+  console.log(queryClient.getQueryCache());
+
   const { data: chartData } = useQuery({
-    queryKey: [functionType, timeSpan, grouping, rollingAverage],
+    queryKey: ["chart", series, grouping, rollingAverage, fromParam, toParam],
     queryFn: async () => {
       const res = await fetch(
         addQueryParamsIfExist(
-          `https://nljokeval-production.up.railway.app/api/${functionType}`,
+          `https://nljokeval-production.up.railway.app/api/series`,
           {
-            span: timeSpan,
             grouping,
-            function: functionType,
             rolling_average: rollingAverage,
-            from: from.toISOString(),
-            to: to.toISOString(),
+            from: getFromParam().toISOString(),
+            to: getToParam().toISOString(),
+            span: trailingSpan,
           }
         )
       );
@@ -242,19 +251,24 @@ export default function Dashboard() {
   }
 
   const last9HoursRange = {
-    from: new Date(new Date().getTime() - 9 * 60 * 60 * 1000),
-    to: new Date(),
-  };
-
-  const lastMinuteRange = {
-    from: new Date(new Date().getTime() - 60 * 1000),
-    to: new Date(),
+    from: undefined,
+    to: undefined,
+    span: "9 hours",
   };
 
   const lastHourRange = {
-    from: new Date(new Date().getTime() - 60 * 60 * 1000),
-    to: new Date(),
+    from: undefined,
+    to: undefined,
+    span: "1 hour",
   };
+
+  const lastMinuteRange = {
+    from: undefined,
+    to: undefined,
+    span: "1 minute",
+  };
+
+  const span = params.get("span");
 
   return (
     <div className="flex flex-col gap-5">
@@ -262,32 +276,34 @@ export default function Dashboard() {
         <h1 className={"text-2xl m-5 font-semibold"}>
           NL Chat Dashboard (est. 4/18/23)
         </h1>
-        <div className="flex gap-5">
+        <div className="flex gap-5 justify-center">
           <Button
             onClick={() => handleNavigate(lastMinuteRange)}
-            variant={"secondary"}
+            variant={span === "1 minute" ? "primary" : "secondary"}
           >
-            Last minute
+            Last minute of stream
           </Button>
           <Button
             onClick={() => handleNavigate(lastHourRange)}
-            variant={"secondary"}
+            variant={span === "1 hour" ? "primary" : "secondary"}
           >
             Last hour
           </Button>
           <Button
             onClick={() => handleNavigate(last9HoursRange)}
-            variant={"secondary"}
+            variant={
+              span === "9 hours" || span === null ? "primary" : "secondary"
+            }
           >
             Last 9 hours
           </Button>
           <DateRangePicker
-            className="max-w-md mx-auto"
-            value={{ from, to }}
+            value={{ from: getFromParam(), to: getToParam() }}
             onValueChange={(value: DateRangePickerValue) =>
               handleNavigate({
                 from: value.from?.toISOString(),
                 to: value.to?.toISOString(),
+                span: "custom",
               })
             }
             selectPlaceholder="Select a date"
@@ -368,23 +384,6 @@ export default function Dashboard() {
               >
                 <SelectItem value="line">Line</SelectItem>
                 <SelectItem value="bar">Bar</SelectItem>
-              </Select>
-            </div>
-
-            <div className="flex flex-col">
-              <label htmlFor="sumTypeSelect">Sum Type</label>
-              <Select
-                id="sumTypeSelect"
-                value={params.get("functionType") ?? "instant"}
-                placeholder={"Sum type"}
-                onValueChange={(value) =>
-                  handleNavigate({
-                    functionType: value,
-                  })
-                }
-              >
-                <SelectItem value="rolling_average">Rolling sum</SelectItem>
-                <SelectItem value="instant">Instant</SelectItem>
               </Select>
             </div>
 

@@ -33,43 +33,42 @@ type ChatCounts struct {
 	WhoAsked     int       `json:"who_asked"`
 	Shock        int       `json:"shock"`
 	Copium       int       `json:"copium"`
-	Ratjam int `json:"ratjam"`
+	Ratjam       int       `json:"ratjam"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
-	Thumbnail string `json:"-"`
+	Thumbnail    string    `json:"-"`
 	CreatedEpoch float64   `json:"time"`
 }
 
 // keep the json the same, but we need the name to reflect the db avg_*
 type AveragedChatCounts struct {
-	AvgTwo 				float64       `json:"two"`
-	AvgLol 				float64       `json:"lol"`
-	AvgCereal 			float64       `json:"cereal"`
-	AvgMonkas 			float64       `json:"monkas"`
-	AvgJoel 			float64       `json:"joel"`
-	AvgPog 				float64       `json:"pog"`
-	AvgHuh 				float64       `json:"huh"`
-	AvgNo 				float64       `json:"no"`
-	AvgCocka 			float64       `json:"cocka"`
-	AvgWhoAsked 		float64       `json:"who_asked"`
-	AvgShock 			float64       `json:"shock"`
-	AvgCopium 			float64       `json:"copium"`
-	AvgRatjam 			float64       `json:"ratjam"`
-	CreatedAt 			time.Time `gorm:"index" json:"-"`
-	ClipId 				string    `json:"-"`
-	Thumbnail 			string `json:"-"`
-	CreatedEpoch 		float64   `json:"time"`
+	AvgTwo       float64   `json:"two"`
+	AvgLol       float64   `json:"lol"`
+	AvgCereal    float64   `json:"cereal"`
+	AvgMonkas    float64   `json:"monkas"`
+	AvgJoel      float64   `json:"joel"`
+	AvgPog       float64   `json:"pog"`
+	AvgHuh       float64   `json:"huh"`
+	AvgNo        float64   `json:"no"`
+	AvgCocka     float64   `json:"cocka"`
+	AvgWhoAsked  float64   `json:"who_asked"`
+	AvgShock     float64   `json:"shock"`
+	AvgCopium    float64   `json:"copium"`
+	AvgRatjam    float64   `json:"ratjam"`
+	CreatedAt    time.Time `gorm:"index" json:"-"`
+	ClipId       string    `json:"-"`
+	Thumbnail    string    `json:"-"`
+	CreatedEpoch float64   `json:"time"`
 }
 
 var val = reflect.ValueOf(ChatCounts{})
 var validColumnSet = make(map[string]bool)
 
-
 type Clip struct {
-	ClipID string  `json:"clip_id"`
-	Count  int     `json:"count"`
-	Time   float64 `json:"time"`
-	Thumbnail string `json:"thumbnail"`
+	ClipID    string  `json:"clip_id"`
+	Count     int     `json:"count"`
+	Time      float64 `json:"time"`
+	Thumbnail string  `json:"thumbnail"`
 }
 
 type Message struct {
@@ -82,6 +81,18 @@ var nickname string = os.Getenv("NICK")
 var db_url string = os.Getenv("DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
 
+func buildStringForEachColumn(fn func(string) string) string {
+	val := reflect.ValueOf(ChatCounts{})
+	typeOfS := val.Type()
+	columnStrings := make([]string, 0, val.NumField())
+	for i := 0; i < val.NumField(); i++ {
+		fieldName := typeOfS.Field(i).Tag.Get("json")
+		if fieldName != "-" && fieldName != "time" {
+			columnStrings = append(columnStrings, fn(fieldName))
+		}
+	}
+	return strings.Join(columnStrings, ",\n")
+}
 
 // TODO: refresh token every month. URL on Railway vars
 
@@ -111,76 +122,105 @@ func main() {
 		}
 	}
 
-	go connect_to_nl_chat(db)
+	// go connect_to_nl_chat(db)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
 	})
 
+	var baseSumStrings = buildStringForEachColumn(func(fieldName string) string {
+		return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
+	})
+	
+	
+	var seriesQueryFromTo = fmt.Sprintf(`
+	SELECT %s,
+		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+	FROM chat_counts 
+	WHERE created_at BETWEEN $2 AND $3
+	GROUP BY date_trunc($1, created_at) 
+	ORDER BY date_trunc($1, created_at) asc
+	`, baseSumStrings)
 
-	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
+	var seriesQueryMostRecent = fmt.Sprintf(`
+	SELECT %s,
+		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+	FROM chat_counts
+	WHERE created_at > (
+		SELECT MAX(created_at) - $2::interval 
+		FROM chat_counts
+	)
+	GROUP BY date_trunc($1, created_at)
+	ORDER BY date_trunc($1, created_at) asc
+	`, baseSumStrings)
+
+	http.HandleFunc("/api/series", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(r.URL)
-		span := r.URL.Query().Get("span")
+		inputSpan := r.URL.Query().Get("span")
+		trailingSpan := ""
 		grouping := r.URL.Query().Get("grouping")
 		rollingAverage := r.URL.Query().Get("rolling_average")
 		from := r.URL.Query().Get("from")
 		to := r.URL.Query().Get("to")
 
-		sumQuery, _, err := buildSQL(to)
-		if err != nil {
-			fmt.Println(err)
-			return
+		switch inputSpan {
+		case "1 minute", "30 minutes", "1 hour", "9 hours":
+			trailingSpan = inputSpan
 		}
 
-		if rollingAverage != "0" && rollingAverage != ""{
+		rollingAverageString := ""
+		finalDbQuery := ""
+		if trailingSpan != "" {
+			finalDbQuery = seriesQueryMostRecent
+		} else {
+			finalDbQuery = seriesQueryFromTo
+		}
+
+
+		if rollingAverage != "0" && rollingAverage != "" {
 			parseIntRollingAverage, err := strconv.Atoi(rollingAverage)
 
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
+			rollingAverageString = buildStringForEachColumn(func(fieldName string) string {
+				return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, parseIntRollingAverage, fieldName)
+			})
 
-			avgQuery := buildRollingAverageQuery(ChatCounts{}, parseIntRollingAverage)
-			result := []AveragedChatCounts{}
-			dbError := db.Raw(avgQuery, grouping, span).Scan(&result).Error
-			if dbError != nil {
-				fmt.Println(err)
-				return
-			}
-			marshal_json_and_write(w, result)
+			finalDbQuery = fmt.Sprintf(`
+			WITH base_sum AS (%s)
+			SELECT %s ,
+			created_epoch
+			FROM base_sum
+			`, finalDbQuery, rollingAverageString)
+		}
+
+		var result interface{}
+
+		if rollingAverageString != "" {
+			result = []AveragedChatCounts{}
 		} else {
-			result := []ChatCounts{}
-			dbError := db.Raw(sumQuery, grouping, from).Scan(&result).Error
+			result = []ChatCounts{}
+		}
+
+		if trailingSpan != "" {
+
+			dbError := db.Raw(finalDbQuery, grouping, trailingSpan).Scan(&result).Error
 			if dbError != nil {
 				fmt.Println(err)
 				return
 			}
-			marshal_json_and_write(w, result)
-
-		}
-
-
-
-	})
-
-	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.URL)
-		grouping := r.URL.Query().Get("grouping")
-		from := r.URL.Query().Get("from")
-		to := r.URL.Query().Get("to")
-
-		_, overQuery, sqlErr := buildSQL(to)
-		if sqlErr != nil {
-			fmt.Println(sqlErr)
-			return
-		}
-
-		result := []ChatCounts{}
-		err := db.Raw(overQuery, grouping, from).Scan(&result).Error
-		if err != nil {
-			fmt.Println(err)
-			return
+		} else{
+			dbError := db.Raw(finalDbQuery, grouping, from, to).Scan(&result).Error
+			if dbError != nil {
+				fmt.Println(err)
+				return
+			}
 		}
 		marshal_json_and_write(w, result)
+
+
+
 	})
 
 	http.HandleFunc("/api/clip_counts", func(w http.ResponseWriter, r *http.Request) {
@@ -191,7 +231,7 @@ func main() {
 		order := r.URL.Query().Get("order")
 
 		switch grouping {
-		case "second", "minute", "hour", "day", "week", "month", "year" :
+		case "second", "minute", "hour", "day", "week", "month", "year":
 			break
 		default:
 			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
@@ -209,7 +249,6 @@ func main() {
 		var query string
 		timeSpan := "FROM chat_counts"
 
-
 		for _, column := range column_to_select {
 			_, ok := validColumnSet[column]
 			if !ok {
@@ -217,14 +256,14 @@ func main() {
 				return
 			}
 		}
-		
+
 		switch span {
 		case "day", "week", "month", "year":
 
 			if span == "day" {
 				// a full day pulls clips from prior streams
 				span = "9 hours"
-			}else{
+			} else {
 				span = fmt.Sprintf("1 %s", span)
 			}
 
@@ -257,7 +296,6 @@ func main() {
 			ORDER BY count %s
 			LIMIT 10
 		`, sum_clause, grouping, not_null_string, timeSpan, order)
-		
 
 		minMaxClipGetter(w, query, db)
 	})
@@ -290,100 +328,6 @@ func main() {
 	}
 
 }
-
-
-func buildSQL(to string) (string, string, error) {
-	val := reflect.ValueOf(ChatCounts{})
-	typeOfS := val.Type()
-	
-	toClause := ""
-
-	if to != "" {
-		toClause = fmt.Sprintf("AND created_at <= '%s'", to)
-	}
-
-	sumFields := make([]string, 0, val.NumField())
-	overFields := make([]string, 0, val.NumField())
-
-	for i := 0; i < val.NumField(); i++ {
-		fieldName := typeOfS.Field(i).Tag.Get("json")
-
-		if fieldName != "-" && fieldName != "time" {
-			sumField := fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
-			overField := fmt.Sprintf("SUM(%s) OVER (ORDER BY created_epoch) as %s", fieldName, fieldName)
-			sumFields = append(sumFields, sumField)
-			overFields = append(overFields, overField)
-		}
-	}
-
-	sumFieldStr := strings.Join(sumFields, ",\n\t\t")
-	overFieldStr := strings.Join(overFields, ",\n\t\t")
-
-	sumQuery := fmt.Sprintf(`
-		SELECT %s,
-			EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-		FROM chat_counts 
-		WHERE created_at >= (SELECT MAX(created_at) - $2 from chat_counts)
-		%s
-		GROUP BY date_trunc($1, created_at) 
-		ORDER BY date_trunc($1, created_at) asc
-	`, sumFieldStr, toClause)
-
-	overQuery := fmt.Sprintf(`
-		SELECT %s,
-			created_epoch
-		FROM (%s) as grouping_sum
-	`, overFieldStr, sumQuery)
-
-	return sumQuery, overQuery, nil
-}
-
-
-func buildRollingAverageQuery(s interface{}, rollingSum int) (string) {
-	val := reflect.ValueOf(s)
-	typeOfS := val.Type()
-
-	sumFields := make([]string, 0, val.NumField())
-	avgOverFields := make([]string, 0, val.NumField())
-
-	for i := 0; i < val.NumField(); i++ {
-		fieldName := typeOfS.Field(i).Tag.Get("json")
-
-		if fieldName != "-" && fieldName != "time" {
-			sumField := fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
-			sumFields = append(sumFields, sumField)
-			
-			avgOverField := fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, rollingSum, fieldName)
-			avgOverFields = append(avgOverFields, avgOverField)
-		}
-	}
-
-	sumFieldStr := strings.Join(sumFields, ",\n\t\t")
-	avgOverFieldStr := strings.Join(avgOverFields, ",\n\t\t")
-
-	baseQuery := fmt.Sprintf(`
-		WITH base_query AS (
-			SELECT %s,
-				EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-			FROM chat_counts
-			WHERE created_at >= (SELECT MAX(created_at) - $2::interval from chat_counts)
-			GROUP BY date_trunc($1, created_at)
-			ORDER BY date_trunc($1, created_at) asc
-		)
-	`, sumFieldStr)
-
-	avgOverQuery := fmt.Sprintf(`
-		SELECT %s,
-			created_epoch
-		FROM base_query;
-	`, avgOverFieldStr)
-
-	fullQuery := baseQuery + avgOverQuery
-
-	return fullQuery
-}
-
-
 
 func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 	var clips []Clip
@@ -424,7 +368,7 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 			}
 			var clipResponse HelixClip
 			json.Unmarshal(body, &clipResponse)
-			if(len(clipResponse.Data) == 0) {
+			if len(clipResponse.Data) == 0 {
 				fmt.Println("No data returned from helix api")
 				fmt.Println(string(body))
 				fmt.Println(clip)
@@ -504,7 +448,7 @@ func connect_to_nl_chat(db *gorm.DB) {
 				emotesAndKeywords := map[string]*int{
 					"LUL":      &counter.Lol,
 					"ICANT":    &counter.Lol,
-					"KEKW":    &counter.Lol,
+					"KEKW":     &counter.Lol,
 					"Cereal":   &counter.Cereal,
 					"NOOO":     &counter.No,
 					"COCKA":    &counter.Cocka,
@@ -512,12 +456,12 @@ func connect_to_nl_chat(db *gorm.DB) {
 					"Joel":     &counter.Joel,
 					"POGCRAZY": &counter.Pog,
 					"Pog":      &counter.Pog,
-					"LETSGO": &counter.Pog,
+					"LETSGO":   &counter.Pog,
 					"HUHH":     &counter.Huh,
 					"Copium":   &counter.Copium,
 					"D:":       &counter.Shock,
 					"WhoAsked": &counter.WhoAsked,
-					"ratJAM":  &counter.Ratjam,
+					"ratJAM":   &counter.Ratjam,
 				}
 
 				for keyword, count := range emotesAndKeywords {
