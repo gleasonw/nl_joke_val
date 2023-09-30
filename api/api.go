@@ -100,12 +100,9 @@ func buildStringForEachColumn(fn func(string) string) string {
 type TwitchResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	Scope        string `json:"scope"`
-	TokenType    string `json:"token_type"`
 }
 
-func authorizeTwitch() {
+func authorizeTwitch() error {
 	data := url.Values{}
 	data.Set("client_id", client_id)
 	data.Set("client_secret", os.Getenv("CLIENT_SECRET"))
@@ -115,32 +112,33 @@ func authorizeTwitch() {
 
 	req, err := http.NewRequest("POST", "https://id.twitch.tv/oauth2/token", strings.NewReader(data.Encode()))
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
-
 
 	var twitchResponse TwitchResponse
 	err = json.Unmarshal(body, &twitchResponse)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return err
+	}
+	if twitchResponse.AccessToken == "" || twitchResponse.RefreshToken == "" {
+		fmt.Println("Tokens are empty. Body was:", string(body))
+		return error(fmt.Errorf("tokens are empty"))
 	}
 	authToken = twitchResponse.AccessToken
 	refreshToken = twitchResponse.RefreshToken
+	return nil
 }
 
 func refreshTwitchToken() {
@@ -179,12 +177,14 @@ func refreshTwitchToken() {
 }
 
 func main() {
-	if db_url == "" {
+	if client_id == "" {
 		//load .env file
 		err := godotenv.Load()
 		if err != nil {
 			fmt.Println("Error loading .env file")
 		}
+		client_id = os.Getenv("CLIENT_ID")
+		nickname = os.Getenv("NICK")
 		db_url = os.Getenv("DATABASE_URL")
 	}
 	db, err := gorm.Open(postgres.Open(db_url))
@@ -203,7 +203,11 @@ func main() {
 		}
 	}
 
-	authorizeTwitch()
+	authErr := authorizeTwitch()
+	if authErr != nil {
+		fmt.Println(authErr)
+		return
+	}
 
 	go connectToTwitchChat(db)
 
