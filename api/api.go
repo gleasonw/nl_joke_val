@@ -118,6 +118,7 @@ func main() {
 
 
 	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(r.URL)
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
 		rollingAverage := r.URL.Query().Get("rolling_average")
@@ -162,6 +163,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(r.URL)
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
 		from := r.URL.Query().Get("from")
@@ -183,6 +185,7 @@ func main() {
 	})
 
 	http.HandleFunc("/api/clip_counts", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(r.URL)
 		column_to_select := r.URL.Query()["column"]
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
@@ -256,7 +259,6 @@ func main() {
 			LIMIT 10
 		`, sum_clause, grouping, not_null_string, timeSpan, order)
 		
-		fmt.Println(query)
 
 		minMaxClipGetter(w, query, db)
 	})
@@ -290,9 +292,6 @@ func main() {
 
 }
 
-func refreshTwitchToken() {
-	for {}
-}
 
 func buildSQL(from string, to string) (string, string, error) {
 	val := reflect.ValueOf(ChatCounts{})
