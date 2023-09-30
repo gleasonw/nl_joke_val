@@ -276,7 +276,7 @@ export default function Dashboard() {
         <h1 className={"text-2xl m-5 font-semibold"}>
           NL Chat Dashboard (est. 4/18/23)
         </h1>
-        <div className="flex gap-5 justify-center">
+        <div className="flex gap-5 justify-center flex-wrap">
           <Button
             onClick={() => handleNavigate(lastMinuteRange)}
             variant={span === "1 minute" ? "primary" : "secondary"}
