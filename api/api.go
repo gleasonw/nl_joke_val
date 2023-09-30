@@ -504,6 +504,7 @@ func connectToTwitchChat(db *gorm.DB) {
 	chat_closed := make(chan error)
 
 	go func() {
+		fmt.Println(authToken, nickname)
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS %s", authToken)))
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
 		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
