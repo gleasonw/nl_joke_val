@@ -116,27 +116,29 @@ func main() {
 		w.Write([]byte("Hello World!"))
 	})
 
-	sumQuery, overQuery, err := buildQueriesFromStructReflect(ChatCounts{})
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
 
 	http.HandleFunc("/api/instant", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
-		rollingSum := r.URL.Query().Get("rolling_sum")
+		rollingAverage := r.URL.Query().Get("rolling_average")
+		from := r.URL.Query().Get("from")
+		to := r.URL.Query().Get("to")
 
+		sumQuery, _, err := buildSQL(from, to)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 
-		if rollingSum != "0" && rollingSum != ""{
-			parseIntRollingSum, err := strconv.Atoi(rollingSum)
+		if rollingAverage != "0" && rollingAverage != ""{
+			parseIntRollingAverage, err := strconv.Atoi(rollingAverage)
 
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 
-			avgQuery := buildRollingAverageQuery(ChatCounts{}, parseIntRollingSum)
+			avgQuery := buildRollingAverageQuery(ChatCounts{}, parseIntRollingAverage)
 			result := []AveragedChatCounts{}
 			dbError := db.Raw(avgQuery, grouping, span).Scan(&result).Error
 			if dbError != nil {
@@ -162,6 +164,15 @@ func main() {
 	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
+		from := r.URL.Query().Get("from")
+		to := r.URL.Query().Get("to")
+
+		_, overQuery, sqlErr := buildSQL(from, to)
+		if sqlErr != nil {
+			fmt.Println(sqlErr)
+			return
+		}
+
 		result := []ChatCounts{}
 		err := db.Raw(overQuery, grouping, span).Scan(&result).Error
 		if err != nil {
@@ -279,9 +290,22 @@ func main() {
 
 }
 
-func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
-	val := reflect.ValueOf(s)
+func refreshTwitchToken() {
+	for {}
+}
+
+func buildSQL(from string, to string) (string, string, error) {
+	val := reflect.ValueOf(ChatCounts{})
 	typeOfS := val.Type()
+	
+	fromClause := ""
+	toClause := ""
+	if from != "" {
+		fromClause = fmt.Sprintf("AND created_at >= '%s'", from)
+	}
+	if to != "" {
+		toClause = fmt.Sprintf("AND created_at <= '%s'", to)
+	}
 
 	sumFields := make([]string, 0, val.NumField())
 	overFields := make([]string, 0, val.NumField())
@@ -305,9 +329,11 @@ func buildQueriesFromStructReflect(s interface{}) (string, string, error) {
 			EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
 		FROM chat_counts 
 		WHERE created_at >= (SELECT MAX(created_at) - $2::interval from chat_counts)
+		%s
+		%s
 		GROUP BY date_trunc($1, created_at) 
 		ORDER BY date_trunc($1, created_at) asc
-	`, sumFieldStr)
+	`, sumFieldStr, fromClause, toClause)
 
 	overQuery := fmt.Sprintf(`
 		SELECT %s,
