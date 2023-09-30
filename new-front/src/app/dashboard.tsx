@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Grid,
-  Col,
   Title,
   TabGroup,
   TabList,
@@ -10,24 +8,28 @@ import {
   Text,
   Select,
   SelectItem,
-  MultiSelect,
-  MultiSelectItem,
   Card,
   List,
   ListItem,
   Button,
+  DatePicker,
+  DateRangePicker,
+  DateRangePickerItem,
+  DateRangePickerValue,
 } from "@tremor/react";
-import { CSSProperties, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
 import Highcharts, { RectangleObject } from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
-import { DataProps } from "@/components/App";
-import { InitialArgState } from "@/app/page";
 import { useClickAway } from "react-use";
+import { useSearchParams, useRouter } from "next/navigation";
+import { addQueryParamsIfExist } from "@/app/utils";
+import { z } from "zod";
 
-const SeriesKeys = {
+type SeriesKey = keyof typeof SeriesKeys;
+
+export const SeriesKeys = {
   two: "two",
   lol: "lol",
   cereal: "cereal",
@@ -41,24 +43,6 @@ const SeriesKeys = {
   who_asked: "who_asked",
   copium: "copium",
   ratjam: "ratjam",
-} as const;
-
-type SeriesKey = (typeof SeriesKeys)[keyof typeof SeriesKeys];
-
-const seriesColors: Record<SeriesKey, string> = {
-  [SeriesKeys.two]: "#7cb5ec",
-  [SeriesKeys.lol]: "#434348",
-  [SeriesKeys.cereal]: "#90ed7d",
-  [SeriesKeys.monkas]: "#f7a35c",
-  [SeriesKeys.joel]: "#8085e9",
-  [SeriesKeys.pog]: "#f15c80",
-  [SeriesKeys.huh]: "#e4d354",
-  [SeriesKeys.no]: "#2b908f",
-  [SeriesKeys.cocka]: "#f45b5b",
-  [SeriesKeys.shock]: "#8d4654",
-  [SeriesKeys.who_asked]: "#91e8e1",
-  [SeriesKeys.copium]: "#696969",
-  [SeriesKeys.ratjam]: "#000000",
 } as const;
 
 const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
@@ -77,11 +61,9 @@ const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
   [SeriesKeys.ratjam]: <Emote src={"ratJAM.webp"} />,
 } as const;
 
-function Emote({ src }: { src: string }) {
-  return <Image src={`/${src}`} alt={src} width={32} height={32} />;
-}
+export type SeriesData = z.infer<typeof SeriesDataSchema>;
 
-const SeriesDataSchema = z.object({
+export const SeriesDataSchema = z.object({
   [SeriesKeys.two]: z.number(),
   [SeriesKeys.lol]: z.number(),
   [SeriesKeys.cereal]: z.number(),
@@ -98,7 +80,9 @@ const SeriesDataSchema = z.object({
   time: z.number(),
 });
 
-export type SeriesData = z.infer<typeof SeriesDataSchema>;
+function Emote({ src }: { src: string }) {
+  return <Image src={`/${src}`} alt={src} width={32} height={32} />;
+}
 
 const timeSpans = [
   "1 minute",
@@ -119,35 +103,89 @@ const timeGroupings = [
   "year",
 ] as const;
 
+const seriesColors: Record<SeriesKey, string> = {
+  [SeriesKeys.two]: "#7cb5ec",
+  [SeriesKeys.lol]: "#434348",
+  [SeriesKeys.cereal]: "#90ed7d",
+  [SeriesKeys.monkas]: "#f7a35c",
+  [SeriesKeys.joel]: "#8085e9",
+  [SeriesKeys.pog]: "#f15c80",
+  [SeriesKeys.huh]: "#e4d354",
+  [SeriesKeys.no]: "#2b908f",
+  [SeriesKeys.cocka]: "#f45b5b",
+  [SeriesKeys.shock]: "#8d4654",
+  [SeriesKeys.who_asked]: "#91e8e1",
+  [SeriesKeys.copium]: "#696969",
+  [SeriesKeys.ratjam]: "#000000",
+} as const;
+
 export type TimeSpans = (typeof timeSpans)[number];
 export type TimeGroupings = (typeof timeGroupings)[number];
 
-export default function Dashboard(props: DataProps) {
-  const initArgs = props.initialArgState.chart;
-  const [chartType, setChartType] = useState<"line" | "bar">("line");
-  const [functionType, setFunctionType] = useState<"rolling_sum" | "instant">(
-    initArgs.functionType
-  );
-  const [series, setSeries] = useState<SeriesKey[]>([SeriesKeys.two]);
-  console.log(initArgs.timeSpan);
-  const [timeSpan, setTimeSpan] = useState<TimeSpans>(initArgs.timeSpan);
-  const [rollingSum, setRollingSum] = useState(5);
-  const [grouping, setGrouping] = useState<
-    "second" | "minute" | "hour" | "day" | "week" | "month" | "year"
-  >(initArgs.timeGrouping);
+export default function Dashboard() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const series =
+    params.getAll("series").length > 0 ? params.getAll("series") : ["two"];
+
+  const chartType = params.get("chartType") ?? "line";
+  const grouping = params.get("timeGrouping") ?? "minute";
+  const functionType = params.get("functionType") ?? "instant";
+  const timeSpan = params.get("timeSpan") ?? "1 hour";
+  const rollingAverage = params.get("rollingAverage") ?? "5";
+
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
   >(undefined);
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | undefined>(
     undefined
   );
+  const [dateRange, setValue] = useState<DateRangePickerValue>({
+    from: new Date(),
+    to: undefined,
+  });
+
+  const handleNavigate = useCallback(
+    (newParam: { [key: string]: string | string[] }) => {
+      const paramsObject: { [key: string]: string | string[] } = {};
+      params.forEach((value, key) => {
+        const item = paramsObject[key];
+        if (item) {
+          if (Array.isArray(item)) {
+            item.push(value);
+          } else {
+            paramsObject[key] = [item, value];
+          }
+        } else {
+          paramsObject[key] = value;
+        }
+      });
+      router.push(
+        addQueryParamsIfExist("/", {
+          ...paramsObject,
+          ...newParam,
+        }),
+        { scroll: false }
+      );
+    },
+    [params, router]
+  );
 
   const SeriesData = SeriesDataSchema.array();
-  const chartData = useQuery({
-    queryKey: [functionType, timeSpan, grouping, rollingSum],
+
+  const { data: chartData } = useQuery({
+    queryKey: [functionType, timeSpan, grouping, rollingAverage],
     queryFn: async () => {
       const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/${functionType}?span=${timeSpan}&grouping=${grouping}&rolling_sum=${rollingSum}`
+        addQueryParamsIfExist(
+          `https://nljokeval-production.up.railway.app/api/${functionType}`,
+          {
+            span: timeSpan,
+            grouping,
+            function: functionType,
+            rolling_average: rollingAverage,
+          }
+        )
       );
       const jsonResponse = await res.json();
       const zodParse = SeriesData.safeParse(jsonResponse);
@@ -161,7 +199,6 @@ export default function Dashboard(props: DataProps) {
     },
     refetchInterval: 10000,
     keepPreviousData: true,
-    placeholderData: props.initialSeries,
   });
 
   const chartRef = useRef<HTMLDivElement | null>(null);
@@ -172,8 +209,11 @@ export default function Dashboard(props: DataProps) {
     series.map((key) => ({
       name: key,
       data:
-        chartData.data?.map((d) => [d.time * 1000 ?? 0, d[key] ?? ""]) ?? [],
-      color: seriesColors[key as keyof typeof seriesColors],
+        chartData?.map((d) => [
+          d.time * 1000 ?? 0,
+          d[key as keyof SeriesData] ?? "",
+        ]) ?? [],
+      color: seriesColors[key as keyof typeof SeriesKeys],
       events: {
         click: function (e: any) {
           setClickedUnixSeconds(e.point.x / 1000);
@@ -276,30 +316,76 @@ export default function Dashboard(props: DataProps) {
     };
   }
 
+  function getNewSeriesList(emote: string) {
+    if (series.includes(emote)) {
+      return series.filter((item) => item !== emote);
+    } else {
+      return [...series, emote];
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h1 className={"text-2xl m-5 font-semibold"}>
           NL Chat Dashboard (est. 4/18/23)
         </h1>
-        <TabGroup
-          defaultIndex={2}
-          onIndexChange={(i) => {
-            setTimeSpan(timeSpans[i]);
-            if (["1 month", "1 year"].includes(timeSpans[i])) {
-              setGrouping("day");
+        <div className="flex flex-col">
+          <DateRangePicker
+            className="max-w-md mx-auto"
+            value={dateRange}
+            onValueChange={setValue}
+            selectPlaceholder="Select a date"
+          >
+            <DateRangePickerItem
+              key="half"
+              value="half"
+              from={new Date(2023, 0, 1)}
+              to={new Date(2023, 5, 31)}
+            >
+              Past day
+            </DateRangePickerItem>
+            <DateRangePickerItem
+              key="half"
+              value="half"
+              from={new Date(2023, 0, 1)}
+              to={new Date(2023, 5, 31)}
+            >
+              Past week
+            </DateRangePickerItem>
+            <DateRangePickerItem
+              key="half"
+              value="half"
+              from={new Date(2023, 0, 1)}
+              to={new Date(2023, 5, 31)}
+            >
+              Past month
+            </DateRangePickerItem>
+
+            <DateRangePickerItem
+              key="ytd"
+              value="ytd"
+              from={new Date(2023, 0, 1)}
+            >
+              Past year
+            </DateRangePickerItem>
+          </DateRangePicker>
+          <TabGroup
+            about="Past"
+            defaultIndex={2}
+            index={timeSpans.indexOf(timeSpan as TimeSpans)}
+            onIndexChange={(index) =>
+              handleNavigate({ timeSpan: timeSpans[index] })
             }
-          }}
-        >
-          <TabList>
-            <Tab>1M</Tab>
-            <Tab>1H</Tab>
-            <Tab>9H</Tab>
-            <Tab>1W</Tab>
-            <Tab>1M</Tab>
-            <Tab>6M</Tab>
-          </TabList>
-        </TabGroup>
+          >
+            <TabList>
+              <Tab>1M</Tab>
+              <Tab>1H</Tab>
+              <Tab>9H</Tab>
+            </TabList>
+          </TabGroup>
+        </div>
+
         <div className="flex flex-col p-3">
           <div className="flex flex-row flex-wrap gap-3 m-2">
             {Object.keys(SeriesKeys).map((key) => (
@@ -316,7 +402,9 @@ export default function Dashboard(props: DataProps) {
                 }
                 key={key}
                 onClick={() => {
-                  setSeries(getNewList<SeriesKey>(series, key as SeriesKey));
+                  handleNavigate({
+                    series: getNewSeriesList(key),
+                  });
                 }}
               >
                 {seriesEmotes[key as SeriesKey]}
@@ -328,9 +416,13 @@ export default function Dashboard(props: DataProps) {
               <label htmlFor="chartTypeSelect">Chart Type</label>
               <Select
                 id="chartTypeSelect"
-                value={chartType}
+                value={params.get("chartType") ?? "line"}
                 placeholder={"Chart type"}
-                onValueChange={(value) => setChartType(value as "line" | "bar")}
+                onValueChange={(value) =>
+                  handleNavigate({
+                    chartType: value,
+                  })
+                }
               >
                 <SelectItem value="line">Line</SelectItem>
                 <SelectItem value="bar">Bar</SelectItem>
@@ -341,13 +433,15 @@ export default function Dashboard(props: DataProps) {
               <label htmlFor="sumTypeSelect">Sum Type</label>
               <Select
                 id="sumTypeSelect"
-                value={functionType}
+                value={params.get("functionType") ?? "instant"}
                 placeholder={"Sum type"}
                 onValueChange={(value) =>
-                  setFunctionType(value as "rolling_sum" | "instant")
+                  handleNavigate({
+                    functionType: value,
+                  })
                 }
               >
-                <SelectItem value="rolling_sum">Rolling sum</SelectItem>
+                <SelectItem value="rolling_average">Rolling sum</SelectItem>
                 <SelectItem value="instant">Instant</SelectItem>
               </Select>
             </div>
@@ -356,9 +450,11 @@ export default function Dashboard(props: DataProps) {
               <label htmlFor="groupBySelect">Group By</label>
               <Select
                 id="groupBySelect"
-                value={grouping}
+                value={params.get("timeGrouping") ?? "minute"}
                 placeholder={"Group by"}
-                onValueChange={(value) => setGrouping(value as TimeGroupings)}
+                onValueChange={(value) =>
+                  handleNavigate({ timeGrouping: value })
+                }
               >
                 {timeGroupings.map((grouping) => (
                   <SelectItem value={grouping} key={grouping} />
@@ -369,11 +465,13 @@ export default function Dashboard(props: DataProps) {
               <label htmlFor="groupBySelect">Smoothing</label>
               <Select
                 id="smoothing"
-                value={rollingSum.toString()}
+                value={params.get("rollingAverage") ?? "5"}
                 placeholder={"Smoothing"}
-                onValueChange={(value) => setRollingSum(parseInt(value))}
+                onValueChange={(value) =>
+                  handleNavigate({ rollingAverage: value })
+                }
               >
-                {[0, 5, 10, 15, 30].map((smoothing) => (
+                {[0, 5, 10, 15, 30, 60].map((smoothing) => (
                   <SelectItem value={smoothing.toString()} key={smoothing}>
                     {smoothing === 0 ? "None" : smoothing}
                   </SelectItem>
@@ -386,50 +484,31 @@ export default function Dashboard(props: DataProps) {
           </div>
         </div>
       </div>
-      {chartData.isSuccess && (
-        <div ref={chartRef}>
-          <HighchartsReact
-            highcharts={Highcharts}
-            options={highChartsOptions}
-          />
-          {tooltip && (
-            <div
-              className={"w-96 transition-all"}
-              style={getTooltipStyle()}
-              ref={tooltipRef}
+      <div ref={chartRef}>
+        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
+        {tooltip && (
+          <div
+            className={"w-96 transition-all"}
+            style={getTooltipStyle()}
+            ref={tooltipRef}
+          >
+            <button
+              onClick={() => setTooltip(undefined)}
+              className={"absolute -top-10 right-0 p-5 bg-white rounded"}
             >
-              <button
-                onClick={() => setTooltip(undefined)}
-                className={"absolute -top-10 right-0 p-5 bg-white rounded"}
-              >
-                X
-              </button>
-              <TwitchClipAtTime time={clickedUnixSeconds} />
-            </div>
-          )}
-        </div>
-      )}
+              X
+            </button>
+            <TwitchClipAtTime time={clickedUnixSeconds} />
+          </div>
+        )}
+      </div>
 
       <div className={"flex flex-wrap md:flex-nowrap md:gap-5"}>
-        <TopTwitchClips
-          initialClips={props.initialMaxClips}
-          initialState={props.initialArgState.clips}
-        />
-        <MostMinusTwosClips
-          initialClips={props.initialMinClips}
-          initialState={props.initialArgState.clips}
-        />
+        <TopTwitchClips onNavigate={handleNavigate} />
+        <MostMinusTwosClips onNavigate={handleNavigate} />
       </div>
     </div>
   );
-}
-
-function getNewList<T>(list: T[], item: T) {
-  if (list.includes(item)) {
-    return list.filter((listItem) => listItem !== item);
-  } else {
-    return [...list, item];
-  }
 }
 
 function TwitchClipAtTime(props: { time?: number }) {
@@ -467,35 +546,42 @@ export type ClipBatch = {
 };
 
 function TopTwitchClips({
-  initialClips,
-  initialState,
+  onNavigate,
 }: {
-  initialClips: ClipBatch;
-  initialState: InitialArgState["clips"];
+  onNavigate: (newParam: { [key: string]: string | string[] }) => void;
 }) {
-  const [timeSpan, setTimeSpan] = useState<
-    "day" | "week" | "month" | "year" | ""
-  >(initialState.clipTimeSpan);
-  const [grouping, setGrouping] = useState<TimeGroupings>("second");
-  const [emotes, setEmotes] = useState<SeriesKey[]>([initialState.emote]);
   const [sumEmotes, setSumEmotes] = useState(false);
+  const params = useSearchParams();
+  const emotes =
+    params.getAll("emote").length > 0 ? params.getAll("emote") : ["two"];
+  const grouping = params.get("maxClipGrouping") ?? "second";
+  const span = params.get("maxClipSpan") ?? "day";
 
-  const { isSuccess, data, isLoading } = useQuery({
-    queryKey: ["top_clips", timeSpan, grouping, emotes],
+  const {
+    isSuccess,
+    data: topClips,
+    isLoading,
+  } = useQuery({
+    queryKey: ["top_clips", span, grouping, emotes],
     queryFn: async () => {
-      const queryStrings = emotes.map((emote) => `column=${emote}`).join("&");
       const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/clip_counts?${queryStrings}&span=${timeSpan}&grouping=${grouping}&order=desc`
+        addQueryParamsIfExist(
+          "https://nljokeval-production.up.railway.app/api/clip_counts",
+          {
+            column: emotes,
+            span,
+            grouping,
+            order: "desc",
+          }
+        )
       );
       return (await res.json()) as ClipBatch;
     },
-    placeholderData: initialClips,
     keepPreviousData: true,
   });
 
   return (
     <Card>
-      {isLoading && <Text>Loading...</Text>}
       <div className={"flex flex-col gap-2"}>
         <Title>Top</Title>
         <div className="flex flex-row flex-wrap gap-3">
@@ -511,10 +597,14 @@ function TopTwitchClips({
               }
               key={key}
               onClick={() =>
-                setEmotes(
-                  sumEmotes
-                    ? getNewList<SeriesKey>(emotes, key as SeriesKey)
-                    : [key as SeriesKey]
+                onNavigate(
+                  emotes.includes(key as SeriesKey)
+                    ? {
+                        emote: emotes.filter((item) => item !== key),
+                      }
+                    : sumEmotes
+                    ? { emote: [...emotes, key] }
+                    : { emote: [key] }
                 )
               }
             >
@@ -531,7 +621,7 @@ function TopTwitchClips({
         <Title>grouped by</Title>
         <Select
           value={grouping}
-          onValueChange={(value) => setGrouping(value as any)}
+          onValueChange={(value) => onNavigate({ maxClipGrouping: value })}
         >
           {timeGroupings.map((grouping) => (
             <SelectItem value={grouping} key={grouping}>
@@ -541,8 +631,8 @@ function TopTwitchClips({
         </Select>
         <Title>over the past</Title>
         <Select
-          value={timeSpan}
-          onValueChange={(value) => setTimeSpan(value as any)}
+          value={span}
+          onValueChange={(value) => onNavigate({ maxClipSpan: value })}
         >
           {["day", "week", "month", "year"].map((span) => (
             <SelectItem value={span} key={span}>
@@ -552,101 +642,101 @@ function TopTwitchClips({
         </Select>
       </div>
       <div>
-        {isSuccess && (
-          <List>
-            {data?.clips
-              .sort((a, b) => b.count - a.count)
-              .map((clip) => (
-                <ListItem key={clip.clip_id} className={"flex flex-col"}>
-                  <span className={"text-3xl"}>{clip.count}</span>
-                  <TwitchClipThumbnail
-                    clip_id={clip.clip_id}
-                    time={clip.time}
-                    thumbnail={clip.thumbnail}
-                    count={clip.count}
-                  />
-                </ListItem>
-              ))}
-          </List>
-        )}
+        <List>
+          {topClips?.clips
+            .sort((a, b) => b.count - a.count)
+            .map((clip) => (
+              <ListItem key={clip.clip_id} className={"flex flex-col"}>
+                <span className={"text-3xl"}>{clip.count}</span>
+                <TwitchClipThumbnail
+                  clip_id={clip.clip_id}
+                  time={clip.time}
+                  thumbnail={clip.thumbnail}
+                  count={clip.count}
+                />
+              </ListItem>
+            ))}
+        </List>
       </div>
     </Card>
   );
 }
 
 function MostMinusTwosClips({
-  initialClips,
-  initialState,
+  onNavigate,
 }: {
-  initialClips: ClipBatch;
-  initialState: InitialArgState["clips"];
+  onNavigate: (newParam: { [key: string]: string | string[] }) => void;
 }) {
-  const [timeSpan, setTimeSpan] = useState<
-    "day" | "week" | "month" | "year" | ""
-  >(initialState.clipTimeSpan);
-  const [grouping, setGrouping] = useState<TimeGroupings>("second");
+  const params = useSearchParams();
+  const grouping = params.get("minClipGrouping") ?? "second";
+  const span = params.get("minClipSpan") ?? "day";
 
-  const { isSuccess, data, isLoading } = useQuery({
-    queryKey: ["minus_twos", timeSpan, grouping],
+  const {
+    isSuccess,
+    data: minClips,
+    isLoading,
+  } = useQuery({
+    queryKey: ["minus_twos", span, grouping],
     queryFn: async () => {
       const rest = await fetch(
-        `https://nljokeval-production.up.railway.app/api/clip_counts?span=${timeSpan}&grouping=${grouping}&column=two&order=asc`
+        addQueryParamsIfExist(
+          "https://nljokeval-production.up.railway.app/api/clip_counts",
+          {
+            column: "two",
+            span,
+            grouping,
+            order: "asc",
+          }
+        )
       );
       return (await rest.json()) as ClipBatch;
     },
-    initialData: initialClips,
     keepPreviousData: true,
   });
 
-  if (isLoading) {
-    return <Text>Loading...</Text>;
-  } else if (isSuccess) {
-    return (
-      <Card>
-        <div className={"flex flex-row gap-2 flex-wrap"}>
-          <Title>Lowest 2 count grouped by</Title>
-          <Select
-            value={grouping}
-            onValueChange={(value) => setGrouping(value as any)}
-          >
-            {["second", "minute", "hour"].map((grouping) => (
-              <SelectItem value={grouping} key={grouping}>
-                {grouping == "second" ? "10 seconds" : grouping}
-              </SelectItem>
-            ))}
-          </Select>
-          <Title>over the past</Title>
-          <Select
-            value={timeSpan}
-            onValueChange={(value) => setTimeSpan(value as any)}
-          >
-            {["day", "week", "month", "year"].map((span) => (
-              <SelectItem value={span} key={span}>
-                {span}
-              </SelectItem>
-            ))}
-          </Select>
-        </div>
-        <div>
-          {isSuccess && (
-            <List>
-              {data?.clips.map((clip) => (
-                <ListItem key={clip.clip_id} className={"flex flex-col"}>
-                  <span className={"text-3xl"}>{clip.count}</span>
-                  <TwitchClipThumbnail
-                    clip_id={clip.clip_id}
-                    time={clip.time}
-                    thumbnail={clip.thumbnail}
-                    count={clip.count}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </div>
-      </Card>
-    );
-  }
+  return (
+    <Card>
+      <div className={"flex flex-row gap-2 flex-wrap"}>
+        <Title>Lowest 2 count grouped by</Title>
+        <Select
+          value={grouping}
+          onValueChange={(value) => onNavigate({ minClipGrouping: value })}
+        >
+          {["second", "minute", "hour"].map((grouping) => (
+            <SelectItem value={grouping} key={grouping}>
+              {grouping == "second" ? "10 seconds" : grouping}
+            </SelectItem>
+          ))}
+        </Select>
+        <Title>over the past</Title>
+        <Select
+          value={span}
+          onValueChange={(value) => onNavigate({ minClipSpan: value })}
+        >
+          {["day", "week", "month", "year"].map((span) => (
+            <SelectItem value={span} key={span}>
+              {span}
+            </SelectItem>
+          ))}
+        </Select>
+      </div>
+      <div>
+        <List>
+          {minClips?.clips.map((clip) => (
+            <ListItem key={clip.clip_id} className={"flex flex-col"}>
+              <span className={"text-3xl"}>{clip.count}</span>
+              <TwitchClipThumbnail
+                clip_id={clip.clip_id}
+                time={clip.time}
+                thumbnail={clip.thumbnail}
+                count={clip.count}
+              />
+            </ListItem>
+          ))}
+        </List>
+      </div>
+    </Card>
+  );
 }
 
 function TwitchClipThumbnail({ clip_id, count, time, thumbnail }: Clip) {
