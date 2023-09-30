@@ -1,6 +1,7 @@
 import Head from "next/head";
 import Dashboard, { TimeSpans, TimeGroupings } from "@/app/dashboard";
 import { z } from "zod";
+import { addQueryParamsIfExist } from "@/app/utils";
 
 export type SeriesData = z.infer<typeof SeriesDataSchema>;
 
@@ -37,69 +38,31 @@ export const SeriesDataSchema = z.object({
   time: z.number(),
 });
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Record<string, string>;
-}) {
-  const initialArgState = {
-    chart: {
-      timeSpan: searchParams.timeSpan ?? "9 hours",
-      timeGrouping: searchParams.timeGrouping ?? "minute",
-      functionType: searchParams.functionType ?? "instant",
-      rollingSum: searchParams.rollingSum ?? "5",
-    },
-    clips: {
-      clipTimeSpan: searchParams.clipTimeSpan ?? "day",
-      clipTimeGrouping: searchParams.clipTimeGrouping ?? "second",
-      emote: searchParams.emote ?? "two",
-    },
+type ClipSpans = "day" | "week" | "month" | "year";
+
+export type InitialArgState = {
+  chart: {
+    timeSpan: TimeSpans;
+    timeGrouping: TimeGroupings;
+    functionType: "instant" | "rolling";
+    rollingAverage: string;
   };
-  async function doFetch(label: string, url: string) {
-    const res = await fetch(
-      "https://nljokeval-production.up.railway.app/api/" + url,
-      {
-        next: {
-          revalidate: 1,
-        },
-      }
-    );
-    const data = await res.json();
-    return { label, data };
-  }
-
-  const { emote, clipTimeSpan } = initialArgState.clips;
-  const { functionType, timeSpan, timeGrouping, rollingSum } =
-    initialArgState.chart;
-
-  const paramsToFetch = {
-    initialSeries: `${functionType}?span=${timeSpan}&grouping=${timeGrouping}&rolling_sum=${rollingSum}`,
-    initialMaxClips: `clip_counts?column=two&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=asc`,
-    initialMinClips: `clip_counts?column=${emote}&span=${clipTimeSpan}&grouping=${initialArgState.clips.clipTimeGrouping}&order=desc`,
+  clips: {
+    maxClipSpan: ClipSpans;
+    minClipSpan: ClipSpans;
+    maxClipGrouping: TimeGroupings;
+    minClipGrouping: TimeGroupings;
+    emote: keyof typeof SeriesKeys;
   };
+};
 
-  const res = await Promise.allSettled(
-    Object.entries(paramsToFetch).map(([label, url]) => doFetch(label, url))
-  );
-
-  const data = res.reduce((acc, curr) => {
-    if (curr.status === "fulfilled") {
-      acc[curr.value.label] = curr.value.data;
-    }
-    return acc;
-  }, {} as Record<string, any>);
-
+export default async function Home() {
   return (
     <div>
       <Head>
         <title>NL Chat Dashboard</title>
       </Head>
-      <Dashboard
-        initialArgState={initialArgState}
-        initialSeries={data.initialSeries}
-        initialMaxClips={data.initialMaxClips}
-        initialMinClips={data.initialMinClips}
-      />
+      <Dashboard />
     </div>
   );
 }
