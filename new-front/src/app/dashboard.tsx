@@ -12,115 +12,28 @@ import {
   List,
   ListItem,
   Button,
-  DatePicker,
   DateRangePicker,
   DateRangePickerItem,
   DateRangePickerValue,
 } from "@tremor/react";
-import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { CSSProperties, useCallback, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Highcharts, { RectangleObject } from "highcharts";
+import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
 import { useClickAway } from "react-use";
 import { useSearchParams, useRouter } from "next/navigation";
 import { addQueryParamsIfExist } from "@/app/utils";
-import { z } from "zod";
-
-type SeriesKey = keyof typeof SeriesKeys;
-
-export const SeriesKeys = {
-  two: "two",
-  lol: "lol",
-  cereal: "cereal",
-  monkas: "monkas",
-  joel: "joel",
-  pog: "pog",
-  huh: "huh",
-  no: "no",
-  cocka: "cocka",
-  shock: "shock",
-  who_asked: "who_asked",
-  copium: "copium",
-  ratjam: "ratjam",
-} as const;
-
-const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
-  [SeriesKeys.two]: <div className={"text-xl "}>∑ ± 2</div>,
-  [SeriesKeys.lol]: <Emote src={"lul.jpg"} />,
-  [SeriesKeys.cereal]: <Emote src={"cereal.webp"} />,
-  [SeriesKeys.monkas]: <Emote src={"monkaS.webp"} />,
-  [SeriesKeys.joel]: <Emote src={"Joel.webp"} />,
-  [SeriesKeys.pog]: <Emote src={"Pog.webp"} />,
-  [SeriesKeys.huh]: <Emote src={"huhh.webp"} />,
-  [SeriesKeys.no]: <Emote src={"nooo.webp"} />,
-  [SeriesKeys.cocka]: <Emote src={"cocka.webp"} />,
-  [SeriesKeys.shock]: <Emote src={"shockface.png"} />,
-  [SeriesKeys.who_asked]: <Emote src={"whoasked.webp"} />,
-  [SeriesKeys.copium]: <Emote src={"copium.webp"} />,
-  [SeriesKeys.ratjam]: <Emote src={"ratJAM.webp"} />,
-} as const;
-
-export type SeriesData = z.infer<typeof SeriesDataSchema>;
-
-export const SeriesDataSchema = z.object({
-  [SeriesKeys.two]: z.number(),
-  [SeriesKeys.lol]: z.number(),
-  [SeriesKeys.cereal]: z.number(),
-  [SeriesKeys.monkas]: z.number(),
-  [SeriesKeys.joel]: z.number(),
-  [SeriesKeys.pog]: z.number(),
-  [SeriesKeys.huh]: z.number(),
-  [SeriesKeys.no]: z.number(),
-  [SeriesKeys.cocka]: z.number(),
-  [SeriesKeys.shock]: z.number(),
-  [SeriesKeys.who_asked]: z.number(),
-  [SeriesKeys.copium]: z.number(),
-  [SeriesKeys.ratjam]: z.number(),
-  time: z.number(),
-});
-
-function Emote({ src }: { src: string }) {
-  return <Image src={`/${src}`} alt={src} width={32} height={32} />;
-}
-
-const timeSpans = [
-  "1 minute",
-  "1 hour",
-  "9 hours",
-  "1 week",
-  "1 month",
-  "1 year",
-] as const;
-
-const timeGroupings = [
-  "second",
-  "minute",
-  "hour",
-  "day",
-  "week",
-  "month",
-  "year",
-] as const;
-
-const seriesColors: Record<SeriesKey, string> = {
-  [SeriesKeys.two]: "#7cb5ec",
-  [SeriesKeys.lol]: "#434348",
-  [SeriesKeys.cereal]: "#90ed7d",
-  [SeriesKeys.monkas]: "#f7a35c",
-  [SeriesKeys.joel]: "#8085e9",
-  [SeriesKeys.pog]: "#f15c80",
-  [SeriesKeys.huh]: "#e4d354",
-  [SeriesKeys.no]: "#2b908f",
-  [SeriesKeys.cocka]: "#f45b5b",
-  [SeriesKeys.shock]: "#8d4654",
-  [SeriesKeys.who_asked]: "#91e8e1",
-  [SeriesKeys.copium]: "#696969",
-  [SeriesKeys.ratjam]: "#000000",
-} as const;
-
-export type TimeSpans = (typeof timeSpans)[number];
-export type TimeGroupings = (typeof timeGroupings)[number];
+import {
+  SeriesDataSchema,
+  SeriesKeys,
+  timeSpans,
+  timeGroupings,
+  seriesColors,
+  TimeSpans,
+  SeriesKey,
+  SeriesData,
+} from "./types";
 
 export default function Dashboard() {
   const params = useSearchParams();
@@ -133,6 +46,12 @@ export default function Dashboard() {
   const functionType = params.get("functionType") ?? "instant";
   const timeSpan = params.get("timeSpan") ?? "1 hour";
   const rollingAverage = params.get("rollingAverage") ?? "5";
+  const fromParam = params.get("from");
+  const toParam = params.get("to");
+  const from = fromParam
+    ? new Date(fromParam)
+    : new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+  const to = toParam ? new Date(toParam) : new Date();
 
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
@@ -140,13 +59,9 @@ export default function Dashboard() {
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | undefined>(
     undefined
   );
-  const [dateRange, setValue] = useState<DateRangePickerValue>({
-    from: new Date(),
-    to: undefined,
-  });
 
   const handleNavigate = useCallback(
-    (newParam: { [key: string]: string | string[] }) => {
+    (newParam: { [key: string]: string | string[] | undefined }) => {
       const paramsObject: { [key: string]: string | string[] } = {};
       params.forEach((value, key) => {
         const item = paramsObject[key];
@@ -184,6 +99,8 @@ export default function Dashboard() {
             grouping,
             function: functionType,
             rolling_average: rollingAverage,
+            from: from.toISOString(),
+            to: to.toISOString(),
           }
         )
       );
@@ -333,41 +250,47 @@ export default function Dashboard() {
         <div className="flex flex-col">
           <DateRangePicker
             className="max-w-md mx-auto"
-            value={dateRange}
-            onValueChange={setValue}
+            value={{ from, to }}
+            onValueChange={(value: DateRangePickerValue) =>
+              handleNavigate({
+                from: value.from?.toISOString(),
+                to: value.to?.toISOString(),
+              })
+            }
             selectPlaceholder="Select a date"
           >
             <DateRangePickerItem
-              key="half"
-              value="half"
-              from={new Date(2023, 0, 1)}
-              to={new Date(2023, 5, 31)}
+              key="day"
+              value="day"
+              from={new Date(new Date().getTime() - 24 * 60 * 60 * 1000)}
+              to={new Date()}
             >
               Past day
             </DateRangePickerItem>
             <DateRangePickerItem
-              key="half"
-              value="half"
-              from={new Date(2023, 0, 1)}
-              to={new Date(2023, 5, 31)}
+              key="week"
+              value="week"
+              from={new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000)}
+              to={new Date()}
             >
               Past week
             </DateRangePickerItem>
             <DateRangePickerItem
               key="half"
               value="half"
-              from={new Date(2023, 0, 1)}
-              to={new Date(2023, 5, 31)}
+              from={new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000)}
+              to={new Date()}
             >
-              Past month
+              Past 30 days
             </DateRangePickerItem>
 
             <DateRangePickerItem
               key="ytd"
               value="ytd"
-              from={new Date(2023, 0, 1)}
+              from={new Date(2023, 3, 18)}
+              to={new Date()}
             >
-              Past year
+              To date
             </DateRangePickerItem>
           </DateRangePicker>
           <TabGroup
@@ -781,4 +704,24 @@ function TwitchClip({ clip_id, time }: { clip_id: string; time?: number }) {
       />
     </>
   );
+}
+
+export const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
+  [SeriesKeys.two]: <div className={"text-xl "}>∑ ± 2</div>,
+  [SeriesKeys.lol]: <Emote src={"lul.jpg"} />,
+  [SeriesKeys.cereal]: <Emote src={"cereal.webp"} />,
+  [SeriesKeys.monkas]: <Emote src={"monkaS.webp"} />,
+  [SeriesKeys.joel]: <Emote src={"Joel.webp"} />,
+  [SeriesKeys.pog]: <Emote src={"Pog.webp"} />,
+  [SeriesKeys.huh]: <Emote src={"huhh.webp"} />,
+  [SeriesKeys.no]: <Emote src={"nooo.webp"} />,
+  [SeriesKeys.cocka]: <Emote src={"cocka.webp"} />,
+  [SeriesKeys.shock]: <Emote src={"shockface.png"} />,
+  [SeriesKeys.who_asked]: <Emote src={"whoasked.webp"} />,
+  [SeriesKeys.copium]: <Emote src={"copium.webp"} />,
+  [SeriesKeys.ratjam]: <Emote src={"ratJAM.webp"} />,
+} as const;
+
+export function Emote({ src }: { src: string }) {
+  return <Image src={`/${src}`} alt={src} width={32} height={32} />;
 }
