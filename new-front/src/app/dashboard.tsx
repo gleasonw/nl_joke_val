@@ -287,7 +287,7 @@ export default function Dashboard() {
             onClick={() => handleNavigate(lastHourRange)}
             variant={span === "1 hour" ? "primary" : "secondary"}
           >
-            Last hour
+            Last hour of stream
           </Button>
           <Button
             onClick={() => handleNavigate(last9HoursRange)}
@@ -295,7 +295,7 @@ export default function Dashboard() {
               span === "9 hours" || span === null ? "primary" : "secondary"
             }
           >
-            Last 9 hours
+            Last 9 hours of stream
           </Button>
           <DateRangePicker
             value={{ from: getFromParam(), to: getToParam() }}
@@ -306,7 +306,7 @@ export default function Dashboard() {
                 span: "custom",
               })
             }
-            selectPlaceholder="Select a date"
+            selectPlaceholder="Select a range"
           >
             <DateRangePickerItem
               key="day"
