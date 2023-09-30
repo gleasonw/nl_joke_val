@@ -241,13 +241,46 @@ export default function Dashboard() {
     }
   }
 
+  const last9HoursRange = {
+    from: new Date(new Date().getTime() - 9 * 60 * 60 * 1000),
+    to: new Date(),
+  };
+
+  const lastMinuteRange = {
+    from: new Date(new Date().getTime() - 60 * 1000),
+    to: new Date(),
+  };
+
+  const lastHourRange = {
+    from: new Date(new Date().getTime() - 60 * 60 * 1000),
+    to: new Date(),
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h1 className={"text-2xl m-5 font-semibold"}>
           NL Chat Dashboard (est. 4/18/23)
         </h1>
-        <div className="flex flex-col">
+        <div className="flex gap-5">
+          <Button
+            onClick={() => handleNavigate(lastMinuteRange)}
+            variant={"secondary"}
+          >
+            Last minute
+          </Button>
+          <Button
+            onClick={() => handleNavigate(lastHourRange)}
+            variant={"secondary"}
+          >
+            Last hour
+          </Button>
+          <Button
+            onClick={() => handleNavigate(last9HoursRange)}
+            variant={"secondary"}
+          >
+            Last 9 hours
+          </Button>
           <DateRangePicker
             className="max-w-md mx-auto"
             value={{ from, to }}
@@ -293,20 +326,6 @@ export default function Dashboard() {
               To date
             </DateRangePickerItem>
           </DateRangePicker>
-          <TabGroup
-            about="Past"
-            defaultIndex={2}
-            index={timeSpans.indexOf(timeSpan as TimeSpans)}
-            onIndexChange={(index) =>
-              handleNavigate({ timeSpan: timeSpans[index] })
-            }
-          >
-            <TabList>
-              <Tab>1M</Tab>
-              <Tab>1H</Tab>
-              <Tab>9H</Tab>
-            </TabList>
-          </TabGroup>
         </div>
 
         <div className="flex flex-col p-3">

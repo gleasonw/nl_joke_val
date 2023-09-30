@@ -125,7 +125,7 @@ func main() {
 		from := r.URL.Query().Get("from")
 		to := r.URL.Query().Get("to")
 
-		sumQuery, _, err := buildSQL(from, to)
+		sumQuery, _, err := buildSQL(to)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -149,7 +149,7 @@ func main() {
 			marshal_json_and_write(w, result)
 		} else {
 			result := []ChatCounts{}
-			dbError := db.Raw(sumQuery, grouping, span).Scan(&result).Error
+			dbError := db.Raw(sumQuery, grouping, from).Scan(&result).Error
 			if dbError != nil {
 				fmt.Println(err)
 				return
@@ -164,19 +164,18 @@ func main() {
 
 	http.HandleFunc("/api/rolling_sum", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(r.URL)
-		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
 		from := r.URL.Query().Get("from")
 		to := r.URL.Query().Get("to")
 
-		_, overQuery, sqlErr := buildSQL(from, to)
+		_, overQuery, sqlErr := buildSQL(to)
 		if sqlErr != nil {
 			fmt.Println(sqlErr)
 			return
 		}
 
 		result := []ChatCounts{}
-		err := db.Raw(overQuery, grouping, span).Scan(&result).Error
+		err := db.Raw(overQuery, grouping, from).Scan(&result).Error
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -293,15 +292,12 @@ func main() {
 }
 
 
-func buildSQL(from string, to string) (string, string, error) {
+func buildSQL(to string) (string, string, error) {
 	val := reflect.ValueOf(ChatCounts{})
 	typeOfS := val.Type()
 	
-	fromClause := ""
 	toClause := ""
-	if from != "" {
-		fromClause = fmt.Sprintf("AND created_at >= '%s'", from)
-	}
+
 	if to != "" {
 		toClause = fmt.Sprintf("AND created_at <= '%s'", to)
 	}
@@ -327,12 +323,11 @@ func buildSQL(from string, to string) (string, string, error) {
 		SELECT %s,
 			EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
 		FROM chat_counts 
-		WHERE created_at >= (SELECT MAX(created_at) - $2::interval from chat_counts)
-		%s
+		WHERE created_at >= (SELECT MAX(created_at) - $2 from chat_counts)
 		%s
 		GROUP BY date_trunc($1, created_at) 
 		ORDER BY date_trunc($1, created_at) asc
-	`, sumFieldStr, fromClause, toClause)
+	`, sumFieldStr, toClause)
 
 	overQuery := fmt.Sprintf(`
 		SELECT %s,
