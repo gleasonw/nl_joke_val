@@ -636,6 +636,7 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 		fmt.Println("Error creating request:", err)
 		return
 	}
+	fmt.Println(authToken)
 
 	auth := split_and_get_last(authToken, ":")
 	bearer := fmt.Sprintf("Bearer %s", auth)
