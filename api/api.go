@@ -142,6 +142,7 @@ func authorizeTwitch() error {
 }
 
 func refreshTwitchToken() {
+	fmt.Println("refreshing token")
 	data := url.Values{}
 	data.Set("client_id", client_id)
 	data.Set("client_secret", os.Getenv("CLIENT_SECRET"))
@@ -647,6 +648,10 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	if resp.StatusCode == 401 {
+		fmt.Println("unauthorized: ", auth)
+		refreshTwitchToken()
+	}
 	if resp.StatusCode == 404 {
 		isLive <- false
 		return
