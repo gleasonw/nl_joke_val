@@ -99,7 +99,7 @@ export default function Dashboard() {
   console.log(queryClient.getQueryCache());
 
   const { data: chartData } = useQuery({
-    queryKey: ["chart", series, grouping, rollingAverage, fromParam, toParam],
+    queryKey: ["chart", series, grouping, rollingAverage, fromParam, toParam, trailingSpan],
     queryFn: async () => {
       const res = await fetch(
         addQueryParamsIfExist(
