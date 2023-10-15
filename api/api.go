@@ -95,8 +95,6 @@ func buildStringForEachColumn(fn func(string) string) string {
 	return strings.Join(columnStrings, ",\n")
 }
 
-// TODO: refresh token every month. URL on Railway vars
-
 type TwitchResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
