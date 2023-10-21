@@ -24,6 +24,7 @@ export const SeriesKeys = {
   who_asked: "who_asked",
   copium: "copium",
   ratjam: "ratjam",
+  sure: "sure",
 } as const;
 
 export const SeriesDataSchema = z.object({
@@ -66,6 +67,7 @@ export const seriesColors: Record<SeriesKey, string> = {
   [SeriesKeys.who_asked]: "#91e8e1",
   [SeriesKeys.copium]: "#696969",
   [SeriesKeys.ratjam]: "#000000",
+  [SeriesKeys.sure]: "#000000",
 } as const;
 
 export type TimeSpans = (typeof timeSpans)[number];

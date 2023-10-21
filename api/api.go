@@ -34,6 +34,7 @@ type ChatCounts struct {
 	Shock        int       `json:"shock"`
 	Copium       int       `json:"copium"`
 	Ratjam       int       `json:"ratjam"`
+	Sure 			 int       `json:"sure"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
@@ -55,6 +56,7 @@ type AveragedChatCounts struct {
 	AvgShock     float64   `json:"shock"`
 	AvgCopium    float64   `json:"copium"`
 	AvgRatjam    float64   `json:"ratjam"`
+	AvgSure      float64   `json:"sure"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
@@ -554,6 +556,7 @@ func connectToTwitchChat(db *gorm.DB) {
 					"D:":       &counter.Shock,
 					"WhoAsked": &counter.WhoAsked,
 					"ratJAM":   &counter.Ratjam,
+					"Sure":     &counter.Sure,
 				}
 
 				for keyword, count := range emotesAndKeywords {
