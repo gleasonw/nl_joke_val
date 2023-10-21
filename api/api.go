@@ -220,7 +220,6 @@ func main() {
 		return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
 	})
 	
-	
 	var seriesQueryFromTo = fmt.Sprintf(`
 	SELECT %s,
 		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
