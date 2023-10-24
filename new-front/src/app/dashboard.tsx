@@ -127,6 +127,8 @@ export default function Dashboard() {
     keepPreviousData: true,
   });
 
+  console.log(chartData)
+
   const chartRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   useClickAway(chartRef, () => setTooltip(undefined));

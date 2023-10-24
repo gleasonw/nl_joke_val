@@ -1,3 +1,4 @@
+import { Series } from "highcharts";
 import { z } from "zod";
 
 export const timeGroupings = [
@@ -38,6 +39,7 @@ export const SeriesDataSchema = z.object({
   [SeriesKeys.no]: z.number(),
   [SeriesKeys.cocka]: z.number(),
   [SeriesKeys.shock]: z.number(),
+  [SeriesKeys.sure]: z.number(),
   [SeriesKeys.who_asked]: z.number(),
   [SeriesKeys.copium]: z.number(),
   [SeriesKeys.ratjam]: z.number(),
