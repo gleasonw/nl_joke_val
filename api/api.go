@@ -317,6 +317,7 @@ func main() {
 		span := r.URL.Query().Get("span")
 		grouping := r.URL.Query().Get("grouping")
 		order := r.URL.Query().Get("order")
+		limit := r.URL.Query().Get("limit")
 
 		switch grouping {
 		case "second", "minute", "hour", "day", "week", "month", "year":
@@ -324,6 +325,15 @@ func main() {
 		default:
 			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
 			return
+		}
+
+		// verify limit is an int
+		if limit != "" {
+			_, err := strconv.Atoi(limit)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid limit: %s", limit), http.StatusBadRequest)
+				return
+			}
 		}
 
 		switch order {
@@ -382,8 +392,8 @@ func main() {
 			) sub
 			GROUP BY time
 			ORDER BY count %s
-			LIMIT 10
-		`, sum_clause, grouping, not_null_string, timeSpan, order)
+			LIMIT %s
+		`, sum_clause, grouping, not_null_string, timeSpan, order, limit)
 
 		minMaxClipGetter(w, query, db)
 	})
