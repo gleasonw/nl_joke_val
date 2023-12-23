@@ -334,6 +334,8 @@ func main() {
 				http.Error(w, fmt.Sprintf("invalid limit: %s", limit), http.StatusBadRequest)
 				return
 			}
+		} else {
+			limit = "100"
 		}
 
 		switch order {
@@ -590,6 +592,8 @@ func connectToTwitchChat(db *gorm.DB) {
 						fmt.Println("Error inserting into db:", err)
 					}
 					timestamp = counter.CreatedAt
+					fmt.Println("creating moment ", timestamp)
+
 				}
 
 				go create_clip(db, timestamp, createClipStatus)
