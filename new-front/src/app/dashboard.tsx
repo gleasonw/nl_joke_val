@@ -99,7 +99,15 @@ export default function Dashboard() {
   console.log(queryClient.getQueryCache());
 
   const { data: chartData } = useQuery({
-    queryKey: ["chart", series, grouping, rollingAverage, fromParam, toParam, trailingSpan],
+    queryKey: [
+      "chart",
+      series,
+      grouping,
+      rollingAverage,
+      fromParam,
+      toParam,
+      trailingSpan,
+    ],
     queryFn: async () => {
       const res = await fetch(
         addQueryParamsIfExist(
@@ -127,7 +135,7 @@ export default function Dashboard() {
     keepPreviousData: true,
   });
 
-  console.log(chartData)
+  console.log(chartData);
 
   const chartRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -741,6 +749,7 @@ export const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
   [SeriesKeys.copium]: <Emote src={"copium.webp"} />,
   [SeriesKeys.ratjam]: <Emote src={"ratJAM.webp"} />,
   [SeriesKeys.sure]: <Emote src={"sure.webp"} />,
+  [SeriesKeys.classic]: <Emote src={"classic.webp"} />,
 } as const;
 
 export function Emote({ src }: { src: string }) {
