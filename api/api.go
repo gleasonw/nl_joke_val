@@ -22,6 +22,7 @@ import (
 
 type ChatCounts struct {
 	Classic 		int       `json:"classic"`
+	MonkaGiga		int       `json:"monkaGiga"`
 	Two          int       `json:"two"`
 	Lol          int       `json:"lol"`
 	Cereal       int       `json:"cereal"`
@@ -44,6 +45,7 @@ type ChatCounts struct {
 
 // keep the json the same, but we need the name to reflect the db avg_*
 type AveragedChatCounts struct {
+	AvgMonkaGiga float64   `json:"monkaGiga"`
 	AvgClassic   float64   `json:"classic"`
 	AvgTwo       float64   `json:"two"`
 	AvgLol       float64   `json:"lol"`
@@ -571,6 +573,7 @@ func connectToTwitchChat(db *gorm.DB) {
 					"ratJAM":   &counter.Ratjam,
 					"Sure":     &counter.Sure,
 					"Classic":  &counter.Classic,
+					"monkaGIGAftRyanGary": &counter.MonkaGiga,
 				}
 
 				for keyword, count := range emotesAndKeywords {
