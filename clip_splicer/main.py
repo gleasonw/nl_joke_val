@@ -12,6 +12,9 @@ import aiohttp
 from moviepy.editor import (
     VideoFileClip,
     concatenate_videoclips,
+    ColorClip,
+    TextClip,
+    CompositeVideoClip,
 )
 import json
 
@@ -20,15 +23,15 @@ os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
 load_dotenv()
 
 BIT_WINDOW_SECONDS = 120
-TOTAL_CLIPS = 15
+TOTAL_CLIPS = 50
 
 # change the model as well
-EMOTE = "ratjam"
+EMOTE = "lol"
 
 
 class ChatCount(BaseModel):
     created_at: datetime
-    ratjam: int
+    lol: int
     clip_id: str | None
 
 
@@ -60,7 +63,7 @@ class RollingChatCount(ChatCount):
     rolling_sum: int
 
 
-class ClipWithTwitchData(ChatCount):
+class ClipWithTwitchData(RollingChatCount):
     clip: Clip
 
 
@@ -73,7 +76,7 @@ missing_clips = set()
 
 
 async def build_compilation():
-    await create_video_no_intervals()
+    await create_clips_60_seconds()
 
 
 def merge_clips_from_json():
@@ -96,41 +99,59 @@ async def download_and_merge_clips():
 def merge_clips(clips: List[List[ClipWithTwitchData]]):
     reversed_clip_batches = clips[::-1]
     video_clips = []
-    for batch in reversed_clip_batches:
-        video_clips.extend(create_video_from_batch(batch))
+    for i in range(len(reversed_clip_batches)):
+        batch = reversed_clip_batches[i]
+        video_clips.extend(create_video_from_batch(batch, i + 1))
     final_clip = concatenate_videoclips(video_clips)
     final_clip.write_videofile(
         f"{EMOTE} {TOTAL_CLIPS}.mp4", codec="libx264", audio_codec="aac"
     )
 
 
-async def create_video_no_intervals():
-    twitch_clips = await find_clips_single_moment()
-    async with aiohttp.ClientSession(headers=headers) as session:
-        await download_batch(twitch_clips, session)
-    video_clips = create_video_from_batch_no_overlap(twitch_clips)
-
-    # reverse the clips to build to top moment
-    final_clip = concatenate_videoclips(video_clips[::-1])
-
-    final_clip.write_videofile(
-        f"{EMOTE} {TOTAL_CLIPS}.mp4", codec="libx264", audio_codec="aac"
-    )
+async def create_clips_60_seconds():
+    twitch_clips = await find_clip_pairs()
+    await download_all_clips(twitch_clips)
+    merge_clips(twitch_clips)
 
 
 def create_video_from_batch_no_overlap(clip_batch: List[ClipWithTwitchData]):
-    video_clips: List[VideoFileClip] = []
-    for clip in clip_batch:
+    video_clips: List[CompositeVideoClip | VideoFileClip] = []
+    for i in range(len(clip_batch)):
+        clip = clip_batch[i]
         try:
-            video_clips.append(VideoFileClip(f"clips/{clip.clip_id}.mp4"))
+            video_clip = VideoFileClip(f"clips/{clip.clip.id}.mp4")
+            bg_clip = get_clip_title_text(clip, i + 1)
+
+            # order will be reversed
+            video_clips.append(video_clip)
+            video_clips.append(bg_clip)
         except Exception as e:
             print(e)
             continue
-    return video_clips
+    return video_clips[::-1]
 
 
-def create_video_from_batch(clip_batch: List[ClipWithTwitchData]):
-    video_clips: List[VideoFileClip] = []
+def get_clip_title_text(clip: ClipWithTwitchData, place: int):
+    text = TextClip(
+        f"""
+
+{clip.created_at.date()}
+
+{clip.rolling_sum} {EMOTE}s
+""",
+        fontsize=80,
+        color="white",
+        font="Ubuntu-Mono-Bold",
+    )
+    bg = ColorClip(size=(1920, 1080), color=(0, 0, 0))
+    text = text.set_position("center")
+    return CompositeVideoClip([bg, text]).set_duration(5)
+
+
+def create_video_from_batch(clip_batch: List[ClipWithTwitchData], place: int):
+    video_clips: List[VideoFileClip] = [
+        get_clip_title_text(clip_batch[0], place),
+    ]
     for i in range(len(clip_batch)):
         try:
             current_clip = clip_batch[i]
@@ -139,6 +160,7 @@ def create_video_from_batch(clip_batch: List[ClipWithTwitchData]):
                 break
             next_clip = clip_batch[i + 1]
             overlap_time = get_overlap_seconds(current_clip, next_clip)
+            print(overlap_time)
             if overlap_time > 0:
                 clip = VideoFileClip(f"clips/{current_clip.clip.id}.mp4")
                 video_clips.append(clip.subclip(0, -overlap_time))
@@ -170,7 +192,7 @@ def get_overlap_seconds(
 
 headers = {
     "Client-ID": "",
-    "Authorization": "Bearer",
+    "Authorization": "Bearer ",
 }
 
 
@@ -231,26 +253,14 @@ async def download_clip(clip: ClipWithTwitchData, session: aiohttp.ClientSession
 
 async def fetch_clip_data(clip: ChatCount, session: aiohttp.ClientSession):
     clip_id = clip.clip_id
-    try:
-        async with session.get(
-            f"https://api.twitch.tv/helix/clips?id={clip_id}"
-        ) as resp:
-            if resp.status == 200:
-                data = (await resp.json())["data"]
-                if len(data) == 0:
-                    missing_clips.add(clip_id)
-                    return
-                twitch_clip = Clip.model_validate((await resp.json())["data"][0])
-                return ClipWithTwitchData(**clip.model_dump(), clip=twitch_clip)
-
-            else:
-                print(resp.status)
-                print(resp.headers.get("ratelimit-reset"))
-                await asyncio.sleep(random.randint(1, 5))
-    except Exception as e:
-        print(e)
-        missing_clips.add(clip_id)
-        return
+    async with session.get(f"https://api.twitch.tv/helix/clips?id={clip_id}") as resp:
+        if resp.status == 200:
+            twitch_clip = Clip.model_validate((await resp.json())["data"][0])
+            return ClipWithTwitchData(**clip.model_dump(), clip=twitch_clip)
+        else:
+            print(resp.status)
+            print(resp.headers.get("ratelimit-reset"))
+            raise Exception("Error fetching clip data from twitch", clip_id)
 
 
 async def find_clips_and_write_to_json():
@@ -263,25 +273,33 @@ async def find_clips_and_write_to_json():
         json.dump(serialized_clips, f)
 
 
-async def find_clips_single_moment() -> List[ClipWithTwitchData]:
+async def find_clip_pairs() -> List[List[ClipWithTwitchData]]:
     async with aiohttp.ClientSession(headers=headers) as session:
         async with await AsyncConnection.connect(database_url) as aconn:
             top_clips = await get_top_clips(aconn)
             intervals = make_intervals_from_rolling_sums(top_clips)
-            left_shifted_clips = []
+            left_shifted_clips: List[List[RollingChatCount]] = []
             for interval in intervals:
                 end, sum = interval
                 left_shifted_clips.append(
-                    await get_clip_between(
-                        aconn,
-                        end - timedelta(seconds=20),
-                        end,
-                        sum,
-                    )
+                    [
+                        await get_clip_between(
+                            aconn,
+                            end - timedelta(seconds=30),
+                            end,
+                            sum,
+                        ),
+                        await get_clip_between(
+                            aconn,
+                            end,
+                            end,
+                            sum,
+                        ),
+                    ]
                 )
             async with asyncio.TaskGroup() as group:
                 results = [
-                    group.create_task(fetch_clip_data(clip, session))
+                    group.create_task(get_batched_twitch_clips(clip, session))
                     for clip in left_shifted_clips
                 ]
             return [task.result() for task in results if task.result()]
@@ -405,7 +423,7 @@ async def get_clips_from_intervals(
 
 async def get_clip_between(
     conn: AsyncConnection, start: datetime, end: datetime, sum: int
-) -> Optional[RollingChatCount]:
+) -> RollingChatCount:
     async with conn.cursor(row_factory=class_row(ChatCount)) as cur:
         await cur.execute(
             """
@@ -419,7 +437,7 @@ async def get_clip_between(
         clip = await cur.fetchone()
         if clip is not None:
             return RollingChatCount(**clip.model_dump(), rolling_sum=sum)
-        return None
+        raise Exception("Clip not found", start)
 
 
 main()
