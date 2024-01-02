@@ -27,7 +27,7 @@ export const SeriesKeys = {
   ratjam: "ratjam",
   sure: "sure",
   classic: "classic",
-  monkaGiga: "monkaGiga",
+  monka_giga: "monka_giga",
 } as const;
 
 export const SeriesDataSchema = z.object({
@@ -46,7 +46,7 @@ export const SeriesDataSchema = z.object({
   [SeriesKeys.copium]: z.number(),
   [SeriesKeys.ratjam]: z.number(),
   [SeriesKeys.classic]: z.number(),
-  [SeriesKeys.monkaGiga]: z.number(),
+  [SeriesKeys.monka_giga]: z.number(),
   time: z.number(),
 });
 
@@ -75,7 +75,7 @@ export const seriesColors: Record<SeriesKey, string> = {
   [SeriesKeys.ratjam]: "#000000",
   [SeriesKeys.sure]: "#000000",
   [SeriesKeys.classic]: "#ffff00",
-  [SeriesKeys.monkaGiga]: "#808080",
+  [SeriesKeys.monka_giga]: "#808080",
 } as const;
 
 export type TimeSpans = (typeof timeSpans)[number];
