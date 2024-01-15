@@ -21,8 +21,8 @@ import (
 )
 
 type ChatCounts struct {
-	Classic 		int       `json:"classic"`
-	MonkaGiga		int       `json:"monka_giga"`
+	Classic      int       `json:"classic"`
+	MonkaGiga    int       `json:"monka_giga"`
 	Two          int       `json:"two"`
 	Lol          int       `json:"lol"`
 	Cereal       int       `json:"cereal"`
@@ -36,7 +36,7 @@ type ChatCounts struct {
 	Shock        int       `json:"shock"`
 	Copium       int       `json:"copium"`
 	Ratjam       int       `json:"ratjam"`
-	Sure 			 int       `json:"sure"`
+	Sure         int       `json:"sure"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
@@ -181,6 +181,8 @@ func refreshTwitchToken() {
 	refreshToken = twitchResponse.RefreshToken
 }
 
+// https://huma.rocks/tutorial/your-first-api/
+
 func main() {
 	if client_id == "" {
 		//load .env file
@@ -198,8 +200,6 @@ func main() {
 		return
 	}
 	db.AutoMigrate(&ChatCounts{})
-
-
 
 	for i := 0; i < val.NumField(); i++ {
 		jsonTag := val.Type().Field(i).Tag.Get("json")
@@ -223,7 +223,7 @@ func main() {
 	var baseSumStrings = buildStringForEachColumn(func(fieldName string) string {
 		return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
 	})
-	
+
 	var seriesQueryFromTo = fmt.Sprintf(`
 	SELECT %s,
 		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
@@ -267,7 +267,6 @@ func main() {
 			finalDbQuery = seriesQueryFromTo
 		}
 
-
 		if rollingAverage != "0" && rollingAverage != "" {
 			parseIntRollingAverage, err := strconv.Atoi(rollingAverage)
 
@@ -302,7 +301,7 @@ func main() {
 				fmt.Println(err)
 				return
 			}
-		} else{
+		} else {
 			dbError := db.Raw(finalDbQuery, grouping, from, to).Scan(&result).Error
 			if dbError != nil {
 				fmt.Println(err)
@@ -310,8 +309,6 @@ func main() {
 			}
 		}
 		marshalJsonAndWrite(w, result)
-
-
 
 	})
 
@@ -322,6 +319,7 @@ func main() {
 		grouping := r.URL.Query().Get("grouping")
 		order := r.URL.Query().Get("order")
 		limit := r.URL.Query().Get("limit")
+		cursor := r.URL.Query().Get("cursor")
 
 		switch grouping {
 		case "second", "minute", "hour", "day", "week", "month", "year":
@@ -350,7 +348,6 @@ func main() {
 			return
 		}
 
-		var query string
 		timeSpan := "FROM chat_counts"
 
 		for _, column := range column_to_select {
@@ -386,22 +383,9 @@ func main() {
 
 		not_null_string := strings.Join(not_null_clause, " AND ")
 
-		query = fmt.Sprintf(`
-			SELECT SUM(sub.count) AS count, EXTRACT(epoch from time) as time, MIN(clip_id) as clip_id
-			FROM (
-				SELECT %s AS count, date_trunc('%s', created_at) as time, clip_id
-				FROM chat_counts
-				WHERE clip_id != ''
-				AND
-				%s
-				%s
-			) sub
-			GROUP BY time
-			ORDER BY count %s
-			LIMIT %s
-		`, sum_clause, grouping, not_null_string, timeSpan, order, limit)
+		clips := findTopClipsThroughRollingSums(db, column_to_select, grouping, order, limit, cursor, sum_clause, not_null_string, timeSpan)
 
-		minMaxClipGetter(w, query, db)
+		minMaxClipGetter(w, clips, db)
 	})
 
 	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
@@ -433,14 +417,7 @@ func main() {
 
 }
 
-func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
-	var clips []Clip
-	err := db.Raw(query).Scan(&clips).Error
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
+func minMaxClipGetter(w http.ResponseWriter, clips []Clip, db *gorm.DB) {
 	for i, clip := range clips {
 		var instantFromDB ChatCounts
 		db.Where("clip_id = ?", clip.ClipID).First(&instantFromDB)
@@ -461,7 +438,7 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 			}
 			if resp.StatusCode == 401 {
 				refreshTwitchToken()
-				minMaxClipGetter(w, query, db)
+				minMaxClipGetter(w, clips, db)
 				return
 			}
 			defer resp.Body.Close()
@@ -555,24 +532,24 @@ func connectToTwitchChat(db *gorm.DB) {
 				full_message := string(msg.Data)
 				only_message_text := split_and_get_last(full_message, "#northernlion")
 				emotesAndKeywords := map[string]*int{
-					"LUL":      &counter.Lol,
-					"ICANT":    &counter.Lol,
-					"KEKW":     &counter.Lol,
-					"Cereal":   &counter.Cereal,
-					"NOOO":     &counter.No,
-					"COCKA":    &counter.Cocka,
-					"monkaS":   &counter.Monkas,
-					"Joel":     &counter.Joel,
-					"POGCRAZY": &counter.Pog,
-					"Pog":      &counter.Pog,
-					"LETSGO":   &counter.Pog,
-					"HUHH":     &counter.Huh,
-					"Copium":   &counter.Copium,
-					"D:":       &counter.Shock,
-					"WhoAsked": &counter.WhoAsked,
-					"ratJAM":   &counter.Ratjam,
-					"Sure":     &counter.Sure,
-					"Classic":  &counter.Classic,
+					"LUL":                 &counter.Lol,
+					"ICANT":               &counter.Lol,
+					"KEKW":                &counter.Lol,
+					"Cereal":              &counter.Cereal,
+					"NOOO":                &counter.No,
+					"COCKA":               &counter.Cocka,
+					"monkaS":              &counter.Monkas,
+					"Joel":                &counter.Joel,
+					"POGCRAZY":            &counter.Pog,
+					"Pog":                 &counter.Pog,
+					"LETSGO":              &counter.Pog,
+					"HUHH":                &counter.Huh,
+					"Copium":              &counter.Copium,
+					"D:":                  &counter.Shock,
+					"WhoAsked":            &counter.WhoAsked,
+					"ratJAM":              &counter.Ratjam,
+					"Sure":                &counter.Sure,
+					"Classic":             &counter.Classic,
 					"monkaGIGAftRyanGary": &counter.MonkaGiga,
 				}
 
