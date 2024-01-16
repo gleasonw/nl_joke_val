@@ -18,8 +18,8 @@ type RollingChatCount struct {
 	rolling_sum int
 }
 
-func findTopClipsThroughRollingSums(db *gorm.DB, emote string, from time.Time, to time.Time) []RollingChatCount {
-	topClips := getTopClips(db, emote)
+func findTopClipsThroughRollingSums(db *gorm.DB, input ClipCountsInput) []RollingChatCount {
+	topClips := getTopClips(db, input.Column)
 	intervals := makeIntervalsFromRollingSumClips(db, topClips)
 	clipsFromLeftSideOfIntervals := make([]RollingChatCount, 0)
 	for _, interval := range intervals {

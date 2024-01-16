@@ -2,14 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +17,12 @@ import (
 	_ "github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"net/http"
+
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
 )
 
 type ChatCounts struct {
@@ -181,9 +186,23 @@ func refreshTwitchToken() {
 	refreshToken = twitchResponse.RefreshToken
 }
 
-// https://huma.rocks/tutorial/your-first-api/
+type ClipCountsInput struct {
+	Column   string `query:"column" example:"lol" doc:"Emote column to select"`
+	Span     string `query:"span" example:"year" doc:"Select range: current time - span"`
+	Grouping string `query:"grouping" example:"day" doc:"Group by: second, minute, hour, day, week, month, year"`
+	Order    string `query:"order" example:"desc" doc:"Order by: asc, desc"`
+	Limit    int    `query:"limit" example:"100" doc:"Limit: 100"`
+	Cursor   int    `query:"cursor" example:"0" doc:"Cursor: 0"`
+}
+
+type ClipCountsOutput struct {
+	clips []Clip
+}
 
 func main() {
+
+	router := chi.NewMux()
+	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
 	if client_id == "" {
 		//load .env file
 		err := godotenv.Load()
@@ -224,171 +243,179 @@ func main() {
 		return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
 	})
 
-	var seriesQueryFromTo = fmt.Sprintf(`
-	SELECT %s,
-		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-	FROM chat_counts 
-	WHERE created_at BETWEEN $2 AND $3
-	GROUP BY date_trunc($1, created_at) 
-	ORDER BY date_trunc($1, created_at) asc
-	`, baseSumStrings)
+	type SeriesInput struct {
+		Span           string `query:"span" example:"year" doc:"Select range: current time - span"`
+		Grouping       string `query:"grouping" example:"day" doc:"Group by: second, minute, hour, day, week, month, year"`
+		RollingAverage int    `query:"rolling_average" example:"0" doc:"Rolling average: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9"`
+		From           string `query:"from" example:"2021-01-01" doc:"From: YYYY-MM-DD"`
+		To             string `query:"to" example:"2021-01-01" doc:"To: YYYY-MM-DD"`
+	}
 
-	var seriesQueryMostRecent = fmt.Sprintf(`
-	SELECT %s,
-		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-	FROM chat_counts
-	WHERE created_at > (
-		SELECT MAX(created_at) - $2::interval 
-		FROM chat_counts
-	)
-	GROUP BY date_trunc($1, created_at)
-	ORDER BY date_trunc($1, created_at) asc
-	`, baseSumStrings)
+	type SeriesOutput struct {
+		ChatCounts
+		AveragedChatCounts
+	}
 
-	http.HandleFunc("/api/series", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.URL)
-		inputSpan := r.URL.Query().Get("span")
+	huma.Register(api, huma.Operation{
+		OperationID: "get-series",
+		Summary:     "Get time series of NL's twitch chat emotes",
+		Method:      http.MethodGet,
+		Path:        "/api/series",
+	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
+		//TODO validate input strings
 		trailingSpan := ""
-		grouping := r.URL.Query().Get("grouping")
-		rollingAverage := r.URL.Query().Get("rolling_average")
-		from := r.URL.Query().Get("from")
-		to := r.URL.Query().Get("to")
-
-		switch inputSpan {
+		switch input.Span {
 		case "1 minute", "30 minutes", "1 hour", "9 hours":
-			trailingSpan = inputSpan
+			trailingSpan = input.Span
 		}
 
 		rollingAverageString := ""
-		finalDbQuery := ""
+		query := ""
+		var dbArgs []interface{}
+
 		if trailingSpan != "" {
-			finalDbQuery = seriesQueryMostRecent
+			query = fmt.Sprintf(`
+			SELECT %s,
+				EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+			FROM chat_counts
+			WHERE created_at > (
+				SELECT MAX(created_at) - $2::interval 
+				FROM chat_counts
+			)
+			GROUP BY date_trunc($1, created_at)
+			ORDER BY date_trunc($1, created_at) asc
+			`, baseSumStrings)
+			dbArgs = append(dbArgs, input.Grouping, trailingSpan)
+
 		} else {
-			finalDbQuery = seriesQueryFromTo
+			query = fmt.Sprintf(`
+			SELECT %s,
+				EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+			FROM chat_counts 
+			WHERE created_at BETWEEN $2 AND $3
+			GROUP BY date_trunc($1, created_at) 
+			ORDER BY date_trunc($1, created_at) asc
+			`, baseSumStrings)
+			dbArgs = append(dbArgs, input.Grouping, input.From, input.To)
 		}
 
-		if rollingAverage != "0" && rollingAverage != "" {
-			parseIntRollingAverage, err := strconv.Atoi(rollingAverage)
-
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+		if input.RollingAverage != 0 {
 			rollingAverageString = buildStringForEachColumn(func(fieldName string) string {
-				return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, parseIntRollingAverage, fieldName)
+				return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, input.RollingAverage, fieldName)
 			})
 
-			finalDbQuery = fmt.Sprintf(`
-			WITH base_sum AS (%s)
-			SELECT %s ,
-			created_epoch
-			FROM base_sum
-			`, finalDbQuery, rollingAverageString)
+			query = fmt.Sprintf(`
+				WITH base_sum AS (%s)
+				SELECT %s ,
+				created_epoch
+				FROM base_sum
+				`, query, rollingAverageString)
 		}
 
-		var result interface{}
+		result := &SeriesOutput{}
 
-		if rollingAverageString != "" {
-			result = []AveragedChatCounts{}
-		} else {
-			result = []ChatCounts{}
+		dbError := db.Raw(query, dbArgs...).Scan(&result).Error
+		if dbError != nil {
+			fmt.Println(err)
+			return nil, dbError
 		}
 
-		if trailingSpan != "" {
-
-			dbError := db.Raw(finalDbQuery, grouping, trailingSpan).Scan(&result).Error
-			if dbError != nil {
-				fmt.Println(err)
-				return
-			}
-		} else {
-			dbError := db.Raw(finalDbQuery, grouping, from, to).Scan(&result).Error
-			if dbError != nil {
-				fmt.Println(err)
-				return
-			}
-		}
-		marshalJsonAndWrite(w, result)
-
+		return result, nil
 	})
 
-	http.HandleFunc("/api/clip_counts", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.URL)
-		column_to_select := r.URL.Query()["column"]
-		span := r.URL.Query().Get("span")
-		grouping := r.URL.Query().Get("grouping")
-		order := r.URL.Query().Get("order")
-		limit := r.URL.Query().Get("limit")
-		cursor := r.URL.Query().Get("cursor")
-
-		switch grouping {
-		case "second", "minute", "hour", "day", "week", "month", "year":
-			break
-		default:
-			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
-			return
-		}
-
-		// verify limit is an int
-		if limit != "" {
-			_, err := strconv.Atoi(limit)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("invalid limit: %s", limit), http.StatusBadRequest)
+	//TODO: create validator function for literals
+	/**
+	switch grouping {
+			case "second", "minute", "hour", "day", "week", "month", "year":
+				break
+			default:
+				http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
 				return
 			}
-		} else {
-			limit = "100"
-		}
 
-		switch order {
-		case "asc", "desc":
-			break
-		default:
-			http.Error(w, fmt.Sprintf("invalid order: %s", order), http.StatusBadRequest)
-			return
-		}
-
-		timeSpan := "FROM chat_counts"
-
-		for _, column := range column_to_select {
-			_, ok := validColumnSet[column]
-			if !ok {
-				http.Error(w, fmt.Sprintf("invalid column: %s", column_to_select), http.StatusBadRequest)
-				return
-			}
-		}
-
-		switch span {
-		case "day", "week", "month", "year":
-
-			if span == "day" {
-				// a full day pulls clips from prior streams
-				span = "9 hours"
+			// verify limit is an int
+			if limit != "" {
+				_, err := strconv.Atoi(limit)
+				if err != nil {
+					http.Error(w, fmt.Sprintf("invalid limit: %s", limit), http.StatusBadRequest)
+					return
+				}
 			} else {
-				span = fmt.Sprintf("1 %s", span)
+				limit = "100"
 			}
 
-			timeSpan = fmt.Sprintf(`
-				AND created_at >= (
-					SELECT MAX(created_at) - INTERVAL '%s'
-					FROM chat_counts
-				)`, span)
-		}
+			switch order {
+			case "asc", "desc":
+				break
+			default:
+				http.Error(w, fmt.Sprintf("invalid order: %s", order), http.StatusBadRequest)
+				return
+			}
 
-		sum_clause := strings.Join(column_to_select, " + ")
-		not_null_clause := make([]string, 0, len(column_to_select))
-		for _, column := range column_to_select {
+			timeSpan := "FROM chat_counts"
+
+			for _, column := range column_to_select {
+				_, ok := validColumnSet[column]
+				if !ok {
+					http.Error(w, fmt.Sprintf("invalid column: %s", column_to_select), http.StatusBadRequest)
+					return
+				}
+			}
+
+			switch span {
+			case "day", "week", "month", "year":
+
+				if span == "day" {
+					// a full day pulls clips from prior streams
+					span = "9 hours"
+				} else {
+					span = fmt.Sprintf("1 %s", span)
+				}
+
+				timeSpan = fmt.Sprintf(`
+					AND created_at >= (
+						SELECT MAX(created_at) - INTERVAL '%s'
+						FROM chat_counts
+					)`, span)
+			}
+	*/
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-clips",
+		Summary:     "Get top clips based on NL's twitch chat activity",
+		Method:      http.MethodGet,
+		Path:        "/api/clip_counts",
+	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
+
+		sum_clause := strings.Join(input.Column, " + ")
+		not_null_clause := make([]string, 0, len(input.Column))
+		for _, column := range input.Column {
 			not_null_clause = append(not_null_clause, fmt.Sprintf("%s IS NOT NULL", column))
 		}
 
 		not_null_string := strings.Join(not_null_clause, " AND ")
 
-		clips := findTopClipsThroughRollingSums(db, column_to_select, grouping, order, limit, cursor, sum_clause, not_null_string, timeSpan)
+		clips := findTopClipsThroughRollingSums(db, input)
 
 		minMaxClipGetter(w, clips, db)
+
 	})
 
-	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
+	type SingleClipInput struct {
+		EpochTime int `query:"time" example:"1619793600" doc:"Time: unix timestamp"`
+	}
+
+	type SingleClipOutput struct {
+		ClipId string `json:"clip_id"`
+		Time   string `json:"time"`
+	}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-nearest-clip",
+		Summary:     "Get clip nearest to epoch time",
+		Method:      http.MethodGet,
+		Path:        "/api/nearest_clip",
+	}, func(ctx context.Context, input *SingleClipInput) (*SingleClipOutput, error) {
 		t := r.URL.Query().Get("time")
 		var clip Clip
 		db.Raw(`
@@ -399,21 +426,13 @@ func main() {
 		LIMIT 1`, t).Scan(&clip)
 		if err != nil {
 			fmt.Println(err)
-			return
+			return nil, err
 		}
-		marshalJsonAndWrite(w, map[string]string{
-			"clip_id": clip.ClipID,
-			"time":    fmt.Sprintf("%f", clip.Time),
-		})
+		return &SingleClipOutput{
+			clip.ClipID,
+			fmt.Sprintf("%f", clip.Time),
+		}, nil
 	})
-
-	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
-	fmt.Println("Listening on port", port)
-
-	listenError := http.ListenAndServe(port, nil)
-	if listenError != nil {
-		fmt.Println(listenError)
-	}
 
 }
 
@@ -467,23 +486,6 @@ func minMaxClipGetter(w http.ResponseWriter, clips []Clip, db *gorm.DB) {
 			clips[i].Thumbnail = instantFromDB.Thumbnail
 		}
 	}
-
-	marshalJsonAndWrite(w, map[string][]Clip{
-		"clips": clips,
-	})
-}
-
-func marshalJsonAndWrite(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	w.Write(jsonData)
 }
 
 func connectToTwitchChat(db *gorm.DB) {
