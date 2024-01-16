@@ -323,63 +323,6 @@ func main() {
 		return result, nil
 	})
 
-	//TODO: create validator function for literals
-	/**
-	switch grouping {
-			case "second", "minute", "hour", "day", "week", "month", "year":
-				break
-			default:
-				http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
-				return
-			}
-
-			// verify limit is an int
-			if limit != "" {
-				_, err := strconv.Atoi(limit)
-				if err != nil {
-					http.Error(w, fmt.Sprintf("invalid limit: %s", limit), http.StatusBadRequest)
-					return
-				}
-			} else {
-				limit = "100"
-			}
-
-			switch order {
-			case "asc", "desc":
-				break
-			default:
-				http.Error(w, fmt.Sprintf("invalid order: %s", order), http.StatusBadRequest)
-				return
-			}
-
-			timeSpan := "FROM chat_counts"
-
-			for _, column := range column_to_select {
-				_, ok := validColumnSet[column]
-				if !ok {
-					http.Error(w, fmt.Sprintf("invalid column: %s", column_to_select), http.StatusBadRequest)
-					return
-				}
-			}
-
-			switch span {
-			case "day", "week", "month", "year":
-
-				if span == "day" {
-					// a full day pulls clips from prior streams
-					span = "9 hours"
-				} else {
-					span = fmt.Sprintf("1 %s", span)
-				}
-
-				timeSpan = fmt.Sprintf(`
-					AND created_at >= (
-						SELECT MAX(created_at) - INTERVAL '%s'
-						FROM chat_counts
-					)`, span)
-			}
-	*/
-
 	huma.Register(api, huma.Operation{
 		OperationID: "get-clips",
 		Summary:     "Get top clips based on NL's twitch chat activity",

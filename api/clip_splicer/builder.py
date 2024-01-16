@@ -332,16 +332,19 @@ async def get_batched_twitch_clips(
     return [task.result() for task in clip_tasks]
 
 
-async def get_top_clips(conn: AsyncConnection) -> List[RollingChatCount]:
+async def get_top_clips(
+    conn: AsyncConnection, emote: str | None
+) -> List[RollingChatCount]:
+    emote_to_query = emote or EMOTE
     async with conn.cursor(row_factory=class_row(RollingChatCount)) as cur:
         query = f"""
-            SELECT SUM({EMOTE}) OVER (
+            SELECT SUM({emote_to_query}) OVER (
                     ORDER BY created_at
                     RANGE BETWEEN INTERVAL '30 seconds' PRECEDING AND CURRENT ROW
-                ) as rolling_sum, {EMOTE}, clip_id, created_at 
+                ) as rolling_sum, {emote_to_query}, clip_id, created_at 
                 from chat_counts 
                 WHERE clip_id IS NOT NULL
-                AND {EMOTE} IS NOT NULL
+                AND {emote_to_query} IS NOT NULL
                 order by rolling_sum desc limit 10000;
             """
         await cur.execute(query)
