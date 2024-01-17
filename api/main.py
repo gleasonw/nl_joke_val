@@ -84,7 +84,7 @@ async def get_clips(
     order: Literal["asc", "desc"] = "desc",
     limit: int = 10,
     cursor: int | None = None,
-) -> List[RollingChatCountWithThumbnail]:
+) -> List[RollingChatCount]:
     async with pool.connection() as conn:
         top_clips = await get_top_clips(
             conn,
@@ -93,6 +93,7 @@ async def get_clips(
             sum_window,
             order,
         )
+        # TODO: ideally we could do this in SQL, but my wizardry is not yet that advanced
         intervals = make_intervals_from_rolling_sums(top_clips, limit, cursor)
         tasks = []
         async with asyncio.TaskGroup() as group:
@@ -108,17 +109,13 @@ async def get_clips(
                         )
                     )
                 )
-        # TODO: thumbnail retrieval
-        results: List[RollingChatCountWithThumbnail] = [
-            task.result() for task in tasks if task.result()
-        ]
-        return results
+        return [task.result() for task in tasks if task.result()]
 
 
 @app.get("/nearest_clip")
 async def get_nearest_clip(
     epoch_time: int,
-) -> RollingChatCount:
+) -> RollingChatCount | None:
     time_from_epoch = datetime.datetime.fromtimestamp(epoch_time)
 
     # twitch clips record about 20 seconds before clip captured
