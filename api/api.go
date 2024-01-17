@@ -21,8 +21,8 @@ import (
 )
 
 type ChatCounts struct {
-	Classic 		int       `json:"classic"`
-	MonkaGiga		int       `json:"monka_giga"`
+	Classic      int       `json:"classic"`
+	MonkaGiga    int       `json:"monka_giga"`
 	Two          int       `json:"two"`
 	Lol          int       `json:"lol"`
 	Cereal       int       `json:"cereal"`
@@ -36,7 +36,7 @@ type ChatCounts struct {
 	Shock        int       `json:"shock"`
 	Copium       int       `json:"copium"`
 	Ratjam       int       `json:"ratjam"`
-	Sure 			 int       `json:"sure"`
+	Sure         int       `json:"sure"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
@@ -199,8 +199,6 @@ func main() {
 	}
 	db.AutoMigrate(&ChatCounts{})
 
-
-
 	for i := 0; i < val.NumField(); i++ {
 		jsonTag := val.Type().Field(i).Tag.Get("json")
 		if jsonTag != "-" && jsonTag != "time" {
@@ -223,7 +221,7 @@ func main() {
 	var baseSumStrings = buildStringForEachColumn(func(fieldName string) string {
 		return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
 	})
-	
+
 	var seriesQueryFromTo = fmt.Sprintf(`
 	SELECT %s,
 		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
@@ -267,7 +265,6 @@ func main() {
 			finalDbQuery = seriesQueryFromTo
 		}
 
-
 		if rollingAverage != "0" && rollingAverage != "" {
 			parseIntRollingAverage, err := strconv.Atoi(rollingAverage)
 
@@ -302,7 +299,7 @@ func main() {
 				fmt.Println(err)
 				return
 			}
-		} else{
+		} else {
 			dbError := db.Raw(finalDbQuery, grouping, from, to).Scan(&result).Error
 			if dbError != nil {
 				fmt.Println(err)
@@ -310,8 +307,6 @@ func main() {
 			}
 		}
 		marshalJsonAndWrite(w, result)
-
-
 
 	})
 
@@ -460,6 +455,8 @@ func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
 				return
 			}
 			if resp.StatusCode == 401 {
+				// sleep for a bit to let the token refresh
+				time.Sleep(5 * time.Second)
 				refreshTwitchToken()
 				minMaxClipGetter(w, query, db)
 				return
@@ -555,24 +552,24 @@ func connectToTwitchChat(db *gorm.DB) {
 				full_message := string(msg.Data)
 				only_message_text := split_and_get_last(full_message, "#northernlion")
 				emotesAndKeywords := map[string]*int{
-					"LUL":      &counter.Lol,
-					"ICANT":    &counter.Lol,
-					"KEKW":     &counter.Lol,
-					"Cereal":   &counter.Cereal,
-					"NOOO":     &counter.No,
-					"COCKA":    &counter.Cocka,
-					"monkaS":   &counter.Monkas,
-					"Joel":     &counter.Joel,
-					"POGCRAZY": &counter.Pog,
-					"Pog":      &counter.Pog,
-					"LETSGO":   &counter.Pog,
-					"HUHH":     &counter.Huh,
-					"Copium":   &counter.Copium,
-					"D:":       &counter.Shock,
-					"WhoAsked": &counter.WhoAsked,
-					"ratJAM":   &counter.Ratjam,
-					"Sure":     &counter.Sure,
-					"Classic":  &counter.Classic,
+					"LUL":                 &counter.Lol,
+					"ICANT":               &counter.Lol,
+					"KEKW":                &counter.Lol,
+					"Cereal":              &counter.Cereal,
+					"NOOO":                &counter.No,
+					"COCKA":               &counter.Cocka,
+					"monkaS":              &counter.Monkas,
+					"Joel":                &counter.Joel,
+					"POGCRAZY":            &counter.Pog,
+					"Pog":                 &counter.Pog,
+					"LETSGO":              &counter.Pog,
+					"HUHH":                &counter.Huh,
+					"Copium":              &counter.Copium,
+					"D:":                  &counter.Shock,
+					"WhoAsked":            &counter.WhoAsked,
+					"ratJAM":              &counter.Ratjam,
+					"Sure":                &counter.Sure,
+					"Classic":             &counter.Classic,
 					"monkaGIGAftRyanGary": &counter.MonkaGiga,
 				}
 
@@ -671,6 +668,7 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	if resp.StatusCode == 401 {
 		fmt.Println("unauthorized: ", auth)
 		refreshTwitchToken()
+		time.Sleep(5 * time.Second)
 	}
 	if resp.StatusCode == 404 {
 		isLive <- false
