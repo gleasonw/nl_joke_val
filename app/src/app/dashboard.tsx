@@ -1,14 +1,10 @@
 "use client";
 
 import {
-  Title,
   Tab,
-  Text,
   Select,
   SelectItem,
   Card,
-  List,
-  ListItem,
   Button,
   DateRangePicker,
   DateRangePickerItem,
@@ -30,7 +26,14 @@ import {
   SeriesKey,
   SeriesData,
 } from "./types";
+import { clipAPI, seriesAPI } from "@/app/apiURL";
 
+import createClient from "openapi-fetch";
+import type { paths } from "./schema";
+import { MostMinusTwosClips } from "./MostMinusTwosClips";
+import { TopTwitchClips } from "./TopTwitchClips";
+
+export const { GET } = createClient<paths>({ baseUrl: clipAPI });
 export default function Dashboard() {
   const params = useSearchParams();
   const router = useRouter();
@@ -95,9 +98,6 @@ export default function Dashboard() {
     }
   }
 
-  const queryClient = useQueryClient();
-  console.log(queryClient.getQueryCache());
-
   const { data: chartData } = useQuery({
     queryKey: [
       "chart",
@@ -110,16 +110,13 @@ export default function Dashboard() {
     ],
     queryFn: async () => {
       const res = await fetch(
-        addQueryParamsIfExist(
-          `https://nljokeval-production.up.railway.app/api/series`,
-          {
-            grouping,
-            rolling_average: rollingAverage,
-            from: getFromParam().toISOString(),
-            to: getToParam().toISOString(),
-            span: trailingSpan,
-          }
-        )
+        addQueryParamsIfExist(`${seriesAPI}/series`, {
+          grouping,
+          rolling_average: rollingAverage,
+          from: getFromParam().toISOString(),
+          to: getToParam().toISOString(),
+          span: trailingSpan,
+        })
       );
       const jsonResponse = await res.json();
       const zodParse = SeriesData.safeParse(jsonResponse);
@@ -134,8 +131,6 @@ export default function Dashboard() {
     refetchInterval: 10000,
     keepPreviousData: true,
   });
-
-  console.log(chartData);
 
   const chartRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -281,124 +276,131 @@ export default function Dashboard() {
   const span = params.get("span");
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className={"text-2xl m-5 font-semibold"}>
-          NL Chat Dashboard (est. 4/18/23)
-        </h1>
-        <div className="flex gap-5 justify-center flex-wrap">
-          <Button
-            onClick={() => handleNavigate(lastMinuteRange)}
-            variant={span === "1 minute" ? "primary" : "secondary"}
-          >
-            Last minute of stream
-          </Button>
-          <Button
-            onClick={() => handleNavigate(lastHourRange)}
-            variant={span === "1 hour" ? "primary" : "secondary"}
-          >
-            Last hour of stream
-          </Button>
-          <Button
-            onClick={() => handleNavigate(last9HoursRange)}
-            variant={
-              span === "9 hours" || span === null ? "primary" : "secondary"
-            }
-          >
-            Last 9 hours of stream
-          </Button>
-          <DateRangePicker
-            value={{ from: getFromParam(), to: getToParam() }}
-            onValueChange={(value: DateRangePickerValue) =>
-              handleNavigate({
-                from: value.from?.toISOString(),
-                to: value.to?.toISOString(),
-                span: "custom",
-              })
-            }
-            selectPlaceholder="Select a range"
-          >
-            <DateRangePickerItem
-              key="day"
-              value="day"
-              from={new Date(new Date().getTime() - 24 * 60 * 60 * 1000)}
-              to={new Date()}
-            >
-              Past day
-            </DateRangePickerItem>
-            <DateRangePickerItem
-              key="week"
-              value="week"
-              from={new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000)}
-              to={new Date()}
-            >
-              Past week
-            </DateRangePickerItem>
-            <DateRangePickerItem
-              key="half"
-              value="half"
-              from={new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000)}
-              to={new Date()}
-            >
-              Past 30 days
-            </DateRangePickerItem>
-
-            <DateRangePickerItem
-              key="ytd"
-              value="ytd"
-              from={new Date(2023, 3, 18)}
-              to={new Date()}
-            >
-              To date
-            </DateRangePickerItem>
-          </DateRangePicker>
-        </div>
-
-        <div className="flex flex-col p-3">
-          <div className="flex flex-row flex-wrap gap-3 m-2">
-            {Object.keys(SeriesKeys).map((key) => (
-              <button
-                className={"w-auto hover:shadow-lg rounded-lg p-3"}
-                style={
-                  series.includes(key as SeriesKey)
-                    ? {
-                        boxShadow: `0 0 0 4px ${
-                          seriesColors[key as SeriesKey]
-                        }`,
-                      }
-                    : {}
-                }
-                key={key}
-                onClick={() => {
-                  handleNavigate({
-                    series: getNewSeriesList(key),
-                  });
-                }}
+    <div className="min-h-screen bg-gray-100 lg:p-8 flex flex-col gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card className="flex flex-col gap-3">
+          <h1 className={"text-2xl m-5 font-semibold"}>
+            NL Chat Dashboard (est. 4/18/23)
+          </h1>
+          <div ref={chartRef}>
+            <HighchartsReact
+              highcharts={Highcharts}
+              options={highChartsOptions}
+            />
+            {tooltip && (
+              <div
+                className={"w-96 transition-all"}
+                style={getTooltipStyle()}
+                ref={tooltipRef}
               >
-                {seriesEmotes[key as SeriesKey]}
-              </button>
-            ))}
+                <button
+                  onClick={() => setTooltip(undefined)}
+                  className={"absolute -top-10 right-0 p-5 bg-white rounded"}
+                >
+                  X
+                </button>
+                {clickedUnixSeconds ? (
+                  <TwitchClipAtTime time={clickedUnixSeconds} />
+                ) : null}
+              </div>
+            )}
           </div>
-          <div className={"flex flex-row gap-5 flex-wrap items-center w-full"}>
-            <div className="flex flex-col">
-              <label htmlFor="chartTypeSelect">Chart Type</label>
-              <Select
-                id="chartTypeSelect"
-                value={params.get("chartType") ?? "line"}
-                placeholder={"Chart type"}
-                onValueChange={(value) =>
-                  handleNavigate({
-                    chartType: value,
-                  })
-                }
-              >
-                <SelectItem value="line">Line</SelectItem>
-                <SelectItem value="bar">Bar</SelectItem>
-              </Select>
+          <div className="flex flex-col p-3">
+            <div className="flex flex-row flex-wrap gap-3 m-2">
+              {Object.keys(SeriesKeys).map((key) => (
+                <button
+                  className={"w-auto hover:shadow-lg rounded-lg p-3"}
+                  style={
+                    series.includes(key as SeriesKey)
+                      ? {
+                          boxShadow: `0 0 0 4px ${
+                            seriesColors[key as SeriesKey]
+                          }`,
+                        }
+                      : {}
+                  }
+                  key={key}
+                  onClick={() => {
+                    handleNavigate({
+                      series: getNewSeriesList(key),
+                    });
+                  }}
+                >
+                  {seriesEmotes[key as SeriesKey]}
+                </button>
+              ))}
             </div>
+          </div>
+          <SettingsDropLayout>
+            <Button
+              onClick={() => handleNavigate(lastMinuteRange)}
+              variant={span === "1 minute" ? "primary" : "secondary"}
+            >
+              Last minute of stream
+            </Button>
+            <Button
+              onClick={() => handleNavigate(lastHourRange)}
+              variant={span === "1 hour" ? "primary" : "secondary"}
+            >
+              Last hour of stream
+            </Button>
+            <Button
+              onClick={() => handleNavigate(last9HoursRange)}
+              variant={
+                span === "9 hours" || span === null ? "primary" : "secondary"
+              }
+            >
+              Last 9 hours of stream
+            </Button>
+            <DateRangePicker
+              value={{ from: getFromParam(), to: getToParam() }}
+              onValueChange={(value: DateRangePickerValue) =>
+                handleNavigate({
+                  from: value.from?.toISOString(),
+                  to: value.to?.toISOString(),
+                  span: "custom",
+                })
+              }
+              selectPlaceholder="Select a range"
+            >
+              <DateRangePickerItem
+                key="day"
+                value="day"
+                from={new Date(new Date().getTime() - 24 * 60 * 60 * 1000)}
+                to={new Date()}
+              >
+                Past day
+              </DateRangePickerItem>
+              <DateRangePickerItem
+                key="week"
+                value="week"
+                from={new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000)}
+                to={new Date()}
+              >
+                Past week
+              </DateRangePickerItem>
+              <DateRangePickerItem
+                key="half"
+                value="half"
+                from={new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000)}
+                to={new Date()}
+              >
+                Past 30 days
+              </DateRangePickerItem>
 
-            <div className="flex flex-col">
-              <label htmlFor="groupBySelect">Group By</label>
+              <DateRangePickerItem
+                key="ytd"
+                value="ytd"
+                from={new Date(2023, 3, 18)}
+                to={new Date()}
+              >
+                To date
+              </DateRangePickerItem>
+            </DateRangePicker>
+          </SettingsDropLayout>
+          <SettingsDropLayout>
+            <label>
+              Group By
               <Select
                 id="groupBySelect"
                 value={params.get("timeGrouping") ?? "minute"}
@@ -411,9 +413,9 @@ export default function Dashboard() {
                   <SelectItem value={grouping} key={grouping} />
                 ))}
               </Select>
-            </div>
-            <div className="flex flex-col">
-              <label htmlFor="groupBySelect">Smoothing</label>
+            </label>
+            <label>
+              Smoothing
               <Select
                 id="smoothing"
                 value={params.get("rollingAverage") ?? "5"}
@@ -428,41 +430,48 @@ export default function Dashboard() {
                   </SelectItem>
                 ))}
               </Select>
-            </div>
-            <span className="text-center">
-              Select a point in the graph to pull the nearest clip
-            </span>
-          </div>
-        </div>
-      </div>
-      <div ref={chartRef}>
-        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
-        {tooltip && (
-          <div
-            className={"w-96 transition-all"}
-            style={getTooltipStyle()}
-            ref={tooltipRef}
-          >
-            <button
-              onClick={() => setTooltip(undefined)}
-              className={"absolute -top-10 right-0 p-5 bg-white rounded"}
-            >
-              X
-            </button>
-            <TwitchClipAtTime time={clickedUnixSeconds} />
-          </div>
-        )}
-      </div>
+            </label>
+            <label>
+              Chart Type
+              <Select
+                id="chartTypeSelect"
+                value={params.get("chartType") ?? "line"}
+                placeholder={"Chart type"}
+                onValueChange={(value) =>
+                  handleNavigate({
+                    chartType: value,
+                  })
+                }
+              >
+                <SelectItem value="line">Line</SelectItem>
+                <SelectItem value="bar">Bar</SelectItem>
+              </Select>
+            </label>
+          </SettingsDropLayout>
 
-      <div className={"flex flex-wrap md:flex-nowrap md:gap-5"}>
-        <TopTwitchClips onNavigate={handleNavigate} />
-        <MostMinusTwosClips onNavigate={handleNavigate} />
+          <span className="text-center">
+            Select a point in the graph to pull the nearest clip
+          </span>
+        </Card>
+
+        <div className={"flex flex-col gap-8"}>
+          <TopTwitchClips onNavigate={handleNavigate} />
+          <MostMinusTwosClips onNavigate={handleNavigate} />
+        </div>
       </div>
     </div>
   );
 }
 
-function TwitchClipAtTime(props: { time?: number }) {
+export interface SettingsDropLayoutProps {
+  children?: React.ReactNode;
+}
+
+export function SettingsDropLayout({ children }: SettingsDropLayoutProps) {
+  return <div className="flex gap-8 flex-wrap">{children}</div>;
+}
+
+function TwitchClipAtTime(props: { time: number }) {
   type ClipData = {
     clip_id: string;
     time: number;
@@ -471,256 +480,41 @@ function TwitchClipAtTime(props: { time?: number }) {
   const { isSuccess, data } = useQuery({
     queryKey: ["clip", props.time],
     queryFn: async () => {
-      const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/clip?time=${props.time}`
-      );
-      return (await res.json()) as ClipData;
+      const { data } = await GET("/nearest_clip", {
+        params: { query: { epoch_time: props.time } },
+      });
+      return data;
     },
     keepPreviousData: true,
   });
   return (
     data &&
     isSuccess &&
-    props.time && <TwitchClip clip_id={data.clip_id} time={props.time} />
+    props.time &&
+    data.clip_id && <TwitchClip clip_id={data.clip_id} time={props.time} />
   );
 }
 
-type Clip = {
+export type Clip = {
   clip_id: string;
   count: number;
   time: number;
   thumbnail: string;
 };
 
-export type ClipBatch = {
-  clips: Clip[];
-};
+export type ClipBatch = Clip[];
 
-function TopTwitchClips({
-  onNavigate,
+export function TwitchClip({
+  clip_id,
+  time,
 }: {
-  onNavigate: (newParam: { [key: string]: string | string[] }) => void;
+  clip_id: string;
+  time?: number;
 }) {
-  const [sumEmotes, setSumEmotes] = useState(false);
-  const params = useSearchParams();
-  const emotes =
-    params.getAll("emote").length > 0 ? params.getAll("emote") : ["two"];
-  const grouping = params.get("maxClipGrouping") ?? "second";
-  const span = params.get("maxClipSpan") ?? "day";
-
-  const {
-    isSuccess,
-    data: topClips,
-    isLoading,
-  } = useQuery({
-    queryKey: ["top_clips", span, grouping, emotes],
-    queryFn: async () => {
-      const res = await fetch(
-        addQueryParamsIfExist(
-          "https://nljokeval-production.up.railway.app/api/clip_counts",
-          {
-            column: emotes,
-            span,
-            grouping,
-            order: "desc",
-          }
-        )
-      );
-      return (await res.json()) as ClipBatch;
-    },
-    keepPreviousData: true,
-  });
-
   return (
-    <Card>
-      <div className={"flex flex-col gap-2"}>
-        <Title>Top</Title>
-        <div className="flex flex-row flex-wrap gap-3">
-          {Object.keys(SeriesKeys).map((key) => (
-            <button
-              className={"w-auto hover:shadow-lg rounded-lg p-3"}
-              style={
-                emotes.includes(key as SeriesKey)
-                  ? {
-                      boxShadow: `0 0 0 4px ${seriesColors[key as SeriesKey]}`,
-                    }
-                  : {}
-              }
-              key={key}
-              onClick={() =>
-                onNavigate(
-                  emotes.includes(key as SeriesKey)
-                    ? {
-                        emote: emotes.filter((item) => item !== key),
-                      }
-                    : sumEmotes
-                    ? { emote: [...emotes, key] }
-                    : { emote: [key] }
-                )
-              }
-            >
-              {seriesEmotes[key as SeriesKey]}
-            </button>
-          ))}
-        </div>
-        <Button
-          onClick={() => setSumEmotes(!sumEmotes)}
-          variant={sumEmotes ? "primary" : "secondary"}
-        >
-          Sum multiple emotes
-        </Button>
-        <Title>grouped by</Title>
-        <Select
-          value={grouping}
-          onValueChange={(value) => onNavigate({ maxClipGrouping: value })}
-        >
-          {timeGroupings.map((grouping) => (
-            <SelectItem value={grouping} key={grouping}>
-              {grouping == "second" ? "10 seconds" : grouping}
-            </SelectItem>
-          ))}
-        </Select>
-        <Title>over the past</Title>
-        <Select
-          value={span}
-          onValueChange={(value) => onNavigate({ maxClipSpan: value })}
-        >
-          {["day", "week", "month", "year"].map((span) => (
-            <SelectItem value={span} key={span}>
-              {span}
-            </SelectItem>
-          ))}
-        </Select>
-      </div>
-      <div>
-        <List>
-          {topClips?.clips
-            .sort((a, b) => b.count - a.count)
-            .map((clip) => (
-              <ListItem key={clip.clip_id} className={"flex flex-col"}>
-                <span className={"text-3xl"}>{clip.count}</span>
-                <TwitchClipThumbnail
-                  clip_id={clip.clip_id}
-                  time={clip.time}
-                  thumbnail={clip.thumbnail}
-                  count={clip.count}
-                />
-              </ListItem>
-            ))}
-        </List>
-      </div>
-    </Card>
-  );
-}
-
-function MostMinusTwosClips({
-  onNavigate,
-}: {
-  onNavigate: (newParam: { [key: string]: string | string[] }) => void;
-}) {
-  const params = useSearchParams();
-  const grouping = params.get("minClipGrouping") ?? "second";
-  const span = params.get("minClipSpan") ?? "day";
-
-  const {
-    isSuccess,
-    data: minClips,
-    isLoading,
-  } = useQuery({
-    queryKey: ["minus_twos", span, grouping],
-    queryFn: async () => {
-      const rest = await fetch(
-        addQueryParamsIfExist(
-          "https://nljokeval-production.up.railway.app/api/clip_counts",
-          {
-            column: "two",
-            span,
-            grouping,
-            order: "asc",
-          }
-        )
-      );
-      return (await rest.json()) as ClipBatch;
-    },
-    keepPreviousData: true,
-  });
-
-  return (
-    <Card>
-      <div className={"flex flex-row gap-2 flex-wrap"}>
-        <Title>Lowest 2 count grouped by</Title>
-        <Select
-          value={grouping}
-          onValueChange={(value) => onNavigate({ minClipGrouping: value })}
-        >
-          {["second", "minute", "hour"].map((grouping) => (
-            <SelectItem value={grouping} key={grouping}>
-              {grouping == "second" ? "10 seconds" : grouping}
-            </SelectItem>
-          ))}
-        </Select>
-        <Title>over the past</Title>
-        <Select
-          value={span}
-          onValueChange={(value) => onNavigate({ minClipSpan: value })}
-        >
-          {["day", "week", "month", "year"].map((span) => (
-            <SelectItem value={span} key={span}>
-              {span}
-            </SelectItem>
-          ))}
-        </Select>
-      </div>
-      <div>
-        <List>
-          {minClips?.clips.map((clip) => (
-            <ListItem key={clip.clip_id} className={"flex flex-col"}>
-              <span className={"text-3xl"}>{clip.count}</span>
-              <TwitchClipThumbnail
-                clip_id={clip.clip_id}
-                time={clip.time}
-                thumbnail={clip.thumbnail}
-                count={clip.count}
-              />
-            </ListItem>
-          ))}
-        </List>
-      </div>
-    </Card>
-  );
-}
-
-function TwitchClipThumbnail({ clip_id, count, time, thumbnail }: Clip) {
-  const [isClipRevealed, setIsClipRevealed] = useState(false);
-  const timeString = new Date(time * 1000).toLocaleString();
-  if (isClipRevealed) {
-    return <TwitchClip clip_id={clip_id} time={time} />;
-  } else {
-    return (
-      <button
-        className={"flex flex-col items-center justify-between"}
-        onClick={() => setIsClipRevealed(true)}
-      >
-        <Text className={"text-lg"}>{timeString}</Text>
-        <Image
-          alt={`Twitch clip thumbnail at ${timeString}, with ${count} ${
-            count === 1 ? "emote" : "emotes"
-          }`}
-          src={thumbnail}
-          onClick={() => setIsClipRevealed(true)}
-          width={384}
-          height={218}
-        />
-      </button>
-    );
-  }
-}
-
-function TwitchClip({ clip_id, time }: { clip_id: string; time?: number }) {
-  return (
-    <>
+    <span>
       {time && (
-        <span className={"m-5 text-center text-xl"}>
+        <span className={"m-5 text-center text-gray-500"}>
           {new Date(time * 1000).toLocaleString()}
         </span>
       )}
@@ -730,7 +524,7 @@ function TwitchClip({ clip_id, time }: { clip_id: string; time?: number }) {
         className="aspect-video"
         allowFullScreen={true}
       />
-    </>
+    </span>
   );
 }
 

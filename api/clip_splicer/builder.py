@@ -19,6 +19,8 @@ from moviepy.editor import (
 import json
 
 os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
+SPAN_TYPE = Literal["day", "week", "month", "all"]
+GROUPING_TYPE = Literal["second", "minute", "week", "day", "month", "all"]
 
 load_dotenv()
 
@@ -31,8 +33,12 @@ EMOTE = "lol"
 
 class ChatCount(BaseModel):
     created_at: datetime
-    lol: int
+    count: int
     clip_id: str | None
+
+
+class ChatCountWithThumbnail(ChatCount):
+    thumbnail: str | None
 
 
 database_url = os.getenv("DATABASE_URL")
@@ -63,13 +69,17 @@ class RollingChatCount(ChatCount):
     rolling_sum: int
 
 
+class RollingChatCountWithThumbnail(RollingChatCount):
+    thumbnail: str | None
+
+
 class ClipWithTwitchData(RollingChatCount):
     clip: Clip
 
 
-def main():
-    # start an event loop
-    asyncio.run(build_compilation())
+# def main():
+#     # start an event loop
+#     asyncio.run(build_compilation())
 
 
 missing_clips = set()
@@ -333,19 +343,23 @@ async def get_batched_twitch_clips(
 
 
 async def get_top_clips(
-    conn: AsyncConnection, emote: str | None
-) -> List[RollingChatCount]:
+    conn: AsyncConnection,
+    emote: str | None,
+    span: SPAN_TYPE | None = None,
+    sum_window: GROUPING_TYPE | None = None,
+    order: Literal["asc", "desc"] | None = "desc",
+) -> List[RollingChatCountWithThumbnail]:
     emote_to_query = emote or EMOTE
-    async with conn.cursor(row_factory=class_row(RollingChatCount)) as cur:
+    async with conn.cursor(row_factory=class_row(RollingChatCountWithThumbnail)) as cur:
         query = f"""
             SELECT SUM({emote_to_query}) OVER (
                     ORDER BY created_at
                     RANGE BETWEEN INTERVAL '30 seconds' PRECEDING AND CURRENT ROW
-                ) as rolling_sum, {emote_to_query}, clip_id, created_at 
+                ) as rolling_sum, {emote_to_query} as count, clip_id, created_at, thumbnail
                 from chat_counts 
                 WHERE clip_id IS NOT NULL
                 AND {emote_to_query} IS NOT NULL
-                order by rolling_sum desc limit 10000;
+                order by rolling_sum {order} limit 10000;
             """
         await cur.execute(query)
         return await cur.fetchall()
@@ -373,20 +387,42 @@ async def get_top_intervals(conn: AsyncConnection):
         return make_intervals_from_rolling_sums(top_windows)
 
 
+def grouping_type_to_seconds(grouping: GROUPING_TYPE) -> int:
+    match grouping:
+        case "second":
+            return 1
+        case "minute":
+            return 60
+        case "hour":
+            return 60 * 60
+        case "day":
+            return 60 * 60 * 24
+        case "week":
+            return 60 * 60 * 24 * 7
+        case "month":
+            return 60 * 60 * 24 * 30
+        case "all":
+            return 60 * 60 * 24 * 365
+
+
 def make_intervals_from_rolling_sums(
     top_windows: List[RollingChatCount],
+    limit: int = TOTAL_CLIPS,
+    cursor: int | None = None,
+    sum_window: GROUPING_TYPE | None = None,
 ) -> List[Tuple[datetime, int]]:
     discovered_top_intervals: List[Tuple[datetime, int]] = []
-    for count in top_windows:
-        if len(discovered_top_intervals) == TOTAL_CLIPS:
-            break
+    window_seconds = grouping_type_to_seconds(sum_window or "minute")
 
+    for count in top_windows:
+        if len(discovered_top_intervals) >= limit:
+            break
         is_new_window = True
         for interval in discovered_top_intervals:
             start, _ = interval
             if count.created_at < start + 2 * timedelta(
-                seconds=BIT_WINDOW_SECONDS
-            ) and count.created_at > start - 2 * timedelta(seconds=BIT_WINDOW_SECONDS):
+                seconds=window_seconds
+            ) and count.created_at > start - 2 * timedelta(seconds=window_seconds):
                 is_new_window = False
                 break
 
@@ -401,15 +437,18 @@ def make_intervals_from_rolling_sums(
 
 
 async def get_clips_from_intervals(
-    conn: AsyncConnection, intervals: List[Tuple[datetime, int]]
+    conn: AsyncConnection,
+    intervals: List[Tuple[datetime, int]],
+    sum_window: GROUPING_TYPE | None = None,
 ) -> List[List[RollingChatCount]]:
     clips = []
+    window_seconds = grouping_type_to_seconds(sum_window or "minute")
     for interval in intervals:
         end, sum = interval
         clip_batch = []
         async with asyncio.TaskGroup() as group:
-            start = end - timedelta(seconds=BIT_WINDOW_SECONDS)
-            for i in range(0, BIT_WINDOW_SECONDS + 30, 30):
+            start = end - timedelta(seconds=window_seconds)
+            for i in range(0, window_seconds + 30, 30):
                 clip_batch.append(
                     group.create_task(
                         get_clip_between(
@@ -427,11 +466,13 @@ async def get_clips_from_intervals(
 async def get_clip_between(
     conn: AsyncConnection, start: datetime, end: datetime, sum: int
 ) -> RollingChatCount:
-    async with conn.cursor(row_factory=class_row(ChatCount)) as cur:
+    async with conn.cursor(row_factory=class_row(ChatCountWithThumbnail)) as cur:
         await cur.execute(
             """
-            SELECT * FROM chat_counts
+            SELECT clip_id, created_at, thumbnail, two as count FROM chat_counts
             WHERE created_at BETWEEN %s AND %s
+            AND clip_id IS NOT NULL
+            AND clip_id != ''
             ORDER BY created_at ASC
             LIMIT 1;
             """,
@@ -439,8 +480,5 @@ async def get_clip_between(
         )
         clip = await cur.fetchone()
         if clip is not None:
-            return RollingChatCount(**clip.model_dump(), rolling_sum=sum)
-        raise Exception("Clip not found", start)
-
-
-main()
+            return RollingChatCountWithThumbnail(**clip.model_dump(), rolling_sum=sum)
+        return None

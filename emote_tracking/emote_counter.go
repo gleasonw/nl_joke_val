@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,12 +18,6 @@ import (
 	_ "github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	"net/http"
-
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humachi"
-	"github.com/go-chi/chi/v5"
 )
 
 type ChatCounts struct {
@@ -186,23 +181,7 @@ func refreshTwitchToken() {
 	refreshToken = twitchResponse.RefreshToken
 }
 
-type ClipCountsInput struct {
-	Column   string `query:"column" example:"lol" doc:"Emote column to select"`
-	Span     string `query:"span" example:"year" doc:"Select range: current time - span"`
-	Grouping string `query:"grouping" example:"day" doc:"Group by: second, minute, hour, day, week, month, year"`
-	Order    string `query:"order" example:"desc" doc:"Order by: asc, desc"`
-	Limit    int    `query:"limit" example:"100" doc:"Limit: 100"`
-	Cursor   int    `query:"cursor" example:"0" doc:"Cursor: 0"`
-}
-
-type ClipCountsOutput struct {
-	clips []Clip
-}
-
 func main() {
-
-	router := chi.NewMux()
-	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
 	if client_id == "" {
 		//load .env file
 		err := godotenv.Load()
@@ -227,13 +206,13 @@ func main() {
 		}
 	}
 
-	authErr := authorizeTwitch()
-	if authErr != nil {
-		fmt.Println(authErr)
-		return
-	}
+	// authErr := authorizeTwitch()
+	// if authErr != nil {
+	// 	fmt.Println(authErr)
+	// 	return
+	// }
 
-	go connectToTwitchChat(db)
+	// go connectToTwitchChat(db)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
@@ -243,38 +222,24 @@ func main() {
 		return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
 	})
 
-	type SeriesInput struct {
-		Span           string `query:"span" example:"year" doc:"Select range: current time - span"`
-		Grouping       string `query:"grouping" example:"day" doc:"Group by: second, minute, hour, day, week, month, year"`
-		RollingAverage int    `query:"rolling_average" example:"0" doc:"Rolling average: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9"`
-		From           string `query:"from" example:"2021-01-01" doc:"From: YYYY-MM-DD"`
-		To             string `query:"to" example:"2021-01-01" doc:"To: YYYY-MM-DD"`
-	}
-
-	type SeriesOutput struct {
-		ChatCounts
-		AveragedChatCounts
-	}
-
-	huma.Register(api, huma.Operation{
-		OperationID: "get-series",
-		Summary:     "Get time series of NL's twitch chat emotes",
-		Method:      http.MethodGet,
-		Path:        "/api/series",
-	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
-		//TODO validate input strings
+	http.HandleFunc("/series", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(r.URL)
+		inputSpan := r.URL.Query().Get("span")
 		trailingSpan := ""
-		switch input.Span {
+		grouping := r.URL.Query().Get("grouping")
+		rollingAverage := r.URL.Query().Get("rolling_average")
+		from := r.URL.Query().Get("from")
+		to := r.URL.Query().Get("to")
+
+		switch inputSpan {
 		case "1 minute", "30 minutes", "1 hour", "9 hours":
-			trailingSpan = input.Span
+			trailingSpan = inputSpan
 		}
 
 		rollingAverageString := ""
-		query := ""
-		var dbArgs []interface{}
-
+		finalDbQuery := ""
 		if trailingSpan != "" {
-			query = fmt.Sprintf(`
+			finalDbQuery = fmt.Sprintf(`
 			SELECT %s,
 				EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
 			FROM chat_counts
@@ -285,10 +250,8 @@ func main() {
 			GROUP BY date_trunc($1, created_at)
 			ORDER BY date_trunc($1, created_at) asc
 			`, baseSumStrings)
-			dbArgs = append(dbArgs, input.Grouping, trailingSpan)
-
 		} else {
-			query = fmt.Sprintf(`
+			finalDbQuery = fmt.Sprintf(`
 			SELECT %s,
 				EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
 			FROM chat_counts 
@@ -296,139 +259,73 @@ func main() {
 			GROUP BY date_trunc($1, created_at) 
 			ORDER BY date_trunc($1, created_at) asc
 			`, baseSumStrings)
-			dbArgs = append(dbArgs, input.Grouping, input.From, input.To)
 		}
 
-		if input.RollingAverage != 0 {
+		if rollingAverage != "0" && rollingAverage != "" {
+			parseIntRollingAverage, err := strconv.Atoi(rollingAverage)
+
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
 			rollingAverageString = buildStringForEachColumn(func(fieldName string) string {
-				return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, input.RollingAverage, fieldName)
+				return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, parseIntRollingAverage, fieldName)
 			})
 
-			query = fmt.Sprintf(`
-				WITH base_sum AS (%s)
-				SELECT %s ,
-				created_epoch
-				FROM base_sum
-				`, query, rollingAverageString)
+			finalDbQuery = fmt.Sprintf(`
+			WITH base_sum AS (%s)
+			SELECT %s ,
+			created_epoch
+			FROM base_sum
+			`, finalDbQuery, rollingAverageString)
 		}
 
-		result := &SeriesOutput{}
+		var result interface{}
 
-		dbError := db.Raw(query, dbArgs...).Scan(&result).Error
-		if dbError != nil {
-			fmt.Println(err)
-			return nil, dbError
+		if rollingAverageString != "" {
+			result = []AveragedChatCounts{}
+		} else {
+			result = []ChatCounts{}
 		}
 
-		return result, nil
-	})
+		if trailingSpan != "" {
 
-	huma.Register(api, huma.Operation{
-		OperationID: "get-clips",
-		Summary:     "Get top clips based on NL's twitch chat activity",
-		Method:      http.MethodGet,
-		Path:        "/api/clip_counts",
-	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
-
-		sum_clause := strings.Join(input.Column, " + ")
-		not_null_clause := make([]string, 0, len(input.Column))
-		for _, column := range input.Column {
-			not_null_clause = append(not_null_clause, fmt.Sprintf("%s IS NOT NULL", column))
+			dbError := db.Raw(finalDbQuery, grouping, trailingSpan).Scan(&result).Error
+			if dbError != nil {
+				fmt.Println(err)
+				return
+			}
+		} else {
+			dbError := db.Raw(finalDbQuery, grouping, from, to).Scan(&result).Error
+			if dbError != nil {
+				fmt.Println(err)
+				return
+			}
 		}
-
-		not_null_string := strings.Join(not_null_clause, " AND ")
-
-		clips := findTopClipsThroughRollingSums(db, input)
-
-		minMaxClipGetter(w, clips, db)
+		marshalJsonAndWrite(w, result)
 
 	})
 
-	type SingleClipInput struct {
-		EpochTime int `query:"time" example:"1619793600" doc:"Time: unix timestamp"`
+	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
+	fmt.Println("Listening on port", port)
+
+	listenError := http.ListenAndServe(port, nil)
+	if listenError != nil {
+		fmt.Println(listenError)
 	}
-
-	type SingleClipOutput struct {
-		ClipId string `json:"clip_id"`
-		Time   string `json:"time"`
-	}
-
-	huma.Register(api, huma.Operation{
-		OperationID: "get-nearest-clip",
-		Summary:     "Get clip nearest to epoch time",
-		Method:      http.MethodGet,
-		Path:        "/api/nearest_clip",
-	}, func(ctx context.Context, input *SingleClipInput) (*SingleClipOutput, error) {
-		t := r.URL.Query().Get("time")
-		var clip Clip
-		db.Raw(`
-		SELECT clip_id, EXTRACT(epoch from created_at) as time
-		FROM chat_counts 
-		WHERE EXTRACT(epoch from created_at) > $1::float + 10
-		AND EXTRACT(epoch from created_at) < $1::float + 20
-		LIMIT 1`, t).Scan(&clip)
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-		return &SingleClipOutput{
-			clip.ClipID,
-			fmt.Sprintf("%f", clip.Time),
-		}, nil
-	})
-
 }
 
-func minMaxClipGetter(w http.ResponseWriter, clips []Clip, db *gorm.DB) {
-	for i, clip := range clips {
-		var instantFromDB ChatCounts
-		db.Where("clip_id = ?", clip.ClipID).First(&instantFromDB)
-		if instantFromDB.Thumbnail == "" {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://api.twitch.tv/helix/clips?id=%s", clip.ClipID), nil)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			auth := split_and_get_last(authToken, ":")
-			bearer := fmt.Sprintf("Bearer %s", auth)
-			req.Header.Set("Client-Id", client_id)
-			req.Header.Set("Authorization", bearer)
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			if resp.StatusCode == 401 {
-				refreshTwitchToken()
-				minMaxClipGetter(w, clips, db)
-				return
-			}
-			defer resp.Body.Close()
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			type HelixClip struct {
-				Data []struct {
-					ThumbnailURL string `json:"thumbnail_url"`
-				} `json:"data"`
-			}
-			var clipResponse HelixClip
-			json.Unmarshal(body, &clipResponse)
-			if len(clipResponse.Data) == 0 {
-				fmt.Println("No data returned from helix api")
-				fmt.Println(string(body))
-				fmt.Println(clip)
-				continue
-			}
-			thumbnailUrl := clipResponse.Data[0].ThumbnailURL
-			db.Model(&ChatCounts{}).Where("clip_id = ?", clip.ClipID).Update("thumbnail", thumbnailUrl)
-			clips[i].Thumbnail = thumbnailUrl
-		} else {
-			clips[i].Thumbnail = instantFromDB.Thumbnail
-		}
+func marshalJsonAndWrite(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
+
+	w.Write(jsonData)
 }
 
 func connectToTwitchChat(db *gorm.DB) {

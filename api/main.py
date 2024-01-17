@@ -1,14 +1,20 @@
+import asyncio
 from contextlib import asynccontextmanager
 import datetime
 from typing import List, Literal
 
-import api.clip_splicer.builder as clip_builder
-from api.clip_splicer.builder import (
+import clip_splicer.builder as clip_builder
+from clip_splicer.builder import (
+    GROUPING_TYPE,
+    SPAN_TYPE,
     RollingChatCount,
+    RollingChatCountWithThumbnail,
+    get_clips_from_intervals,
     get_top_clips,
     make_intervals_from_rolling_sums,
     fetch_clip_data,
     get_clip_between,
+    get_batched_twitch_clips,
 )
 from psycopg import AsyncConnection
 from psycopg.rows import class_row
@@ -22,7 +28,24 @@ from psycopg.rows import class_row
 load_dotenv()
 
 
-app = fastapi.FastAPI()
+@asynccontextmanager
+async def lifespan(app: fastapi.FastAPI):
+    await pool.open()
+    yield
+
+    await pool.close()
+
+
+app = fastapi.FastAPI(lifespan=lifespan)
+origins = ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
@@ -33,19 +56,6 @@ pool = AsyncConnectionPool(
     open=False,
 )
 
-
-@asynccontextmanager
-async def lifespan(app: fastapi.FastAPI):
-    await pool.open()
-    yield
-
-    await pool.close()
-
-
-# cors
-
-span_type = Literal["day", "week", "month", "all"]
-grouping_type = Literal["second", "minute", "week", "day", "month", "all"]
 emote_type = Literal[
     "classic",
     "monka_giga",
@@ -66,26 +76,15 @@ emote_type = Literal[
 ]
 
 
-@app.get("/api/get_series")
-async def get_series(
-    span: span_type = "day",
-    grouping: grouping_type = "minute",
-    rolling_average: int = 0,
-    start: datetime.datetime | None = None,
-    end: datetime.datetime | None = None,
-):
-    pass
-
-
-@app.get("/api/get_clips")
+@app.get("/clips")
 async def get_clips(
     emote: emote_type = "two",
-    span: span_type = "day",
-    sum_window: grouping_type = "minute",
+    span: SPAN_TYPE = "day",
+    sum_window: GROUPING_TYPE = "minute",
     order: Literal["asc", "desc"] = "desc",
     limit: int = 10,
     cursor: int | None = None,
-) -> List[RollingChatCount]:
+) -> List[RollingChatCountWithThumbnail]:
     async with pool.connection() as conn:
         top_clips = await get_top_clips(
             conn,
@@ -93,27 +92,30 @@ async def get_clips(
             span,
             sum_window,
             order,
-            limit,
-            cursor,
         )
-        intervals = make_intervals_from_rolling_sums(
-            top_clips,
-        )
-        left_shifted_clips: List[RollingChatCount] = []
-        for interval in intervals:
-            end, sum = interval
-            left_shifted_clips.append(
-                await get_clip_between(
-                    conn,
-                    end,
-                    end,
-                    sum,
+        intervals = make_intervals_from_rolling_sums(top_clips, limit, cursor)
+        tasks = []
+        async with asyncio.TaskGroup() as group:
+            for interval in intervals:
+                start, sum = interval
+                tasks.append(
+                    group.create_task(
+                        get_clip_between(
+                            conn,
+                            start - datetime.timedelta(seconds=20),
+                            start + datetime.timedelta(seconds=10),
+                            sum,
+                        )
+                    )
                 )
-            )
-        return left_shifted_clips
+        # TODO: thumbnail retrieval
+        results: List[RollingChatCountWithThumbnail] = [
+            task.result() for task in tasks if task.result()
+        ]
+        return results
 
 
-@app.get("/api/get_nearest_clip")
+@app.get("/nearest_clip")
 async def get_nearest_clip(
     epoch_time: int,
 ) -> RollingChatCount:
@@ -126,6 +128,6 @@ async def get_nearest_clip(
         return await get_clip_between(
             conn,
             time_from_epoch + datetime.timedelta(seconds=10),
-            time_from_epoch + datetime.timedelta(minutes=20),
+            time_from_epoch + datetime.timedelta(seconds=20),
             0,
         )
