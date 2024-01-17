@@ -34,6 +34,7 @@ import { MostMinusTwosClips } from "./MostMinusTwosClips";
 import { TopTwitchClips } from "./TopTwitchClips";
 
 export const { GET } = createClient<paths>({ baseUrl: clipAPI });
+
 export default function Dashboard() {
   const params = useSearchParams();
   const router = useRouter();
@@ -472,11 +473,6 @@ export function SettingsDropLayout({ children }: SettingsDropLayoutProps) {
 }
 
 function TwitchClipAtTime(props: { time: number }) {
-  type ClipData = {
-    clip_id: string;
-    time: number;
-  };
-
   const { isSuccess, data } = useQuery({
     queryKey: ["clip", props.time],
     queryFn: async () => {
