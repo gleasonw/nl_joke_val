@@ -607,20 +607,22 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
-	if resp.StatusCode == 401 {
-		fmt.Println("unauthorized: ", auth)
-		refreshTwitchToken()
-		time.Sleep(5 * time.Second)
-	}
-	if resp.StatusCode == 404 {
-		isLive <- false
-		return
-	}
 	if err != nil {
 		fmt.Println("Error sending request:", err)
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == 401 {
+		fmt.Println("unauthorized: ", auth)
+		refreshTwitchToken()
+		time.Sleep(5 * time.Second)
+	}
+
+	if resp.StatusCode == 404 {
+		isLive <- false
+		return
+	}
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
