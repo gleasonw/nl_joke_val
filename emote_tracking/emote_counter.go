@@ -71,10 +71,9 @@ var val = reflect.ValueOf(ChatCounts{})
 var validColumnSet = make(map[string]bool)
 
 type Clip struct {
-	ClipID    string  `json:"clip_id"`
-	Count     int     `json:"count"`
-	Time      float64 `json:"time"`
-	Thumbnail string  `json:"thumbnail"`
+	ClipID string  `json:"clip_id"`
+	Count  int     `json:"count"`
+	Time   float64 `json:"time"`
 }
 
 type Message struct {
@@ -206,13 +205,13 @@ func main() {
 		}
 	}
 
-	authErr := authorizeTwitch()
-	if authErr != nil {
-		fmt.Println(authErr)
-		return
-	}
+	// authErr := authorizeTwitch()
+	// if authErr != nil {
+	// 	fmt.Println(authErr)
+	// 	return
+	// }
 
-	go connectToTwitchChat(db)
+	// go connectToTwitchChat(db)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
@@ -395,8 +394,16 @@ func main() {
 			ORDER BY count %s
 			LIMIT %s
 		`, sum_clause, grouping, not_null_string, timeSpan, order, limit)
+		var clips []Clip
+		err := db.Raw(query).Scan(&clips).Error
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-		minMaxClipGetter(w, query, db)
+		marshalJsonAndWrite(w, map[string][]Clip{
+			"clips": clips,
+		})
 	})
 
 	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
@@ -426,71 +433,6 @@ func main() {
 		fmt.Println(listenError)
 	}
 
-}
-
-func minMaxClipGetter(w http.ResponseWriter, query string, db *gorm.DB) {
-	var clips []Clip
-	err := db.Raw(query).Scan(&clips).Error
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	for i, clip := range clips {
-		var instantFromDB ChatCounts
-		db.Where("clip_id = ?", clip.ClipID).First(&instantFromDB)
-		if instantFromDB.Thumbnail == "" {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://api.twitch.tv/helix/clips?id=%s", clip.ClipID), nil)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			auth := split_and_get_last(authToken, ":")
-			bearer := fmt.Sprintf("Bearer %s", auth)
-			req.Header.Set("Client-Id", client_id)
-			req.Header.Set("Authorization", bearer)
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			if resp.StatusCode == 401 {
-				// sleep for a bit to let the token refresh
-				time.Sleep(5 * time.Second)
-				refreshTwitchToken()
-				minMaxClipGetter(w, query, db)
-				return
-			}
-			defer resp.Body.Close()
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			type HelixClip struct {
-				Data []struct {
-					ThumbnailURL string `json:"thumbnail_url"`
-				} `json:"data"`
-			}
-			var clipResponse HelixClip
-			json.Unmarshal(body, &clipResponse)
-			if len(clipResponse.Data) == 0 {
-				fmt.Println("No data returned from helix api")
-				fmt.Println(string(body))
-				fmt.Println(clip)
-				continue
-			}
-			thumbnailUrl := clipResponse.Data[0].ThumbnailURL
-			db.Model(&ChatCounts{}).Where("clip_id = ?", clip.ClipID).Update("thumbnail", thumbnailUrl)
-			clips[i].Thumbnail = thumbnailUrl
-		} else {
-			clips[i].Thumbnail = instantFromDB.Thumbnail
-		}
-	}
-
-	marshalJsonAndWrite(w, map[string][]Clip{
-		"clips": clips,
-	})
 }
 
 func marshalJsonAndWrite(w http.ResponseWriter, data interface{}) {
