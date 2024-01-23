@@ -205,13 +205,13 @@ func main() {
 		}
 	}
 
-	// authErr := authorizeTwitch()
-	// if authErr != nil {
-	// 	fmt.Println(authErr)
-	// 	return
-	// }
+	authErr := authorizeTwitch()
+	if authErr != nil {
+		fmt.Println(authErr)
+		return
+	}
 
-	// go connectToTwitchChat(db)
+	go connectToTwitchChat(db)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
