@@ -156,6 +156,16 @@ export default function Dashboard() {
       },
     })) || ([] as Highcharts.SeriesOptionsType[]);
 
+  const lowestTime = chartData?.[0]?.time ?? 0;
+  const highestTime = chartData?.[chartData.length - 1]?.time ?? 0;
+
+  let timeRangeString = "";
+  if (lowestTime && highestTime) {
+    const lowestDate = new Date(lowestTime * 1000);
+    const highestDate = new Date(highestTime * 1000);
+    timeRangeString = `${lowestDate.toLocaleString()} - ${highestDate.toLocaleString()}`;
+  }
+
   const highChartsOptions: Highcharts.Options = {
     time: {
       getTimezoneOffset: function (timestamp: number) {
@@ -283,8 +293,9 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-100 lg:p-8 flex flex-col gap-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="flex flex-col gap-3">
-          <h1 className={"text-2xl m-5 font-semibold"}>
-            NL Chat Dashboard (est. 4/18/23)
+          <h1 className={"text-2xl m-5 font-semibold flex flex-col gap-4"}>
+            NL chat emote usage{" "}
+            <span className="text-gray-600 text-base">{timeRangeString}</span>
           </h1>
           <div ref={chartRef}>
             <HighchartsReact
