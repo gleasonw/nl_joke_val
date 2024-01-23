@@ -1,9 +1,9 @@
 WITH RollingSums AS (
     SELECT
         created_at,
-        SUM(lol) OVER (
+        SUM(two) OVER (
             ORDER BY created_at
-            RANGE BETWEEN INTERVAL '30 second' PRECEDING AND CURRENT ROW
+            RANGE BETWEEN INTERVAL '30 seconds' PRECEDING AND CURRENT ROW
         ) AS rolling_sum
     FROM
         chat_counts
@@ -11,28 +11,23 @@ WITH RollingSums AS (
 TopWindows AS (
     SELECT
         created_at AS window_end,
-        created_at - INTERVAL '30 second' AS window_start,
+        created_at - INTERVAL '30 seconds' AS window_start,
         rolling_sum
     FROM
         RollingSums
     ORDER BY
         rolling_sum DESC
-    LIMIT 10
 ),
 NonOverlappingWindows AS (
     SELECT *,
-        ROW_NUMBER() OVER (
-            ORDER BY rolling_sum DESC, window_end
-        ) AS window_rank,
-        COUNT(*) OVER (
-            PARTITION BY window_start, window_end
-        ) AS overlap_count
+        LAG(window_end) OVER (ORDER BY rolling_sum desc, window_end) AS prev_window_end
     FROM TopWindows
 ),
 FilteredWindows AS (
     SELECT *
     FROM NonOverlappingWindows
-    WHERE overlap_count = 1 OR window_rank = 1
+    WHERE NOT (window_end, window_start) OVERLAPS (prev_window_end - INTERVAL '2 minutes', prev_window_end + INTERVAL '2 minutes')
+    LIMIT 10
 ),
 RankedClips AS (
     SELECT
@@ -40,7 +35,7 @@ RankedClips AS (
         FW.window_end, FW.rolling_sum,
         ROW_NUMBER() OVER (
             PARTITION BY FW.window_end
-            ORDER BY FW.rolling_sum DESC
+            ORDER BY YT.created_at DESC
         ) AS rank
     FROM
         FilteredWindows FW

@@ -79,8 +79,8 @@ emote_type = Literal[
 @app.get("/clips")
 async def get_clips(
     emote: emote_type = "two",
-    span: SPAN_TYPE = "day",
-    sum_window: GROUPING_TYPE = "minute",
+    span: SPAN_TYPE = "1 day",
+    sum_window: GROUPING_TYPE = "1 minute",
     order: Literal["asc", "desc"] = "desc",
     limit: int = 10,
     cursor: int | None = None,

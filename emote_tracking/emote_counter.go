@@ -71,10 +71,9 @@ var val = reflect.ValueOf(ChatCounts{})
 var validColumnSet = make(map[string]bool)
 
 type Clip struct {
-	ClipID    string  `json:"clip_id"`
-	Count     int     `json:"count"`
-	Time      float64 `json:"time"`
-	Thumbnail string  `json:"thumbnail"`
+	ClipID string  `json:"clip_id"`
+	Count  int     `json:"count"`
+	Time   float64 `json:"time"`
 }
 
 type Message struct {
@@ -222,7 +221,28 @@ func main() {
 		return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
 	})
 
-	http.HandleFunc("/series", func(w http.ResponseWriter, r *http.Request) {
+	var seriesQueryFromTo = fmt.Sprintf(`
+	SELECT %s,
+		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+	FROM chat_counts 
+	WHERE created_at BETWEEN $2 AND $3
+	GROUP BY date_trunc($1, created_at) 
+	ORDER BY date_trunc($1, created_at) asc
+	`, baseSumStrings)
+
+	var seriesQueryMostRecent = fmt.Sprintf(`
+	SELECT %s,
+		EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+	FROM chat_counts
+	WHERE created_at > (
+		SELECT MAX(created_at) - $2::interval 
+		FROM chat_counts
+	)
+	GROUP BY date_trunc($1, created_at)
+	ORDER BY date_trunc($1, created_at) asc
+	`, baseSumStrings)
+
+	http.HandleFunc("/api/series", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(r.URL)
 		inputSpan := r.URL.Query().Get("span")
 		trailingSpan := ""
@@ -239,26 +259,9 @@ func main() {
 		rollingAverageString := ""
 		finalDbQuery := ""
 		if trailingSpan != "" {
-			finalDbQuery = fmt.Sprintf(`
-			SELECT %s,
-				EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-			FROM chat_counts
-			WHERE created_at > (
-				SELECT MAX(created_at) - $2::interval 
-				FROM chat_counts
-			)
-			GROUP BY date_trunc($1, created_at)
-			ORDER BY date_trunc($1, created_at) asc
-			`, baseSumStrings)
+			finalDbQuery = seriesQueryMostRecent
 		} else {
-			finalDbQuery = fmt.Sprintf(`
-			SELECT %s,
-				EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-			FROM chat_counts 
-			WHERE created_at BETWEEN $2 AND $3
-			GROUP BY date_trunc($1, created_at) 
-			ORDER BY date_trunc($1, created_at) asc
-			`, baseSumStrings)
+			finalDbQuery = seriesQueryFromTo
 		}
 
 		if rollingAverage != "0" && rollingAverage != "" {
@@ -306,6 +309,122 @@ func main() {
 
 	})
 
+	http.HandleFunc("/api/clip_counts", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(r.URL)
+		column_to_select := r.URL.Query()["column"]
+		span := r.URL.Query().Get("span")
+		grouping := r.URL.Query().Get("grouping")
+		order := r.URL.Query().Get("order")
+		limit := r.URL.Query().Get("limit")
+
+		switch grouping {
+		case "second", "minute", "hour", "day", "week", "month", "year":
+			break
+		default:
+			http.Error(w, fmt.Sprintf("invalid grouping: %s", grouping), http.StatusBadRequest)
+			return
+		}
+
+		// verify limit is an int
+		if limit != "" {
+			_, err := strconv.Atoi(limit)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid limit: %s", limit), http.StatusBadRequest)
+				return
+			}
+		} else {
+			limit = "100"
+		}
+
+		switch order {
+		case "asc", "desc":
+			break
+		default:
+			http.Error(w, fmt.Sprintf("invalid order: %s", order), http.StatusBadRequest)
+			return
+		}
+
+		var query string
+		timeSpan := "FROM chat_counts"
+
+		for _, column := range column_to_select {
+			_, ok := validColumnSet[column]
+			if !ok {
+				http.Error(w, fmt.Sprintf("invalid column: %s", column_to_select), http.StatusBadRequest)
+				return
+			}
+		}
+
+		switch span {
+		case "day", "week", "month", "year":
+
+			if span == "day" {
+				// a full day pulls clips from prior streams
+				span = "9 hours"
+			} else {
+				span = fmt.Sprintf("1 %s", span)
+			}
+
+			timeSpan = fmt.Sprintf(`
+				AND created_at >= (
+					SELECT MAX(created_at) - INTERVAL '%s'
+					FROM chat_counts
+				)`, span)
+		}
+
+		sum_clause := strings.Join(column_to_select, " + ")
+		not_null_clause := make([]string, 0, len(column_to_select))
+		for _, column := range column_to_select {
+			not_null_clause = append(not_null_clause, fmt.Sprintf("%s IS NOT NULL", column))
+		}
+
+		not_null_string := strings.Join(not_null_clause, " AND ")
+
+		query = fmt.Sprintf(`
+			SELECT SUM(sub.count) AS count, EXTRACT(epoch from time) as time, MIN(clip_id) as clip_id
+			FROM (
+				SELECT %s AS count, date_trunc('%s', created_at) as time, clip_id
+				FROM chat_counts
+				WHERE clip_id != ''
+				AND
+				%s
+				%s
+			) sub
+			GROUP BY time
+			ORDER BY count %s
+			LIMIT %s
+		`, sum_clause, grouping, not_null_string, timeSpan, order, limit)
+		var clips []Clip
+		err := db.Raw(query).Scan(&clips).Error
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		marshalJsonAndWrite(w, map[string][]Clip{
+			"clips": clips,
+		})
+	})
+
+	http.HandleFunc("/api/clip", func(w http.ResponseWriter, r *http.Request) {
+		t := r.URL.Query().Get("time")
+		var clip Clip
+		db.Raw(`
+		SELECT clip_id, EXTRACT(epoch from created_at) as time
+		FROM chat_counts 
+		WHERE EXTRACT(epoch from created_at) > $1::float + 10
+		AND EXTRACT(epoch from created_at) < $1::float + 20
+		LIMIT 1`, t).Scan(&clip)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		marshalJsonAndWrite(w, map[string]string{
+			"clip_id": clip.ClipID,
+			"time":    fmt.Sprintf("%f", clip.Time),
+		})
+	})
+
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
 	fmt.Println("Listening on port", port)
 
@@ -313,6 +432,7 @@ func main() {
 	if listenError != nil {
 		fmt.Println(listenError)
 	}
+
 }
 
 func marshalJsonAndWrite(w http.ResponseWriter, data interface{}) {
@@ -490,6 +610,7 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	if resp.StatusCode == 401 {
 		fmt.Println("unauthorized: ", auth)
 		refreshTwitchToken()
+		time.Sleep(5 * time.Second)
 	}
 	if resp.StatusCode == 404 {
 		isLive <- false

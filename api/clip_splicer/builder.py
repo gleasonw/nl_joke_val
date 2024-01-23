@@ -19,8 +19,17 @@ from moviepy.editor import (
 import json
 
 os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
-SPAN_TYPE = Literal["day", "week", "month", "all"]
-GROUPING_TYPE = Literal["30 seconds", "minute", "week", "day", "month", "all"]
+SPAN_TYPE = Literal["1 minute", "9 hours", "1 day", "1 week", "1 month", "1 year"]
+GROUPING_TYPE = Literal[
+    "second",
+    "30 seconds",
+    "1 minute",
+    "1 hour",
+    "1 week",
+    "1 day",
+    "1 month",
+    "1 year",
+]
 
 load_dotenv()
 
@@ -344,11 +353,18 @@ async def get_batched_twitch_clips(
 async def get_top_clips(
     conn: AsyncConnection,
     emote: str | None = EMOTE,
-    span: SPAN_TYPE | None = None,
-    sum_window: GROUPING_TYPE | None = "30 seconds",
+    span: SPAN_TYPE | None = "9 hours",
+    sum_window: GROUPING_TYPE | None = "second",
     order: Literal["asc", "desc"] | None = "desc",
 ) -> List[RollingChatCount]:
     emote_to_query = emote or EMOTE
+    if sum_window == "second":
+        sum_window = "30 seconds"
+    if sum_window == "all":
+        sum_window = "1 year"
+    if span == "day":
+        # otherwise we get clips from prior stream
+        span = "9 hours"
     async with conn.cursor(row_factory=class_row(RollingChatCount)) as cur:
         query = f"""
             SELECT SUM({emote_to_query}) OVER (
@@ -390,18 +406,20 @@ def grouping_type_to_seconds(grouping: GROUPING_TYPE) -> int:
     match grouping:
         case "second":
             return 1
-        case "minute":
+        case "1 minute":
             return 60
-        case "hour":
+        case "1 hour":
             return 60 * 60
-        case "day":
+        case "1 day":
             return 60 * 60 * 24
-        case "week":
+        case "1 week":
             return 60 * 60 * 24 * 7
-        case "month":
+        case "1 month":
             return 60 * 60 * 24 * 30
-        case "all":
+        case "1 year":
             return 60 * 60 * 24 * 365
+        case "30 seconds":
+            return 30
 
 
 def make_intervals_from_rolling_sums(
@@ -411,7 +429,8 @@ def make_intervals_from_rolling_sums(
     sum_window: GROUPING_TYPE | None = None,
 ) -> List[Tuple[datetime, int]]:
     discovered_top_intervals: List[Tuple[datetime, int]] = []
-    window_seconds = grouping_type_to_seconds(sum_window or "minute")
+    window_seconds = grouping_type_to_seconds(sum_window or "1 minute")
+    print(window_seconds)
 
     for count in top_windows:
         if len(discovered_top_intervals) >= limit:

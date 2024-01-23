@@ -47,17 +47,17 @@ export default function Dashboard() {
   const fromParam = params.get("from");
   const toParam = params.get("to");
   const trailingSpan = params.get("span") ?? "9 hours";
-
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
   >(undefined);
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | undefined>(
     undefined
   );
-
   const handleNavigate = useCallback(
     (newParam: { [key: string]: string | string[] | undefined }) => {
-      const paramsObject: { [key: string]: string | string[] } = {};
+      const paramsObject: {
+        [key: string]: string | string[];
+      } = {};
       params.forEach((value, key) => {
         const item = paramsObject[key];
         if (item) {
@@ -111,13 +111,16 @@ export default function Dashboard() {
     ],
     queryFn: async () => {
       const res = await fetch(
-        addQueryParamsIfExist(`${seriesAPI}/series`, {
-          grouping,
-          rolling_average: rollingAverage,
-          from: getFromParam().toISOString(),
-          to: getToParam().toISOString(),
-          span: trailingSpan,
-        })
+        addQueryParamsIfExist(
+          `https://nljokeval-production.up.railway.app/api/series`,
+          {
+            grouping,
+            rolling_average: rollingAverage,
+            from: getFromParam().toISOString(),
+            to: getToParam().toISOString(),
+            span: trailingSpan,
+          }
+        )
       );
       const jsonResponse = await res.json();
       const zodParse = SeriesData.safeParse(jsonResponse);
@@ -288,6 +291,7 @@ export default function Dashboard() {
               highcharts={Highcharts}
               options={highChartsOptions}
             />
+
             {tooltip && (
               <div
                 className={"w-96 transition-all"}
@@ -354,7 +358,10 @@ export default function Dashboard() {
               Last 9 hours of stream
             </Button>
             <DateRangePicker
-              value={{ from: getFromParam(), to: getToParam() }}
+              value={{
+                from: getFromParam(),
+                to: getToParam(),
+              }}
               onValueChange={(value: DateRangePickerValue) =>
                 handleNavigate({
                   from: value.from?.toISOString(),
@@ -407,7 +414,9 @@ export default function Dashboard() {
                 value={params.get("timeGrouping") ?? "minute"}
                 placeholder={"Group by"}
                 onValueChange={(value) =>
-                  handleNavigate({ timeGrouping: value })
+                  handleNavigate({
+                    timeGrouping: value,
+                  })
                 }
               >
                 {timeGroupings.map((grouping) => (
@@ -422,7 +431,9 @@ export default function Dashboard() {
                 value={params.get("rollingAverage") ?? "5"}
                 placeholder={"Smoothing"}
                 onValueChange={(value) =>
-                  handleNavigate({ rollingAverage: value })
+                  handleNavigate({
+                    rollingAverage: value,
+                  })
                 }
               >
                 {[0, 5, 10, 15, 30, 60].map((smoothing) => (
@@ -472,14 +483,19 @@ export function SettingsDropLayout({ children }: SettingsDropLayoutProps) {
   return <div className="flex gap-8 flex-wrap">{children}</div>;
 }
 
+type ClipData = {
+  clip_id: string;
+  time: number;
+};
+
 function TwitchClipAtTime(props: { time: number }) {
   const { isSuccess, data } = useQuery({
     queryKey: ["clip", props.time],
     queryFn: async () => {
-      const { data } = await GET("/nearest_clip", {
-        params: { query: { epoch_time: props.time } },
-      });
-      return data;
+      const res = await fetch(
+        `https://nljokeval-production.up.railway.app/api/clip?time=${props.time}`
+      );
+      return (await res.json()) as ClipData;
     },
     keepPreviousData: true,
   });
@@ -495,10 +511,11 @@ export type Clip = {
   clip_id: string;
   count: number;
   time: number;
-  thumbnail: string;
 };
 
-export type ClipBatch = Clip[];
+export type ClipBatch = {
+  clips: Clip[];
+};
 
 export function TwitchClip({
   clip_id,

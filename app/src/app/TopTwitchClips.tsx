@@ -1,20 +1,17 @@
 "use client";
-import {
-  Title,
-  Select,
-  SelectItem,
-  Card,
-  List,
-  ListItem,
-  Button,
-} from "@tremor/react";
+import { Title, Select, SelectItem, Card, Button } from "@tremor/react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { SeriesKeys, timeGroupings, seriesColors, SeriesKey } from "./types";
-import { TwitchClipThumbnail } from "./TwitchClipThumbnail";
-import { GET, SettingsDropLayout, TwitchClip, seriesEmotes } from "./dashboard";
-import { components } from "@/app/schema";
+import { timeGroupings, SeriesKey } from "./types";
+import {
+  Clip,
+  ClipBatch,
+  SettingsDropLayout,
+  TwitchClip,
+  seriesEmotes,
+} from "./dashboard";
+import { addQueryParamsIfExist } from "@/app/utils";
 
 export function TopTwitchClips({
   onNavigate,
@@ -35,22 +32,23 @@ export function TopTwitchClips({
   } = useQuery({
     queryKey: ["top_clips", span, grouping, emotes],
     queryFn: async () => {
-      const { data } = await GET("/clips", {
-        params: {
-          query: {
-            cursor: "0",
-            emote: emotes,
+      const res = await fetch(
+        addQueryParamsIfExist(
+          "https://nljokeval-production.up.railway.app/api/clip_counts",
+          {
+            column: emotes,
             span,
-            sum_window: grouping,
-          },
-        },
-      });
-      return data;
+            grouping,
+            order: "desc",
+          }
+        )
+      );
+      return (await res.json()) as ClipBatch;
     },
   });
 
-  const sortedClips = topClips
-    ?.sort((a, b) => b.rolling_sum - a.rolling_sum)
+  const sortedClips = topClips?.clips
+    ?.sort((a, b) => b.count - a.count)
     .filter((clip) => !!clip.clip_id);
 
   return (
@@ -79,7 +77,7 @@ export function TopTwitchClips({
             >
               {timeGroupings.map((grouping) => (
                 <SelectItem value={grouping} key={grouping}>
-                  {grouping == "second" ? "10 seconds" : grouping}
+                  {grouping == "second" ? "30 seconds" : grouping}
                 </SelectItem>
               ))}
             </Select>
@@ -105,11 +103,9 @@ export function TopTwitchClips({
   );
 }
 
-type RollingChatCount = components["schemas"]["RollingChatCount"];
-
 export interface ClipClickerProps {
   children?: React.ReactNode;
-  clips: RollingChatCount[];
+  clips: Clip[];
 }
 
 export function ClipClicker({ clips }: ClipClickerProps) {
@@ -126,11 +122,11 @@ export function ClipClicker({ clips }: ClipClickerProps) {
     <div className="flex flex-col gap-5">
       <div>
         <span className={"text-3xl"}>#{index + 1}</span>
-        <span className="pl-2 text-xl">({clip.rolling_sum})</span>
+        <span className="pl-2 text-xl">({clip.count})</span>
 
         <TwitchClip
           clip_id={clip.clip_id!}
-          time={new Date(clip.created_at).getTime() / 1000}
+          time={new Date(clip.time).getTime()}
         />
       </div>
       <div className="flex gap-2">

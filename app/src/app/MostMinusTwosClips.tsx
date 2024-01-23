@@ -1,11 +1,9 @@
 "use client";
-import { Title, Select, SelectItem, Card, List, ListItem } from "@tremor/react";
+import { Title, Select, SelectItem, Card } from "@tremor/react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { addQueryParamsIfExist } from "@/app/utils";
-import { clipAPI } from "@/app/apiURL";
-import { ClipBatch, GET, SettingsDropLayout } from "./dashboard";
-import { TwitchClipThumbnail } from "./TwitchClipThumbnail";
+import { ClipBatch, SettingsDropLayout } from "./dashboard";
 import { ClipClicker } from "@/app/TopTwitchClips";
 
 export function MostMinusTwosClips({
@@ -24,26 +22,26 @@ export function MostMinusTwosClips({
   } = useQuery({
     queryKey: ["minus_twos", span, grouping],
     queryFn: async () => {
-      const { data } = await GET("/clips", {
-        params: {
-          query: {
-            cursor: "0",
+      const rest = await fetch(
+        addQueryParamsIfExist(
+          "https://nljokeval-production.up.railway.app/api/clip_counts",
+          {
+            column: "two",
             span,
-            sum_window: grouping,
-            emote: ["two"],
+            grouping,
             order: "asc",
-          },
-        },
-      });
-      return data;
+          }
+        )
+      );
+      return (await rest.json()) as ClipBatch;
     },
   });
 
-  const sortedClips = minClips?.sort((a, b) => a.rolling_sum - b.rolling_sum);
+  const sortedClips = minClips?.clips.sort((a, b) => a.count - b.count);
 
   return (
     <Card className="flex gap-5 flex-col">
-      <div className={"flex flex-row gap-5 flex-wrap"}>
+      <div className={"flex flex-col gap-5"}>
         <Title>Lowest 2 count grouped by</Title>
         <SettingsDropLayout>
           <label>
