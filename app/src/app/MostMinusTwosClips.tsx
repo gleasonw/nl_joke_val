@@ -42,7 +42,7 @@ export function MostMinusTwosClips({
   return (
     <Card className="flex gap-5 flex-col">
       <div className={"flex flex-col gap-5"}>
-        <Title>Lowest 2 count grouped by</Title>
+        <Title>Lowest 2 count</Title>
         <SettingsDropLayout>
           <label>
             Bin size
