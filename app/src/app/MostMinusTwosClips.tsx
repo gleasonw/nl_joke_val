@@ -45,7 +45,7 @@ export function MostMinusTwosClips({
         <Title>Lowest 2 count grouped by</Title>
         <SettingsDropLayout>
           <label>
-            Grouped by
+            Bin size
             <Select
               value={grouping}
               onValueChange={(value) => onNavigate({ minClipGrouping: value })}
