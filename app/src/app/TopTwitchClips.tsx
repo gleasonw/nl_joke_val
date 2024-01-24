@@ -12,23 +12,23 @@ import {
   seriesEmotes,
 } from "./dashboard";
 import { addQueryParamsIfExist } from "@/app/utils";
+import { useDashboardUrl } from "@/app/hooks";
 
-export function TopTwitchClips({
-  onNavigate,
-}: {
-  onNavigate: (newParam: { [key: string]: string | string[] }) => void;
-}) {
-  const [sumEmotes, setSumEmotes] = useState(false);
-  const params = useSearchParams();
-  const emotes =
-    params.getAll("emote").length > 0 ? params.getAll("emote") : ["two"];
-  const grouping = params.get("maxClipGrouping") ?? "second";
-  const span = params.get("maxClipSpan") ?? "day";
+export function TopTwitchClips() {
+  const {
+    handleNavigate: onNavigate,
+    currentParams: {
+      maxClipGrouping: grouping,
+      maxClipSpan: span,
+      emotes,
+      maxClipIndex,
+    },
+  } = useDashboardUrl();
 
   const {
-    isSuccess,
     data: topClips,
     isLoading,
+    isRefetching,
   } = useQuery({
     queryKey: ["top_clips", span, grouping, emotes],
     queryFn: async () => {
@@ -45,6 +45,7 @@ export function TopTwitchClips({
       );
       return (await res.json()) as ClipBatch;
     },
+    keepPreviousData: true,
   });
 
   const sortedClips = topClips?.clips
@@ -98,7 +99,12 @@ export function TopTwitchClips({
           </label>
         </SettingsDropLayout>
       </div>
-      <ClipClicker clips={sortedClips ?? []} />
+      <ClipClicker
+        clips={sortedClips ?? []}
+        isLoading={isLoading || isRefetching}
+        index={maxClipIndex}
+        setIndex={(index) => onNavigate({ maxClipIndex: index })}
+      />
     </Card>
   );
 }
@@ -106,11 +112,17 @@ export function TopTwitchClips({
 export interface ClipClickerProps {
   children?: React.ReactNode;
   clips: Clip[];
+  isLoading: boolean;
+  index: number;
+  setIndex: (index: number) => void;
 }
 
-export function ClipClicker({ clips }: ClipClickerProps) {
-  const [index, setIndex] = useState(0);
-
+export function ClipClicker({
+  clips,
+  isLoading,
+  index,
+  setIndex,
+}: ClipClickerProps) {
   if (!clips || clips.length === 0) {
     return <div className="w-full h-96 bg-gray-100 animate-pulse" />;
   }
@@ -119,7 +131,7 @@ export function ClipClicker({ clips }: ClipClickerProps) {
   const totalClipCount = clips.length;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className={`flex flex-col gap-5 ${isLoading && "opacity-50"}`}>
       <div>
         <span className={"text-3xl"}>#{index + 1}</span>
         <span className="pl-2 text-xl">({clip.count})</span>

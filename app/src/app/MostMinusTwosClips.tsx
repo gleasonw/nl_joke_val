@@ -5,20 +5,23 @@ import { useSearchParams } from "next/navigation";
 import { addQueryParamsIfExist } from "@/app/utils";
 import { ClipBatch, SettingsDropLayout } from "./dashboard";
 import { ClipClicker } from "@/app/TopTwitchClips";
+import { useDashboardUrl } from "@/app/hooks";
 
-export function MostMinusTwosClips({
-  onNavigate,
-}: {
-  onNavigate: (newParam: { [key: string]: string | string[] }) => void;
-}) {
-  const params = useSearchParams();
-  const grouping = params.get("minClipGrouping") ?? "second";
-  const span = params.get("minClipSpan") ?? "day";
+export function MostMinusTwosClips() {
+  const {
+    handleNavigate: onNavigate,
+    currentParams: {
+      minClipGrouping: grouping,
+      minClipSpan: span,
+      minClipIndex,
+    },
+  } = useDashboardUrl();
 
   const {
     isSuccess,
     data: minClips,
     isLoading,
+    isRefetching,
   } = useQuery({
     queryKey: ["minus_twos", span, grouping],
     queryFn: async () => {
@@ -72,7 +75,12 @@ export function MostMinusTwosClips({
           </label>
         </SettingsDropLayout>
       </div>
-      <ClipClicker clips={sortedClips ?? []} />
+      <ClipClicker
+        clips={sortedClips ?? []}
+        isLoading={isLoading || isRefetching}
+        index={minClipIndex}
+        setIndex={(index) => onNavigate({ minClipIndex: index })}
+      />
     </Card>
   );
 }

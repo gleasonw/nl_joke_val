@@ -32,54 +32,31 @@ import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 import { MostMinusTwosClips } from "./MostMinusTwosClips";
 import { TopTwitchClips } from "./TopTwitchClips";
+import { useDashboardUrl } from "@/app/hooks";
 
 export const { GET } = createClient<paths>({ baseUrl: clipAPI });
 
 export default function Dashboard() {
-  const params = useSearchParams();
-  const router = useRouter();
-  const series =
-    params.getAll("series").length > 0 ? params.getAll("series") : ["two"];
-
-  const chartType = params.get("chartType") ?? "line";
-  const grouping = params.get("timeGrouping") ?? "minute";
-  const rollingAverage = params.get("rollingAverage") ?? "5";
-  const fromParam = params.get("from");
-  const toParam = params.get("to");
-  const trailingSpan = params.get("span") ?? "9 hours";
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
   >(undefined);
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | undefined>(
     undefined
   );
-  const handleNavigate = useCallback(
-    (newParam: { [key: string]: string | string[] | undefined }) => {
-      const paramsObject: {
-        [key: string]: string | string[];
-      } = {};
-      params.forEach((value, key) => {
-        const item = paramsObject[key];
-        if (item) {
-          if (Array.isArray(item)) {
-            item.push(value);
-          } else {
-            paramsObject[key] = [item, value];
-          }
-        } else {
-          paramsObject[key] = value;
-        }
-      });
-      router.push(
-        addQueryParamsIfExist("/", {
-          ...paramsObject,
-          ...newParam,
-        }),
-        { scroll: false }
-      );
+
+  const {
+    handleNavigate,
+    currentParams: {
+      series,
+      seriesGrouping: grouping,
+      rollingAverage,
+      fromParam,
+      toParam,
+      chartType,
+      trailingSpan,
+      seriesSpan: span,
     },
-    [params, router]
-  );
+  } = useDashboardUrl();
 
   const SeriesData = SeriesDataSchema.array();
 
@@ -287,8 +264,6 @@ export default function Dashboard() {
     span: "1 minute",
   };
 
-  const span = params.get("span");
-
   return (
     <div className="min-h-screen bg-gray-100 lg:p-8 flex flex-col gap-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -422,7 +397,7 @@ export default function Dashboard() {
               Group By
               <Select
                 id="groupBySelect"
-                value={params.get("timeGrouping") ?? "minute"}
+                value={grouping}
                 placeholder={"Group by"}
                 onValueChange={(value) =>
                   handleNavigate({
@@ -439,7 +414,7 @@ export default function Dashboard() {
               Smoothing
               <Select
                 id="smoothing"
-                value={params.get("rollingAverage") ?? "5"}
+                value={rollingAverage.toString()}
                 placeholder={"Smoothing"}
                 onValueChange={(value) =>
                   handleNavigate({
@@ -458,7 +433,7 @@ export default function Dashboard() {
               Chart Type
               <Select
                 id="chartTypeSelect"
-                value={params.get("chartType") ?? "line"}
+                value={chartType}
                 placeholder={"Chart type"}
                 onValueChange={(value) =>
                   handleNavigate({
@@ -478,8 +453,8 @@ export default function Dashboard() {
         </Card>
 
         <div className={"flex flex-col gap-8"}>
-          <TopTwitchClips onNavigate={handleNavigate} />
-          <MostMinusTwosClips onNavigate={handleNavigate} />
+          <TopTwitchClips />
+          <MostMinusTwosClips />
         </div>
       </div>
     </div>
