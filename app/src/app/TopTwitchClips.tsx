@@ -71,14 +71,14 @@ export function TopTwitchClips() {
             </Select>
           </label>
           <label>
-            Grouped by
+            Bin size
             <Select
               value={grouping}
               onValueChange={(value) => onNavigate({ maxClipGrouping: value })}
             >
               {timeGroupings.map((grouping) => (
                 <SelectItem value={grouping} key={grouping}>
-                  {grouping == "second" ? "30 seconds" : grouping}
+                  {grouping == "second" ? "10 seconds" : grouping}
                 </SelectItem>
               ))}
             </Select>
