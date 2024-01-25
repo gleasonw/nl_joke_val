@@ -6,43 +6,46 @@ WITH RollingSums AS (
             RANGE BETWEEN INTERVAL '30 seconds' PRECEDING AND CURRENT ROW
         ) AS rolling_sum
     FROM
-        chat_counts
+        chat_counts ORDER BY rolling_sum desc LIMIT 1000
 ),
-TopWindows AS (
-    SELECT
-        created_at AS window_end,
-        created_at - INTERVAL '30 seconds' AS window_start,
-        rolling_sum
-    FROM
+RankedIntervals AS (
+    SELECT 
+        created_at, 
+        rolling_sum,
+        ROW_NUMBER() OVER (ORDER BY rolling_sum DESC, created_at asc) AS rn
+    FROM 
         RollingSums
-    ORDER BY
-        rolling_sum DESC
 ),
-NonOverlappingWindows AS (
-    SELECT *,
-        LAG(window_end) OVER (ORDER BY rolling_sum desc, window_end) AS prev_window_end
-    FROM TopWindows
-),
-FilteredWindows AS (
-    SELECT *
-    FROM NonOverlappingWindows
-    WHERE NOT (window_end, window_start) OVERLAPS (prev_window_end - INTERVAL '2 minutes', prev_window_end + INTERVAL '2 minutes')
-    LIMIT 10
-),
-RankedClips AS (
+FilteredIntervals AS (
     SELECT
-        YT.*,
-        FW.window_end, FW.rolling_sum,
-        ROW_NUMBER() OVER (
-            PARTITION BY FW.window_end
-            ORDER BY YT.created_at DESC
-        ) AS rank
-    FROM
-        FilteredWindows FW
-    JOIN
-        chat_counts YT ON YT.created_at BETWEEN FW.window_start AND FW.window_end
+        r1.created_at AS max_created_at,
+        r1.rolling_sum
+    FROM 
+        RankedIntervals r1
+    WHERE 
+        NOT EXISTS (
+            SELECT 1
+            FROM RankedIntervals r2
+            WHERE 
+                r2.rn < r1.rn
+                AND r2.created_at >= r1.created_at - INTERVAL '5 minutes'
+                AND r2.created_at <= r1.created_at + INTERVAL '5 minutes'
+        )
+    LIMIT 50
 )
-SELECT *
-FROM RankedClips
-WHERE rank = 1
-ORDER BY rolling_sum DESC, window_end;
+SELECT
+    fi.max_created_at,
+    fi.rolling_sum,
+    cc.created_at AS closest_created_at, cc.clip_id
+FROM
+    FilteredIntervals fi
+JOIN
+    chat_counts cc
+ON
+    cc.created_at = (
+        SELECT created_at
+        FROM chat_counts
+        WHERE created_at <= fi.max_created_at - INTERVAL '9 seconds' AND clip_id != ''
+        ORDER BY created_at DESC
+        LIMIT 1
+    );
