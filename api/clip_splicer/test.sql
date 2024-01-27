@@ -3,7 +3,7 @@ WITH RollingSums AS (
     created_at,
     SUM(lol) OVER (                                                   
       ORDER BY created_at                                                                     
-      RANGE BETWEEN INTERVAL '20 seconds' PRECEDING AND CURRENT ROW
+      RANGE BETWEEN INTERVAL '25 seconds' PRECEDING AND CURRENT ROW
     ) AS rolling_sum
   FROM
     chat_counts
@@ -50,7 +50,7 @@ FilteredIntervals AS (
     cc.created_at = (
       SELECT created_at
       FROM chat_counts
-      WHERE created_at BETWEEN fi.max_created_at - INTERVAL '22 seconds' AND fi.max_created_at + INTERVAL '1 second'
+      WHERE created_at BETWEEN fi.max_created_at - INTERVAL '25 seconds' AND fi.max_created_at + INTERVAL '1 second'
       ORDER BY lol DESC
       LIMIT 1
     );
