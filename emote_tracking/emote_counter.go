@@ -201,17 +201,13 @@ func main() {
 	router := chi.NewMux()
 	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello World!"))
-	})
-
 	huma.Register(api, huma.Operation{
 		OperationID: "get-series",
 		Summary:     "Get a time series of emote counts",
 		Method:      http.MethodGet,
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
-		return GetSeries(w, r, db), nil
+		return GetSeries(*input, db)
 	})
 
 	huma.Register(api, huma.Operation{
@@ -219,9 +215,8 @@ func main() {
 		Summary:     "Get the rolling average of a time series of emote counts",
 		Method:      http.MethodGet,
 		Path:        "/api/average_series",
-	}, func(ctx context.Context, input *SeriesInput) (*AverageSeriesOutput, error) {
-		// Replace 'CalculateAverageSeries' with your actual logic to calculate the average
-		return GetAverageSeries(ctx, input, db), nil
+	}, func(ctx context.Context, input *SeriesInput) (*AveragedSeriesOutput, error) {
+		return GetRollingAverageSeries(*input, db)
 	})
 
 	huma.Register(api, huma.Operation{
@@ -230,7 +225,7 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/clip_counts",
 	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
-		return GetClipCounts(w, r, db), nil
+		return GetClipCounts(*input, db)
 	})
 
 	huma.Register(api, huma.Operation{
@@ -239,7 +234,7 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/clip",
 	}, func(ctx context.Context, input *NearestClipInput) (*NearestClipOutput, error) {
-		return GetNearestClip(w, r, db), nil
+		return GetNearestClip(*input, db)
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))

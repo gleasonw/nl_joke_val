@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	"gorm.io/gorm"
@@ -26,7 +25,7 @@ type ClipCountsOutput struct {
 	Clips []Clip `json:"clips"`
 }
 
-func GetClipCounts(w http.ResponseWriter, p ClipCountsInput, db *gorm.DB) ClipCountsOutput {
+func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 	var query string
 
 	timeSpan := "FROM chat_counts"
@@ -72,13 +71,13 @@ func GetClipCounts(w http.ResponseWriter, p ClipCountsInput, db *gorm.DB) ClipCo
 	var clips []Clip
 	err := db.Raw(query).Scan(&clips).Error
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return ClipCountsOutput{}
+		fmt.Println(err)
+		return &ClipCountsOutput{}, err
 	}
 
-	return ClipCountsOutput{
+	return &ClipCountsOutput{
 		Clips: clips,
-	}
+	}, nil
 }
 
 type NearestClipInput struct {
@@ -90,7 +89,7 @@ type NearestClipOutput struct {
 	Time   string `json:"time"`
 }
 
-func GetNearestClip(w http.ResponseWriter, p NearestClipInput, db *gorm.DB) NearestClipOutput {
+func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error) {
 	var clip Clip
 	dbError := db.Raw(`
 		SELECT clip_id, EXTRACT(epoch from created_at) as time
@@ -101,12 +100,12 @@ func GetNearestClip(w http.ResponseWriter, p NearestClipInput, db *gorm.DB) Near
 
 	if dbError != nil {
 		fmt.Println(dbError)
-		return NearestClipOutput{}
+		return &NearestClipOutput{}, dbError
 	}
 
-	return NearestClipOutput{
+	return &NearestClipOutput{
 		ClipID: clip.ClipID,
 		Time:   fmt.Sprintf("%f", clip.Time),
-	}
+	}, nil
 
 }

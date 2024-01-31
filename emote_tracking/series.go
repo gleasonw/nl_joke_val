@@ -2,13 +2,77 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"reflect"
 	"strings"
 
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 )
+
+type SeriesInput struct {
+	Span           string
+	Grouping       string
+	RollingAverage int
+	From           string
+	To             string
+}
+
+type SeriesOutput struct {
+	Body []ChatCounts
+}
+
+type AveragedSeriesOutput struct {
+	Body []AveragedChatCounts
+}
+
+func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
+	var result = []ChatCounts{}
+
+	dbError := db.Raw(getTimeFilterSQL(p), p.Grouping, p.From, p.To).Scan(&result).Error
+
+	if dbError != nil {
+		fmt.Println(dbError)
+		return &SeriesOutput{}, dbError
+	}
+
+	return &SeriesOutput{result}, nil
+
+}
+
+func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*AveragedSeriesOutput, error) {
+	rollingAverageString := buildStringForEachColumn(func(fieldName string) string {
+		return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, p.RollingAverage, fieldName)
+	})
+	result := []AveragedChatCounts{}
+
+	query := fmt.Sprintf(`
+	WITH base_sum AS (%s)
+	SELECT %s ,
+	created_epoch
+	FROM base_sum
+	`, getTimeFilterSQL(p), rollingAverageString)
+
+	dbError := db.Raw(query, p.Grouping, p.From, p.To).Scan(&result).Error
+	if dbError != nil {
+		fmt.Println(dbError)
+		return &AveragedSeriesOutput{}, dbError
+	}
+
+	return &AveragedSeriesOutput{result}, nil
+}
+
+func buildStringForEachColumn(fn func(string) string) string {
+	val := reflect.ValueOf(ChatCounts{})
+	typeOfS := val.Type()
+	columnStrings := make([]string, 0, val.NumField())
+	for i := 0; i < val.NumField(); i++ {
+		fieldName := typeOfS.Field(i).Tag.Get("json")
+		if fieldName != "-" && fieldName != "time" {
+			columnStrings = append(columnStrings, fn(fieldName))
+		}
+	}
+	return strings.Join(columnStrings, ",\n")
+}
 
 var baseSumStrings = buildStringForEachColumn(func(fieldName string) string {
 	return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
@@ -35,78 +99,9 @@ GROUP BY date_trunc($1, created_at)
 ORDER BY date_trunc($1, created_at) asc
 `, baseSumStrings)
 
-func buildStringForEachColumn(fn func(string) string) string {
-	val := reflect.ValueOf(ChatCounts{})
-	typeOfS := val.Type()
-	columnStrings := make([]string, 0, val.NumField())
-	for i := 0; i < val.NumField(); i++ {
-		fieldName := typeOfS.Field(i).Tag.Get("json")
-		if fieldName != "-" && fieldName != "time" {
-			columnStrings = append(columnStrings, fn(fieldName))
-		}
-	}
-	return strings.Join(columnStrings, ",\n")
-}
-
-type SeriesInput struct {
-	Span           string
-	Grouping       string
-	RollingAverage int
-	From           string
-	To             string
-}
-
-type SeriesOutput struct {
-	Body []ChatCounts
-}
-
-type AveragedSeriesOutput struct {
-	Body []AveragedChatCounts
-}
-
-func GetSeries(w http.ResponseWriter, p SeriesInput, db *gorm.DB) SeriesOutput {
-	finalDbQuery := ""
-
+func getTimeFilterSQL(p SeriesInput) string {
 	if p.Span != "" {
-		finalDbQuery = seriesQuerySinceSpan
-	} else {
-		finalDbQuery = seriesQueryFromTo
+		return seriesQuerySinceSpan
 	}
-
-	if p.RollingAverage > 0 {
-		return getRollingAverageSeries(w, p, db, finalDbQuery)
-	}
-
-	var result = []ChatCounts{}
-
-	dbError := db.Raw(finalDbQuery, p.Grouping, p.From, p.To).Scan(&result).Error
-	if dbError != nil {
-		fmt.Println(dbError)
-		return SeriesOutput{}
-	}
-
-	return SeriesOutput{result}
-
-}
-
-func getRollingAverageSeries(w http.ResponseWriter, p SeriesInput, db *gorm.DB, finalDbQuery string) AveragedSeriesOutput {
-	rollingAverageString := buildStringForEachColumn(func(fieldName string) string {
-		return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, p.RollingAverage, fieldName)
-	})
-	result := []AveragedChatCounts{}
-
-	finalDbQuery = fmt.Sprintf(`
-	WITH base_sum AS (%s)
-	SELECT %s ,
-	created_epoch
-	FROM base_sum
-	`, finalDbQuery, rollingAverageString)
-
-	dbError := db.Raw(finalDbQuery, p.Grouping, p.From, p.To).Scan(&result).Error
-	if dbError != nil {
-		fmt.Println(dbError)
-		return AveragedSeriesOutput{}
-	}
-
-	return AveragedSeriesOutput{result}
+	return seriesQueryFromTo
 }
