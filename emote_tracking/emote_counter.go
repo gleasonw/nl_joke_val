@@ -190,13 +190,13 @@ func main() {
 		}
 	}
 
-	authErr := authorizeTwitch()
-	if authErr != nil {
-		fmt.Println(authErr)
-		return
-	}
+	// authErr := authorizeTwitch()
+	// if authErr != nil {
+	// 	fmt.Println(authErr)
+	// 	return
+	// }
 
-	go connectToTwitchChat(db)
+	// go connectToTwitchChat(db)
 
 	router := chi.NewMux()
 	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
@@ -207,6 +207,7 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
+		fmt.Println("input", input)
 		return GetSeries(*input, db)
 	})
 

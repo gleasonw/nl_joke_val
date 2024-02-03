@@ -4,17 +4,21 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
+// weird things:
+// no error if no path in struct
+
 type SeriesInput struct {
-	Span           string
-	Grouping       string
-	RollingAverage int
-	From           string
-	To             string
+	Span           string    `query:"span" enum:"day,week,month,year"`
+	Grouping       string    `query:"grouping" enum:"10 seconds,30 seconds,1 minute,5 minutes"`
+	RollingAverage int       `query:"rolling_average"`
+	From           time.Time `query:"from"`
+	To             time.Time `query:"to"`
 }
 
 type SeriesOutput struct {
