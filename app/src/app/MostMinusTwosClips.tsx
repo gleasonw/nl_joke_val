@@ -1,7 +1,6 @@
 "use client";
 import { Title, Select, SelectItem, Card } from "@tremor/react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
 import { addQueryParamsIfExist } from "@/app/utils";
 import { ClipBatch, SettingsDropLayout } from "./dashboard";
 import { ClipClicker } from "@/app/TopTwitchClips";

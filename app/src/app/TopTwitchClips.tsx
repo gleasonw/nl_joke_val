@@ -1,8 +1,6 @@
 "use client";
 import { Title, Select, SelectItem, Card, Button } from "@tremor/react";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
 import { timeGroupings, SeriesKey } from "./types";
 import {
   Clip,

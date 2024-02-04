@@ -10,12 +10,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// weird things:
-// no error if no path in struct
-
 type SeriesInput struct {
-	Span           string    `query:"span" enum:"day,week,month,year"`
-	Grouping       string    `query:"grouping" enum:"10 seconds,30 seconds,1 minute,5 minutes"`
+	Span           string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours" default:"9 hours"`
+	Grouping       string    `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
 	RollingAverage int       `query:"rolling_average"`
 	From           time.Time `query:"from"`
 	To             time.Time `query:"to"`
@@ -25,14 +22,55 @@ type SeriesOutput struct {
 	Body []ChatCounts
 }
 
-type AveragedSeriesOutput struct {
-	Body []AveragedChatCounts
+var baseFromToQuery = `
+SELECT %s,
+EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+FROM chat_counts 
+WHERE created_at BETWEEN $2 AND $3
+GROUP BY date_trunc($1, created_at) 
+ORDER BY date_trunc($1, created_at) asc
+`
+
+var baseSinceSpanQuery = `
+SELECT %s,
+EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
+FROM chat_counts
+WHERE created_at > (
+SELECT MAX(created_at) - $2::interval 
+FROM chat_counts
+)
+GROUP BY date_trunc($1, created_at)
+ORDER BY date_trunc($1, created_at) asc
+`
+
+var baseSumStrings = buildStringForEachColumn(func(fieldName string) string {
+	return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
+})
+
+func tempColumnSumName(fieldName string) string {
+	return fieldName + "_sum"
 }
+
+// we rename the column to avoid conflict with later averaged sum
+var averagedSumStrings = buildStringForEachColumn(func(fieldName string) string {
+	return fmt.Sprintf("SUM(%s) as %s", fieldName, tempColumnSumName(fieldName))
+})
+
+var queryFromTo = fmt.Sprintf(baseFromToQuery, baseSumStrings)
+var querySinceSpan = fmt.Sprintf(baseSinceSpanQuery, baseSumStrings)
+
+var averagedQueryFromTo = fmt.Sprintf(baseFromToQuery, averagedSumStrings)
+var averagedQuerySinceSpan = fmt.Sprintf(baseSinceSpanQuery, averagedSumStrings)
 
 func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 	var result = []ChatCounts{}
+	var dbError error
 
-	dbError := db.Raw(getTimeFilterSQL(p), p.Grouping, p.From, p.To).Scan(&result).Error
+	if !p.From.IsZero() && !p.To.IsZero() {
+		dbError = db.Raw(queryFromTo, p.Grouping, p.From, p.To).Scan(&result).Error
+	} else {
+		dbError = db.Raw(querySinceSpan, p.Grouping, p.Span).Scan(&result).Error
+	}
 
 	if dbError != nil {
 		fmt.Println(dbError)
@@ -43,26 +81,34 @@ func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 
 }
 
-func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*AveragedSeriesOutput, error) {
+func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 	rollingAverageString := buildStringForEachColumn(func(fieldName string) string {
-		return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as avg_%s", fieldName, p.RollingAverage, fieldName)
+		return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as %s", tempColumnSumName(fieldName), p.RollingAverage, fieldName)
 	})
-	result := []AveragedChatCounts{}
+	result := []ChatCounts{}
+	var dbError error
 
-	query := fmt.Sprintf(`
+	baseQuery := `
 	WITH base_sum AS (%s)
 	SELECT %s ,
 	created_epoch
 	FROM base_sum
-	`, getTimeFilterSQL(p), rollingAverageString)
+	`
 
-	dbError := db.Raw(query, p.Grouping, p.From, p.To).Scan(&result).Error
-	if dbError != nil {
-		fmt.Println(dbError)
-		return &AveragedSeriesOutput{}, dbError
+	if !p.From.IsZero() && !p.To.IsZero() {
+		query := fmt.Sprintf(baseQuery, averagedQueryFromTo, rollingAverageString)
+		dbError = db.Raw(query, p.Grouping, p.From, p.To).Scan(&result).Error
+	} else {
+		query := fmt.Sprintf(baseQuery, averagedQuerySinceSpan, rollingAverageString)
+		dbError = db.Raw(query, p.Grouping, p.Span).Scan(&result).Error
 	}
 
-	return &AveragedSeriesOutput{result}, nil
+	if dbError != nil {
+		fmt.Println(dbError)
+		return &SeriesOutput{}, dbError
+	}
+
+	return &SeriesOutput{result}, nil
 }
 
 func buildStringForEachColumn(fn func(string) string) string {
@@ -76,36 +122,4 @@ func buildStringForEachColumn(fn func(string) string) string {
 		}
 	}
 	return strings.Join(columnStrings, ",\n")
-}
-
-var baseSumStrings = buildStringForEachColumn(func(fieldName string) string {
-	return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
-})
-
-var seriesQueryFromTo = fmt.Sprintf(`
-SELECT %s,
-EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-FROM chat_counts 
-WHERE created_at BETWEEN $2 AND $3
-GROUP BY date_trunc($1, created_at) 
-ORDER BY date_trunc($1, created_at) asc
-`, baseSumStrings)
-
-var seriesQuerySinceSpan = fmt.Sprintf(`
-SELECT %s,
-EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-FROM chat_counts
-WHERE created_at > (
-SELECT MAX(created_at) - $2::interval 
-FROM chat_counts
-)
-GROUP BY date_trunc($1, created_at)
-ORDER BY date_trunc($1, created_at) asc
-`, baseSumStrings)
-
-func getTimeFilterSQL(p SeriesInput) string {
-	if p.Span != "" {
-		return seriesQuerySinceSpan
-	}
-	return seriesQueryFromTo
 }

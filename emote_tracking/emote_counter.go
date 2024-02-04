@@ -25,54 +25,27 @@ import (
 )
 
 type ChatCounts struct {
-	Classic      int       `json:"classic"`
-	MonkaGiga    int       `json:"monka_giga"`
-	Two          int       `json:"two"`
-	Lol          int       `json:"lol"`
-	Cereal       int       `json:"cereal"`
-	Monkas       int       `json:"monkas"`
-	Joel         int       `json:"joel"`
-	Pog          int       `json:"pog"`
-	Huh          int       `json:"huh"`
-	No           int       `json:"no"`
-	Cocka        int       `json:"cocka"`
-	WhoAsked     int       `json:"who_asked"`
-	Shock        int       `json:"shock"`
-	Copium       int       `json:"copium"`
-	Ratjam       int       `json:"ratjam"`
-	Sure         int       `json:"sure"`
+	Classic      float64   `json:"classic"`
+	MonkaGiga    float64   `json:"monka_giga"`
+	Two          float64   `json:"two"`
+	Lol          float64   `json:"lol"`
+	Cereal       float64   `json:"cereal"`
+	Monkas       float64   `json:"monkas"`
+	Joel         float64   `json:"joel"`
+	Pog          float64   `json:"pog"`
+	Huh          float64   `json:"huh"`
+	No           float64   `json:"no"`
+	Cocka        float64   `json:"cocka"`
+	WhoAsked     float64   `json:"who_asked"`
+	Shock        float64   `json:"shock"`
+	Copium       float64   `json:"copium"`
+	Ratjam       float64   `json:"ratjam"`
+	Sure         float64   `json:"sure"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
 	CreatedEpoch float64   `json:"time"`
 }
-
-// keep the json the same, but we need the name to reflect the db avg_*
-type AveragedChatCounts struct {
-	AvgMonkaGiga float64   `json:"monka_giga"`
-	AvgClassic   float64   `json:"classic"`
-	AvgTwo       float64   `json:"two"`
-	AvgLol       float64   `json:"lol"`
-	AvgCereal    float64   `json:"cereal"`
-	AvgMonkas    float64   `json:"monkas"`
-	AvgJoel      float64   `json:"joel"`
-	AvgPog       float64   `json:"pog"`
-	AvgHuh       float64   `json:"huh"`
-	AvgNo        float64   `json:"no"`
-	AvgCocka     float64   `json:"cocka"`
-	AvgWhoAsked  float64   `json:"who_asked"`
-	AvgShock     float64   `json:"shock"`
-	AvgCopium    float64   `json:"copium"`
-	AvgRatjam    float64   `json:"ratjam"`
-	AvgSure      float64   `json:"sure"`
-	CreatedAt    time.Time `gorm:"index" json:"-"`
-	ClipId       string    `json:"-"`
-	Thumbnail    string    `json:"-"`
-	CreatedEpoch float64   `json:"time"`
-}
-
-var val = reflect.ValueOf(ChatCounts{})
-var validColumnSet = make(map[string]bool)
 
 type Message struct {
 	Type int
@@ -165,6 +138,9 @@ func refreshTwitchToken() {
 	refreshToken = twitchResponse.RefreshToken
 }
 
+var val = reflect.ValueOf(ChatCounts{})
+var validColumnSet = make(map[string]bool)
+
 func main() {
 	if client_id == "" {
 		//load .env file
@@ -183,6 +159,7 @@ func main() {
 	}
 	db.AutoMigrate(&ChatCounts{})
 
+	// build validColumnSet
 	for i := 0; i < val.NumField(); i++ {
 		jsonTag := val.Type().Field(i).Tag.Get("json")
 		if jsonTag != "-" && jsonTag != "time" {
@@ -207,17 +184,10 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
-		fmt.Println("input", input)
+		if input.RollingAverage > 0 {
+			return GetRollingAverageSeries(*input, db)
+		}
 		return GetSeries(*input, db)
-	})
-
-	huma.Register(api, huma.Operation{
-		OperationID: "get-average-series",
-		Summary:     "Get the rolling average of a time series of emote counts",
-		Method:      http.MethodGet,
-		Path:        "/api/average_series",
-	}, func(ctx context.Context, input *SeriesInput) (*AveragedSeriesOutput, error) {
-		return GetRollingAverageSeries(*input, db)
 	})
 
 	huma.Register(api, huma.Operation{
@@ -247,19 +217,6 @@ func main() {
 		fmt.Println(listenError)
 	}
 
-}
-
-func marshalJsonAndWrite(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	w.Write(jsonData)
 }
 
 func connectToTwitchChat(db *gorm.DB) {
@@ -307,7 +264,7 @@ func connectToTwitchChat(db *gorm.DB) {
 			case msg := <-incomingMessages:
 				full_message := string(msg.Data)
 				only_message_text := split_and_get_last(full_message, "#northernlion")
-				emotesAndKeywords := map[string]*int{
+				emotesAndKeywords := map[string]*float64{
 					"LUL":                 &counter.Lol,
 					"ICANT":               &counter.Lol,
 					"KEKW":                &counter.Lol,
@@ -385,7 +342,7 @@ func split_and_get_last(text string, splitter string) string {
 	return split_text[last]
 }
 
-func parse_val(text string) int {
+func parse_val(text string) float64 {
 	if strings.Contains(text, "2") {
 		return 2
 	}
