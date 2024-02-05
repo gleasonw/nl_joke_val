@@ -47,20 +47,8 @@ var baseSumStrings = buildStringForEachColumn(func(fieldName string) string {
 	return fmt.Sprintf("SUM(%s) as %s", fieldName, fieldName)
 })
 
-func tempColumnSumName(fieldName string) string {
-	return fieldName + "_sum"
-}
-
-// we rename the column to avoid conflict with later averaged sum
-var averagedSumStrings = buildStringForEachColumn(func(fieldName string) string {
-	return fmt.Sprintf("SUM(%s) as %s", fieldName, tempColumnSumName(fieldName))
-})
-
 var queryFromTo = fmt.Sprintf(baseFromToQuery, baseSumStrings)
 var querySinceSpan = fmt.Sprintf(baseSinceSpanQuery, baseSumStrings)
-
-var averagedQueryFromTo = fmt.Sprintf(baseFromToQuery, averagedSumStrings)
-var averagedQuerySinceSpan = fmt.Sprintf(baseSinceSpanQuery, averagedSumStrings)
 
 func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 	var result = []ChatCounts{}
@@ -80,6 +68,18 @@ func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 	return &SeriesOutput{result}, nil
 
 }
+
+func tempColumnSumName(fieldName string) string {
+	return fieldName + "_sum"
+}
+
+// we rename the column to avoid conflict with later averaged sum
+var averagedSumStrings = buildStringForEachColumn(func(fieldName string) string {
+	return fmt.Sprintf("SUM(%s) as %s", fieldName, tempColumnSumName(fieldName))
+})
+
+var averagedQueryFromTo = fmt.Sprintf(baseFromToQuery, averagedSumStrings)
+var averagedQuerySinceSpan = fmt.Sprintf(baseSinceSpanQuery, averagedSumStrings)
 
 func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 	rollingAverageString := buildStringForEachColumn(func(fieldName string) string {
