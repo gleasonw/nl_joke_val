@@ -37,6 +37,8 @@ type ChatCounts struct {
 	Copium       int       `json:"copium"`
 	Ratjam       int       `json:"ratjam"`
 	Sure         int       `json:"sure"`
+	Caught       int       `json:"caught"`
+	Life         int       `json:"life"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
@@ -61,6 +63,8 @@ type AveragedChatCounts struct {
 	AvgCopium    float64   `json:"copium"`
 	AvgRatjam    float64   `json:"ratjam"`
 	AvgSure      float64   `json:"sure"`
+	AvgCaught    float64   `json:"caught"`
+	AvgLife      float64   `json:"life"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
@@ -512,6 +516,8 @@ func connectToTwitchChat(db *gorm.DB) {
 					"ratJAM":              &counter.Ratjam,
 					"Sure":                &counter.Sure,
 					"Classic":             &counter.Classic,
+					"CAUGHT":              &counter.Caught,
+					"Life":                &counter.Life,
 					"monkaGIGAftRyanGary": &counter.MonkaGiga,
 				}
 
