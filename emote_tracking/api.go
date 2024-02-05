@@ -173,7 +173,7 @@ func main() {
 	// 	return
 	// }
 
-	// go connectToTwitchChat(db)
+	// go connectToTwitchChat(db, lionIsLive, setLionIsLive)
 
 	router := chi.NewMux()
 	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
@@ -206,6 +206,26 @@ func main() {
 		Path:        "/api/clip",
 	}, func(ctx context.Context, input *NearestClipInput) (*NearestClipOutput, error) {
 		return GetNearestClip(*input, db)
+	})
+
+	type IsLiveInput struct{}
+	type IsLiveOutput struct {
+		IsLive bool `json:"is_live"`
+	}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "is-nl-live",
+		Summary:     "Is NL live",
+		Method:      http.MethodGet,
+		Path:        "/api/is_live",
+	}, func(ctx context.Context, input *IsLiveInput) (*IsLiveOutput, error) {
+		testClip := doCreateClipRequest()
+
+		if len(testClip.Data) > 0 {
+			return &IsLiveOutput{IsLive: true}, nil
+		}
+
+		return &IsLiveOutput{IsLive: false}, nil
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
@@ -312,7 +332,7 @@ func connectToTwitchChat(db *gorm.DB) {
 
 				}
 
-				go create_clip(db, timestamp, createClipStatus)
+				go createClipAndInsert(db, timestamp, createClipStatus)
 				counter = ChatCounts{}
 
 			case clipWasMade := <-createClipStatus:
@@ -328,8 +348,7 @@ func connectToTwitchChat(db *gorm.DB) {
 		case err := <-chat_closed:
 			fmt.Println("Chat closed:", err)
 			time.Sleep(30 * time.Second)
-			go connectToTwitchChat(db)
-			return
+			connectToTwitchChat(db)
 		default:
 			time.Sleep(100 * time.Millisecond)
 		}
@@ -349,7 +368,26 @@ func parse_val(text string) float64 {
 	return 0
 }
 
-func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
+type ClipResponse struct {
+	Data []struct {
+		Id string `json:"id"`
+	} `json:"data"`
+}
+
+func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
+	responseObject := doCreateClipRequest()
+
+	if len(responseObject.Data) > 0 {
+		clip_id := responseObject.Data[0].Id
+		fmt.Println("Clip ID:", clip_id)
+		db.Exec("UPDATE chat_counts SET clip_id = $1 WHERE created_at = $2", clip_id, unix_timestamp)
+		isLive <- true
+	} else {
+		isLive <- false
+	}
+}
+
+func doCreateClipRequest() ClipResponse {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
@@ -359,13 +397,13 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	requestBodyBytes, err := json.Marshal(requestBody)
 	if err != nil {
 		fmt.Println("Error marshaling JSON:", err)
-		return
+		return ClipResponse{}
 	}
 
 	req, err := http.NewRequest("POST", "https://api.twitch.tv/helix/clips", bytes.NewBuffer(requestBodyBytes))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
-		return
+		return ClipResponse{}
 	}
 	fmt.Println(authToken)
 
@@ -380,7 +418,7 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error sending request:", err)
-		return
+		return ClipResponse{}
 	}
 	defer resp.Body.Close()
 
@@ -391,33 +429,21 @@ func create_clip(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
 	}
 
 	if resp.StatusCode == 404 {
-		isLive <- false
-		return
+		return ClipResponse{}
 	}
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response body:", err)
-		return
+		return ClipResponse{}
 	}
 
-	var responseObject map[string]interface{}
+	var responseObject ClipResponse
 	err = json.Unmarshal(responseBody, &responseObject)
 	if err != nil {
 		fmt.Println("Error unmarshaling JSON:", err)
-		return
+		return ClipResponse{}
 	}
-	fmt.Println(responseObject)
-	data, ok := responseObject["data"].([]interface{})
-	if !ok {
-		fmt.Println("error creating clip")
-		return
-	}
-	clip_id, ok := data[0].(map[string]interface{})["id"].(string)
-	if !ok {
-		fmt.Println("error creating clip")
-		return
-	}
-	db.Exec("UPDATE chat_counts SET clip_id = $1 WHERE created_at = $2", clip_id, unix_timestamp)
-	isLive <- true
+
+	return responseObject
 }
