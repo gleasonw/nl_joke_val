@@ -544,6 +544,8 @@ export const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
   [SeriesKeys.sure]: <Emote src={"sure.webp"} />,
   [SeriesKeys.classic]: <Emote src={"classic.webp"} />,
   [SeriesKeys.monka_giga]: <Emote src={"monkaGiga.webp"} />,
+  [SeriesKeys.caught]: <Emote src={"caught.webp"} />,
+  [SeriesKeys.life]: <Emote src={"life.webp"} />,
 } as const;
 
 export function Emote({ src }: { src: string }) {

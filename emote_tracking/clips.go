@@ -14,45 +14,42 @@ type Clip struct {
 }
 
 type ClipCountsInput struct {
-	Column   []string
-	Span     string
-	Grouping string
-	Order    string
-	Limit    int
+	Column   []string `query:"column" default:"two"`
+	Span     string   `query:"span" default:"9 hours" enum:"9 hours,1 week,1 month,1 year"`
+	Grouping string   `query:"grouping" default:"hour" enum:"second,minute,hour,day,week,month,year"`
+	Order    string   `query:"order" default:"DESC" enum:"ASC,DESC"`
+	Limit    int      `query:"limit" default:"10"`
 }
 
 type ClipCountsOutput struct {
-	Clips []Clip `json:"clips"`
+	Body []Clip `json:"clips"`
 }
 
 func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 	var query string
 
+	for emote := range p.Column {
+		if !validColumnSet[p.Column[emote]] {
+			return &ClipCountsOutput{}, fmt.Errorf("invalid column: %s", p.Column[emote])
+		}
+	}
+
 	timeSpan := "FROM chat_counts"
 	if p.Span != "" {
-		span := p.Span
-
-		if span == "day" {
-			// a full day pulls clips from prior streams
-			span = "9 hours"
-		} else {
-			span = fmt.Sprintf("1 %s", span)
-		}
-
 		timeSpan = fmt.Sprintf(`
 			AND created_at >= (
 				SELECT MAX(created_at) - INTERVAL '%s'
 				FROM chat_counts
-			)`, span)
+			)`, p.Span)
 	}
 
-	sum_clause := strings.Join(p.Column, " + ")
-	not_null_clause := make([]string, 0, len(p.Column))
+	sumClause := strings.Join(p.Column, " + ")
+
+	notNullClause := make([]string, 0, len(p.Column))
 	for _, column := range p.Column {
-		not_null_clause = append(not_null_clause, fmt.Sprintf("%s IS NOT NULL", column))
+		notNullClause = append(notNullClause, fmt.Sprintf("%s IS NOT NULL", column))
 	}
-
-	not_null_string := strings.Join(not_null_clause, " AND ")
+	notNullString := strings.Join(notNullClause, " AND ")
 
 	query = fmt.Sprintf(`
 		SELECT SUM(sub.count) AS count, EXTRACT(epoch from time) as time, MIN(clip_id) as clip_id
@@ -66,8 +63,9 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 		) sub
 		GROUP BY time
 		ORDER BY count %s
-		LIMIT %s
-	`, sum_clause, p.Grouping, not_null_string, timeSpan, p.Order, p.Limit)
+		LIMIT %d
+	`, sumClause, p.Grouping, notNullString, timeSpan, p.Order, p.Limit)
+
 	var clips []Clip
 	err := db.Raw(query).Scan(&clips).Error
 	if err != nil {
@@ -76,7 +74,7 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 	}
 
 	return &ClipCountsOutput{
-		Clips: clips,
+		clips,
 	}, nil
 }
 

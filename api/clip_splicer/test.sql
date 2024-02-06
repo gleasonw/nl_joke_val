@@ -31,8 +31,8 @@ FilteredIntervals AS (
       FROM RankedIntervals r2
       WHERE
         r2.rn < r1.rn
-        AND r2.created_at >= r1.created_at - INTERVAL '5 minutes'
-        AND r2.created_at <= r1.created_at + INTERVAL '5 minutes'
+        AND r2.created_at >= r1.created_at - INTERVAL '1 minutes'
+        AND r2.created_at <= r1.created_at + INTERVAL '1 minutes'
     )
   LIMIT 50
 )
