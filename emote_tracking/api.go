@@ -45,6 +45,8 @@ type ChatCounts struct {
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
 	CreatedEpoch float64   `json:"time"`
+	Caught       float64   `json:"caught"`
+	Life         float64   `json:"life"`
 }
 
 type Message struct {
@@ -304,6 +306,8 @@ func connectToTwitchChat(db *gorm.DB) {
 					"Sure":                &counter.Sure,
 					"Classic":             &counter.Classic,
 					"monkaGIGAftRyanGary": &counter.MonkaGiga,
+					"CAUGHT":              &counter.Caught,
+					"Life":                &counter.Life,
 				}
 
 				for keyword, count := range emotesAndKeywords {

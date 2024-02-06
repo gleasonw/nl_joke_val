@@ -5,13 +5,21 @@
 
 
 export interface paths {
-  "/clips": {
-    /** Get Clips */
-    get: operations["get_clips_clips_get"];
+  "/api/clip": {
+    /** Get nearest clip */
+    get: operations["get-nearest-clip"];
   };
-  "/nearest_clip": {
-    /** Get Nearest Clip */
-    get: operations["get_nearest_clip_nearest_clip_get"];
+  "/api/clip_counts": {
+    /** Get clip counts */
+    get: operations["get-clip-counts"];
+  };
+  "/api/is_live": {
+    /** Is NL live */
+    get: operations["is-nl-live"];
+  };
+  "/api/series": {
+    /** Get a time series of emote counts */
+    get: operations["get-series"];
   };
 }
 
@@ -19,49 +27,89 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
-    /** HTTPValidationError */
-    HTTPValidationError: {
-      /** Detail */
-      detail?: components["schemas"]["ValidationError"][];
+    ChatCounts: {
+      /** Format: double */
+      caught: number;
+      /** Format: double */
+      cereal: number;
+      /** Format: double */
+      classic: number;
+      /** Format: double */
+      cocka: number;
+      /** Format: double */
+      copium: number;
+      /** Format: double */
+      huh: number;
+      /** Format: double */
+      joel: number;
+      /** Format: double */
+      life: number;
+      /** Format: double */
+      lol: number;
+      /** Format: double */
+      monka_giga: number;
+      /** Format: double */
+      monkas: number;
+      /** Format: double */
+      no: number;
+      /** Format: double */
+      pog: number;
+      /** Format: double */
+      ratjam: number;
+      /** Format: double */
+      shock: number;
+      /** Format: double */
+      sure: number;
+      /** Format: double */
+      time: number;
+      /** Format: double */
+      two: number;
+      /** Format: double */
+      who_asked: number;
     };
-    /** RollingChatCount */
-    RollingChatCount: {
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-      /** Count */
+    Clip: {
+      clip_id: string;
+      /** Format: int64 */
       count: number;
-      /** Clip Id */
-      clip_id: string | null;
-      /** Rolling Sum */
-      rolling_sum: number;
+      /** Format: double */
+      time: number;
     };
-    /** RollingChatCountWithThumbnail */
-    RollingChatCountWithThumbnail: {
+    ErrorDetail: {
+      /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
+      location?: string;
+      /** @description Error message text */
+      message?: string;
+      /** @description The value at the given location */
+      value?: unknown;
+    };
+    ErrorModel: {
       /**
-       * Created At
-       * Format: date-time
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
        */
-      created_at: string;
-      /** Count */
-      count: number;
-      /** Clip Id */
-      clip_id: string | null;
-      /** Rolling Sum */
-      rolling_sum: number;
-      /** Thumbnail */
-      thumbnail: string | null;
-    };
-    /** ValidationError */
-    ValidationError: {
-      /** Location */
-      loc: (string | number)[];
-      /** Message */
-      msg: string;
-      /** Error Type */
-      type: string;
+      $schema?: string;
+      /** @description A human-readable explanation specific to this occurrence of the problem. */
+      detail?: string;
+      /** @description Optional list of individual error details */
+      errors?: components["schemas"]["ErrorDetail"][];
+      /**
+       * Format: uri
+       * @description A URI reference that identifies the specific occurrence of the problem.
+       */
+      instance?: string;
+      /**
+       * Format: int64
+       * @description HTTP status code
+       */
+      status?: number;
+      /** @description A short, human-readable summary of the problem type. This value should not change between occurrences of the error. */
+      title?: string;
+      /**
+       * Format: uri
+       * @description A URI reference to human-readable documentation for the error.
+       * @default about:blank
+       */
+      type?: string;
     };
   };
   responses: never;
@@ -77,51 +125,91 @@ export type external = Record<string, never>;
 
 export interface operations {
 
-  /** Get Clips */
-  get_clips_clips_get: {
-    parameters: {
-      query?: {
-        emote?: "classic" | "monka_giga" | "two" | "lol" | "cereal" | "monkas" | "joel" | "pog" | "huh" | "no" | "cocka" | "who_asked" | "shock" | "copium" | "ratjam" | "sure";
-        span?: "day" | "week" | "month" | "all";
-        sum_window?: "second" | "minute" | "week" | "day" | "month" | "all";
-        order?: "asc" | "desc";
-        limit?: number;
-        cursor?: number | null;
-      };
-    };
+  /** Get nearest clip */
+  "get-nearest-clip": {
     responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["RollingChatCountWithThumbnail"][];
+      /** @description No Content */
+      204: {
+        headers: {
+          ClipID?: string;
+          Time?: string;
         };
+        content: never;
       };
-      /** @description Validation Error */
-      422: {
+      /** @description Error */
+      default: {
         content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
+          "application/problem+json": components["schemas"]["ErrorModel"];
         };
       };
     };
   };
-  /** Get Nearest Clip */
-  get_nearest_clip_nearest_clip_get: {
+  /** Get clip counts */
+  "get-clip-counts": {
     parameters: {
-      query: {
-        epoch_time: number;
+      query?: {
+        column?: string[];
+        span?: "9 hours" | "1 week" | "1 month" | "1 year";
+        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        order?: "ASC" | "DESC";
+        limit?: number;
       };
     };
     responses: {
-      /** @description Successful Response */
+      /** @description OK */
       200: {
         content: {
-          "application/json": components["schemas"]["RollingChatCount"];
+          "application/json": components["schemas"]["Clip"][];
         };
       };
-      /** @description Validation Error */
-      422: {
+      /** @description Error */
+      default: {
         content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** Is NL live */
+  "is-nl-live": {
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          IsLive?: boolean;
+        };
+        content: never;
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** Get a time series of emote counts */
+  "get-series": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
+        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        rolling_average?: number;
+        from?: string;
+        to?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ChatCounts"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
         };
       };
     };

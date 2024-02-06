@@ -1,7 +1,7 @@
 "use client";
 import { Title, Select, SelectItem, Card, Button } from "@tremor/react";
 import { useQuery } from "@tanstack/react-query";
-import { timeGroupings, SeriesKey } from "./types";
+import { TimeGroupings, SeriesKey } from "./types";
 import {
   Clip,
   ClipBatch,
