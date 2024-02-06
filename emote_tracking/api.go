@@ -24,6 +24,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+//TODO: link
+
 type ChatCounts struct {
 	Classic      float64   `json:"classic"`
 	MonkaGiga    float64   `json:"monka_giga"`
@@ -41,10 +43,34 @@ type ChatCounts struct {
 	Copium       float64   `json:"copium"`
 	Ratjam       float64   `json:"ratjam"`
 	Sure         float64   `json:"sure"`
+	Caught       float64   `json:"caught"`
+	Life         float64   `json:"life"`
 	CreatedAt    time.Time `gorm:"index" json:"-"`
 	ClipId       string    `json:"-"`
 	Thumbnail    string    `json:"-"`
 	CreatedEpoch float64   `json:"time"`
+}
+
+func textToCountMap(count ChatCounts) map[string]*float64 {
+	return map[string]*float64{
+		"monkaGiga": &count.MonkaGiga,
+		"two":       &count.Two,
+		"lol":       &count.Lol,
+		"cereal":    &count.Cereal,
+		"monkas":    &count.Monkas,
+		"joel":      &count.Joel,
+		"pog":       &count.Pog,
+		"huh":       &count.Huh,
+		"no":        &count.No,
+		"cocka":     &count.Cocka,
+		"whoAsked":  &count.WhoAsked,
+		"shock":     &count.Shock,
+		"copium":    &count.Copium,
+		"ratjam":    &count.Ratjam,
+		"sure":      &count.Sure,
+		"caught":    &count.Caught,
+		"life":      &count.Life,
+	}
 }
 
 type Message struct {
@@ -53,7 +79,7 @@ type Message struct {
 }
 
 var nickname string = os.Getenv("NICK")
-var db_url string = os.Getenv("DATABASE_URL")
+var db_url string = os.Getenv("LOCAL_DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
 var authToken = ""
 var refreshToken = ""
@@ -142,6 +168,14 @@ var val = reflect.ValueOf(ChatCounts{})
 var validColumnSet = make(map[string]bool)
 
 func main() {
+	emotes, err := fetchNlEmotesFromBTTV()
+
+	for _, emote := range emotes.Emotes {
+		fmt.Println(emote)
+	}
+
+	fmt.Printf("num emoticons: %d\n", len(emotes.Emotes))
+
 	if client_id == "" {
 		//load .env file
 		err := godotenv.Load()
@@ -157,7 +191,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	db.AutoMigrate(&ChatCounts{})
+	// db.AutoMigrate(&ChatCounts{})
 
 	// build validColumnSet
 	for i := 0; i < val.NumField(); i++ {
@@ -167,13 +201,17 @@ func main() {
 		}
 	}
 
-	// authErr := authorizeTwitch()
-	// if authErr != nil {
-	// 	fmt.Println(authErr)
-	// 	return
+	lionIsLive := false
+
+	// setLionLiveStatus := func(isLive bool) {
+	// 	lionIsLive = isLive
 	// }
 
-	// go connectToTwitchChat(db, lionIsLive, setLionIsLive)
+	// getLionLiveStatus := func() bool {
+	// 	return lionIsLive
+	// }
+
+	// go connectToTwitchChat(db, setLionLiveStatus, getLionLiveStatus)
 
 	router := chi.NewMux()
 	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
@@ -219,13 +257,7 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/is_live",
 	}, func(ctx context.Context, input *IsLiveInput) (*IsLiveOutput, error) {
-		testClip := doCreateClipRequest()
-
-		if len(testClip.Data) > 0 {
-			return &IsLiveOutput{IsLive: true}, nil
-		}
-
-		return &IsLiveOutput{IsLive: false}, nil
+		return &IsLiveOutput{lionIsLive}, nil
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
@@ -239,129 +271,107 @@ func main() {
 
 }
 
-func connectToTwitchChat(db *gorm.DB) {
+func connectToTwitchChat(db *gorm.DB, setLiveStatus func(bool), getLiveStatus func() bool) {
+
+	//todo: maybe move to clip count maker?
+	authErr := authorizeTwitch()
+	if authErr != nil {
+		fmt.Println(authErr)
+		return
+	}
 
 	conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
+
 	if err != nil {
 		fmt.Println("Error connecting to Twitch IRC:", err)
 		return
 	}
 
-	chat_closed := make(chan error)
-
-	go func() {
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", authToken)))
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
-		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
-
-		incomingMessages := make(chan Message)
-		createClipStatus := make(chan bool)
-		lionIsLive := false
-
-		go func() {
-			for {
-				messageType, messageData, err := conn.ReadMessage()
-				text := string(messageData)
-				if strings.Contains(text, "PING") {
-					conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
-					continue
-				}
-				if err != nil {
-					fmt.Println(text)
-					fmt.Println("Error reading message:", err)
-					chat_closed <- err
-					return
-				}
-				incomingMessages <- Message{Type: messageType, Data: messageData}
-			}
-		}()
-
-		post_count_ticker := time.NewTicker(10 * time.Second)
-		counter := ChatCounts{}
-
-		for {
-			select {
-			case msg := <-incomingMessages:
-				full_message := string(msg.Data)
-				only_message_text := split_and_get_last(full_message, "#northernlion")
-				emotesAndKeywords := map[string]*float64{
-					"LUL":                 &counter.Lol,
-					"ICANT":               &counter.Lol,
-					"KEKW":                &counter.Lol,
-					"Cereal":              &counter.Cereal,
-					"NOOO":                &counter.No,
-					"COCKA":               &counter.Cocka,
-					"monkaS":              &counter.Monkas,
-					"Joel":                &counter.Joel,
-					"POGCRAZY":            &counter.Pog,
-					"Pog":                 &counter.Pog,
-					"LETSGO":              &counter.Pog,
-					"HUHH":                &counter.Huh,
-					"Copium":              &counter.Copium,
-					"D:":                  &counter.Shock,
-					"WhoAsked":            &counter.WhoAsked,
-					"ratJAM":              &counter.Ratjam,
-					"Sure":                &counter.Sure,
-					"Classic":             &counter.Classic,
-					"monkaGIGAftRyanGary": &counter.MonkaGiga,
-				}
-
-				for keyword, count := range emotesAndKeywords {
-					if strings.Contains(only_message_text, keyword) {
-						(*count)++
-					}
-				}
-
-				if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
-					counter.Two += parse_val(split_and_get_last(only_message_text, "+"))
-				} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
-					counter.Two -= parse_val(split_and_get_last(only_message_text, "-"))
-				}
-
-			case <-post_count_ticker.C:
-
-				var timestamp time.Time
-
-				if lionIsLive {
-					err := db.Create(&counter).Error
-					if err != nil {
-						fmt.Println("Error inserting into db:", err)
-					}
-					timestamp = counter.CreatedAt
-					fmt.Println("creating moment ", timestamp)
-
-				}
-
-				go createClipAndInsert(db, timestamp, createClipStatus)
-				counter = ChatCounts{}
-
-			case clipWasMade := <-createClipStatus:
-				lionIsLive = clipWasMade
-			}
-		}
-	}()
-
 	defer conn.Close()
+
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", authToken)))
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
+	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
+
+	incomingMessages := make(chan Message)
+	createClipStatus := make(chan bool)
+
+	go readChatFromSocket(conn, incomingMessages)
+
+	insertCountsTicker := time.NewTicker(10 * time.Second)
+	counter := ChatCounts{}
 
 	for {
 		select {
-		case err := <-chat_closed:
-			fmt.Println("Chat closed:", err)
-			time.Sleep(30 * time.Second)
-			connectToTwitchChat(db)
-		default:
-			time.Sleep(100 * time.Millisecond)
+		case msg := <-incomingMessages:
+			fullMessage := string(msg.Data)
+			messageText := splitAndGetLast(fullMessage, "#northernlion")
+
+			for keyword, count := range textToCountMap(counter) {
+				if strings.Contains(messageText, keyword) {
+					(*count)++
+				}
+			}
+
+			if contains_plus := strings.Contains(messageText, "+"); contains_plus {
+				counter.Two += parseTwoValue(splitAndGetLast(messageText, "+"))
+			} else if contains_minus := strings.Contains(messageText, "-"); contains_minus {
+				counter.Two -= parseTwoValue(splitAndGetLast(messageText, "-"))
+			}
+
+		case <-insertCountsTicker.C:
+
+			var timestamp time.Time
+
+			if getLiveStatus() {
+				err := db.Create(&counter).Error
+				if err != nil {
+					fmt.Println("Error inserting into db:", err)
+				}
+				timestamp = counter.CreatedAt
+				fmt.Println("creating moment ", timestamp)
+
+			}
+
+			go createClipAndInsert(db, timestamp, createClipStatus)
+			counter = ChatCounts{}
+
+		case clipWasMade := <-createClipStatus:
+			setLiveStatus(clipWasMade)
 		}
 	}
 }
 
-func split_and_get_last(text string, splitter string) string {
+func readChatFromSocket(conn *websocket.Conn, messageChannel chan Message) {
+	for {
+		messageType, messageData, err := conn.ReadMessage()
+		if err != nil {
+			fmt.Println("Error reading message:", err)
+			return
+		}
+		text := string(messageData)
+		if strings.Contains(text, "PING") {
+			conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
+			continue
+		}
+		if err != nil {
+			fmt.Println(text)
+			fmt.Println("Error reading message:", err)
+			fmt.Println("Chat closed:", err)
+			time.Sleep(30 * time.Second)
+			return
+		}
+		messageChannel <- Message{Type: messageType, Data: messageData}
+	}
+}
+
+func splitAndGetLast(text string, splitter string) string {
 	split_text := strings.Split(text, splitter)
 	last := len(split_text) - 1
 	return split_text[last]
 }
 
-func parse_val(text string) float64 {
+func parseTwoValue(text string) float64 {
 	if strings.Contains(text, "2") {
 		return 2
 	}
@@ -407,7 +417,7 @@ func doCreateClipRequest() ClipResponse {
 	}
 	fmt.Println(authToken)
 
-	auth := split_and_get_last(authToken, ":")
+	auth := splitAndGetLast(authToken, ":")
 	bearer := fmt.Sprintf("Bearer %s", auth)
 
 	req.Header.Set("Content-Type", "application/json")
