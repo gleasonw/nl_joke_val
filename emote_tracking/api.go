@@ -49,6 +49,11 @@ type ChatCounts struct {
 	Life         float64   `json:"life"`
 }
 
+type RefreshTokenStore struct {
+	RefreshToken string
+	CreatedAt    time.Time
+}
+
 type Message struct {
 	Type int
 	Data []byte
@@ -65,7 +70,20 @@ type TwitchResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-func authorizeTwitch() error {
+func authorizeTwitch(db *gorm.DB) error {
+
+	// a little hack to avoid client code auth flow on startup
+	var refreshTokenStore RefreshTokenStore
+	db.Order("created_at desc").First(&refreshTokenStore)
+
+	if refreshTokenStore.RefreshToken != "" {
+		refreshToken = refreshTokenStore.RefreshToken
+		refreshTwitchToken(db)
+		return nil
+	}
+
+	fmt.Println("Authorizing Twitch with client code")
+
 	data := url.Values{}
 	data.Set("client_id", client_id)
 	data.Set("client_secret", os.Getenv("CLIENT_SECRET"))
@@ -104,7 +122,7 @@ func authorizeTwitch() error {
 	return nil
 }
 
-func refreshTwitchToken() {
+func refreshTwitchToken(db *gorm.DB) {
 	fmt.Println("refreshing token")
 	data := url.Values{}
 	data.Set("client_id", client_id)
@@ -138,6 +156,9 @@ func refreshTwitchToken() {
 	}
 	authToken = twitchResponse.AccessToken
 	refreshToken = twitchResponse.RefreshToken
+	if refreshToken != "" {
+		db.Create(&RefreshTokenStore{RefreshToken: refreshToken, CreatedAt: time.Now()})
+	}
 }
 
 var val = reflect.ValueOf(ChatCounts{})
@@ -154,12 +175,15 @@ func main() {
 		nickname = os.Getenv("NICK")
 		db_url = os.Getenv("DATABASE_URL")
 	}
+
 	db, err := gorm.Open(postgres.Open(db_url))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	// db.AutoMigrate(&ChatCounts{})
+
+	db.AutoMigrate(&ChatCounts{})
+	db.AutoMigrate(&RefreshTokenStore{})
 
 	// build validColumnSet
 	for i := 0; i < val.NumField(); i++ {
@@ -181,7 +205,7 @@ func main() {
 		lionIsLive = isLive
 	}
 
-	authError := authorizeTwitch()
+	authError := authorizeTwitch(db)
 
 	if authError != nil {
 		fmt.Println("Error authorizing Twitch:", authError)
@@ -243,13 +267,7 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/is_live",
 	}, func(ctx context.Context, input *IsLiveInput) (*IsLiveOutput, error) {
-		testClip := createTwitchClip()
-
-		if len(testClip.Data) > 0 {
-			return &IsLiveOutput{IsLive: true}, nil
-		}
-
-		return &IsLiveOutput{IsLive: false}, nil
+		return &IsLiveOutput{IsLive: lionIsLive}, nil
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
@@ -384,7 +402,7 @@ type ClipResponse struct {
 }
 
 func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
-	responseObject := createTwitchClip()
+	responseObject := createTwitchClip(db)
 
 	if len(responseObject.Data) > 0 {
 		clip_id := responseObject.Data[0].Id
@@ -396,7 +414,7 @@ func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, isLive chan bool
 	}
 }
 
-func createTwitchClip() ClipResponse {
+func createTwitchClip(db *gorm.DB) ClipResponse {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
@@ -433,8 +451,11 @@ func createTwitchClip() ClipResponse {
 
 	if resp.StatusCode == 401 {
 		fmt.Println("unauthorized: ", auth)
-		refreshTwitchToken()
-		time.Sleep(5 * time.Second)
+		refreshTwitchToken(db)
+
+		//TODO: need a better way to refresh our token. here, we'll assign a clip slightly later than we should
+		time.Sleep(2 * time.Second)
+		return createTwitchClip(db)
 	}
 
 	if resp.StatusCode == 404 {
