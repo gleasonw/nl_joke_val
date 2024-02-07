@@ -1,3 +1,8 @@
+import { apiURL } from "@/app/apiURL";
+import { paths } from "@/app/schema";
+import { ClipTimeSpans, TimeGroupings } from "@/app/types";
+import createClient from "openapi-fetch";
+
 export function addQueryParamsIfExist(
   url: string,
   params: Record<string, any>
@@ -21,3 +26,24 @@ export function addQueryParamsIfExist(
   });
   return `${url}?${urlParams.toString()}`;
 }
+
+export const timeGroupings: NonNullable<TimeGroupings>[] = [
+  "second",
+  "minute",
+  "hour",
+  "day",
+  "week",
+  "month",
+  "year",
+] as const;
+
+export const clipTimeSpans: NonNullable<ClipTimeSpans>[] = [
+  "9 hours",
+  "1 week",
+  "1 month",
+  "1 year",
+] as const;
+
+export const { GET } = createClient<paths>({
+  baseUrl: apiURL,
+});

@@ -1,11 +1,17 @@
 "use client";
 import { Title, Select, SelectItem, Card } from "@tremor/react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
-import { addQueryParamsIfExist } from "@/app/utils";
-import { ClipBatch, SettingsDropLayout } from "./dashboard";
-import { ClipClicker } from "@/app/TopTwitchClips";
+import {
+  timeGroupings,
+  GET,
+  clipTimeSpans,
+  addQueryParamsIfExist,
+} from "@/app/utils";
+import { SettingsDropLayout } from "./dashboard";
+import { ClipClicker } from "@/app/top-twitch-clips";
 import { useDashboardUrl } from "@/app/hooks";
+import { apiURL } from "@/app/apiURL";
+import { Clip, ClipParams } from "@/app/types";
 
 export function MostMinusTwosClips() {
   const {
@@ -18,29 +24,25 @@ export function MostMinusTwosClips() {
   } = useDashboardUrl();
 
   const {
-    isSuccess,
     data: minClips,
     isLoading,
     isRefetching,
   } = useQuery({
     queryKey: ["minus_twos", span, grouping],
     queryFn: async () => {
-      const rest = await fetch(
-        addQueryParamsIfExist(
-          "https://nljokeval-production.up.railway.app/api/clip_counts",
-          {
-            column: "two",
-            span,
-            grouping,
-            order: "asc",
-          }
-        )
+      const res = await fetch(
+        addQueryParamsIfExist(`${apiURL}/api/clip_counts`, {
+          column: ["two"],
+          span,
+          grouping,
+          order: "ASC",
+        } satisfies ClipParams)
       );
-      return (await rest.json()) as ClipBatch;
+      return (await res.json()) as Clip[];
     },
   });
 
-  const sortedClips = minClips?.clips.sort((a, b) => a.count - b.count);
+  const sortedClips = minClips?.sort((a, b) => a.count - b.count);
 
   return (
     <Card className="flex gap-5 flex-col">
@@ -53,7 +55,7 @@ export function MostMinusTwosClips() {
               value={grouping}
               onValueChange={(value) => onNavigate({ minClipGrouping: value })}
             >
-              {["second", "minute", "hour"].map((grouping) => (
+              {timeGroupings.map((grouping) => (
                 <SelectItem value={grouping} key={grouping}>
                   {grouping == "second" ? "10 seconds" : grouping}
                 </SelectItem>
@@ -66,7 +68,7 @@ export function MostMinusTwosClips() {
               value={span}
               onValueChange={(value) => onNavigate({ minClipSpan: value })}
             >
-              {["day", "week", "month", "year"].map((span) => (
+              {clipTimeSpans.map((span) => (
                 <SelectItem value={span} key={span}>
                   {span}
                 </SelectItem>

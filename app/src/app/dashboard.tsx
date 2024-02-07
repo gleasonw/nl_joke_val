@@ -10,31 +10,44 @@ import {
   DateRangePickerItem,
   DateRangePickerValue,
 } from "@tremor/react";
-import { CSSProperties, useCallback, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CSSProperties, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
 import { useClickAway } from "react-use";
-import { useSearchParams, useRouter } from "next/navigation";
-import { addQueryParamsIfExist } from "@/app/utils";
 import {
-  SeriesDataSchema,
-  SeriesKeys,
-  timeGroupings,
-  seriesColors,
   SeriesKey,
   SeriesData,
+  FullChatCountStruct,
+  SeriesParams,
 } from "./types";
-import { clipAPI, seriesAPI } from "@/app/apiURL";
-
-import createClient from "openapi-fetch";
-import type { paths } from "./schema";
-import { MostMinusTwosClips } from "./MostMinusTwosClips";
-import { TopTwitchClips } from "./TopTwitchClips";
+import { MostMinusTwosClips } from "./minus-two-clips";
+import { TopTwitchClips } from "./top-twitch-clips";
 import { useDashboardUrl } from "@/app/hooks";
+import { timeGroupings, GET, addQueryParamsIfExist } from "@/app/utils";
+import { apiURL } from "@/app/apiURL";
 
-export const { GET } = createClient<paths>({ baseUrl: clipAPI });
+const seriesColors: Record<SeriesKey, string> = {
+  two: "#7cb5ec",
+  lol: "#434348",
+  cereal: "#90ed7d",
+  monkas: "#f7a35c",
+  joel: "#8085e9",
+  pog: "#f15c80",
+  huh: "#e4d354",
+  no: "#2b908f",
+  cocka: "#f45b5b",
+  shock: "#8d4654",
+  who_asked: "#91e8e1",
+  copium: "#696969",
+  ratjam: "#000000",
+  sure: "#000000",
+  classic: "#ffff00",
+  monka_giga: "#808080",
+  caught: "#0000ff",
+  life: "#ff0000",
+} as const;
 
 export default function Dashboard() {
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
@@ -53,12 +66,9 @@ export default function Dashboard() {
       fromParam,
       toParam,
       chartType,
-      trailingSpan,
       seriesSpan: span,
     },
   } = useDashboardUrl();
-
-  const SeriesData = SeriesDataSchema.array();
 
   function getFromParam(): Date {
     if (fromParam) {
@@ -84,30 +94,19 @@ export default function Dashboard() {
       rollingAverage,
       fromParam,
       toParam,
-      trailingSpan,
+      span,
     ],
     queryFn: async () => {
       const res = await fetch(
-        addQueryParamsIfExist(
-          `https://nljokeval-production.up.railway.app/api/series`,
-          {
-            grouping,
-            rolling_average: rollingAverage,
-            from: getFromParam().toISOString(),
-            to: getToParam().toISOString(),
-            span: trailingSpan,
-          }
-        )
+        addQueryParamsIfExist(`${apiURL}/api/series`, {
+          grouping,
+          rolling_average: parseInt(rollingAverage),
+          from: getFromParam().toISOString(),
+          to: getToParam().toISOString(),
+          span,
+        } satisfies SeriesParams)
       );
-      const jsonResponse = await res.json();
-      const zodParse = SeriesData.safeParse(jsonResponse);
-
-      if (zodParse.success) {
-        return zodParse.data;
-      } else {
-        console.error(zodParse.error);
-        throw new Error("Failed to parse data");
-      }
+      return (await res.json()) as FullChatCountStruct[];
     },
     refetchInterval: 10000,
     keepPreviousData: true,
@@ -125,7 +124,7 @@ export default function Dashboard() {
           d.time * 1000 ?? 0,
           d[key as keyof SeriesData] ?? "",
         ]) ?? [],
-      color: seriesColors[key as keyof typeof SeriesKeys],
+      color: seriesColors[key as unknown as SeriesKey],
       events: {
         click: function (e: any) {
           setClickedUnixSeconds(e.point.x / 1000);
@@ -298,7 +297,7 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-col p-3">
             <div className="flex flex-row flex-wrap gap-3 m-2">
-              {Object.keys(SeriesKeys).map((key) => (
+              {Object.keys(seriesColors).map((key) => (
                 <button
                   className={"w-auto hover:shadow-lg rounded-lg p-3"}
                   style={
@@ -493,16 +492,6 @@ function TwitchClipAtTime(props: { time: number }) {
   );
 }
 
-export type Clip = {
-  clip_id: string;
-  count: number;
-  time: number;
-};
-
-export type ClipBatch = {
-  clips: Clip[];
-};
-
 export function TwitchClip({
   clip_id,
   time,
@@ -528,24 +517,24 @@ export function TwitchClip({
 }
 
 export const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
-  [SeriesKeys.two]: <div className={"text-xl "}>∑ ± 2</div>,
-  [SeriesKeys.lol]: <Emote src={"lul.jpg"} />,
-  [SeriesKeys.cereal]: <Emote src={"cereal.webp"} />,
-  [SeriesKeys.monkas]: <Emote src={"monkaS.webp"} />,
-  [SeriesKeys.joel]: <Emote src={"Joel.webp"} />,
-  [SeriesKeys.pog]: <Emote src={"Pog.webp"} />,
-  [SeriesKeys.huh]: <Emote src={"huhh.webp"} />,
-  [SeriesKeys.no]: <Emote src={"nooo.webp"} />,
-  [SeriesKeys.cocka]: <Emote src={"cocka.webp"} />,
-  [SeriesKeys.shock]: <Emote src={"shockface.png"} />,
-  [SeriesKeys.who_asked]: <Emote src={"whoasked.webp"} />,
-  [SeriesKeys.copium]: <Emote src={"copium.webp"} />,
-  [SeriesKeys.ratjam]: <Emote src={"ratJAM.webp"} />,
-  [SeriesKeys.sure]: <Emote src={"sure.webp"} />,
-  [SeriesKeys.classic]: <Emote src={"classic.webp"} />,
-  [SeriesKeys.monka_giga]: <Emote src={"monkaGiga.webp"} />,
-  [SeriesKeys.caught]: <Emote src={"caught.webp"} />,
-  [SeriesKeys.life]: <Emote src={"life.webp"} />,
+  two: <div className={"text-xl "}>∑ ± 2</div>,
+  lol: <Emote src={"lul.jpg"} />,
+  cereal: <Emote src={"cereal.webp"} />,
+  monkas: <Emote src={"monkaS.webp"} />,
+  joel: <Emote src={"Joel.webp"} />,
+  pog: <Emote src={"Pog.webp"} />,
+  huh: <Emote src={"huhh.webp"} />,
+  no: <Emote src={"nooo.webp"} />,
+  cocka: <Emote src={"cocka.webp"} />,
+  shock: <Emote src={"shockface.png"} />,
+  who_asked: <Emote src={"whoasked.webp"} />,
+  copium: <Emote src={"copium.webp"} />,
+  ratjam: <Emote src={"ratJAM.webp"} />,
+  sure: <Emote src={"sure.webp"} />,
+  classic: <Emote src={"classic.webp"} />,
+  monka_giga: <Emote src={"monkaGiga.webp"} />,
+  caught: <Emote src={"caught.webp"} />,
+  life: <Emote src={"life.webp"} />,
 } as const;
 
 export function Emote({ src }: { src: string }) {

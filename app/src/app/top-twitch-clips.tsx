@@ -1,18 +1,16 @@
 "use client";
 import { Title, Select, SelectItem, Card, Button } from "@tremor/react";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
-import { timeGroupings, SeriesKey } from "./types";
+import { Clip, ClipParams, SeriesKey } from "./types";
+import { SettingsDropLayout, TwitchClip, seriesEmotes } from "./dashboard";
 import {
-  Clip,
-  ClipBatch,
-  SettingsDropLayout,
-  TwitchClip,
-  seriesEmotes,
-} from "./dashboard";
-import { addQueryParamsIfExist } from "@/app/utils";
+  addQueryParamsIfExist,
+  clipTimeSpans,
+  timeGroupings,
+  GET,
+} from "@/app/utils";
 import { useDashboardUrl } from "@/app/hooks";
+import { apiURL } from "@/app/apiURL";
 
 export function TopTwitchClips() {
   const {
@@ -33,22 +31,20 @@ export function TopTwitchClips() {
     queryKey: ["top_clips", span, grouping, emotes],
     queryFn: async () => {
       const res = await fetch(
-        addQueryParamsIfExist(
-          "https://nljokeval-production.up.railway.app/api/clip_counts",
-          {
-            column: emotes,
-            span,
-            grouping,
-            order: "desc",
-          }
-        )
+        addQueryParamsIfExist(`${apiURL}/api/clip_counts`, {
+          column: emotes,
+          span,
+          grouping,
+          order: "DESC",
+        } satisfies ClipParams)
       );
-      return (await res.json()) as ClipBatch;
+
+      return (await res.json()) as Clip[];
     },
     keepPreviousData: true,
   });
 
-  const sortedClips = topClips?.clips
+  const sortedClips = topClips
     ?.sort((a, b) => b.count - a.count)
     .filter((clip) => !!clip.clip_id);
 
@@ -90,7 +86,7 @@ export function TopTwitchClips() {
               value={span}
               onValueChange={(value) => onNavigate({ maxClipSpan: value })}
             >
-              {["day", "week", "month", "year"].map((span) => (
+              {clipTimeSpans.map((span) => (
                 <SelectItem value={span} key={span}>
                   {span}
                 </SelectItem>
@@ -135,7 +131,6 @@ export function ClipClicker({
       <div>
         <span className={"text-3xl"}>#{index + 1}</span>
         <span className="pl-2 text-xl">({clip.count})</span>
-
         <TwitchClip
           clip_id={clip.clip_id!}
           time={new Date(clip.time).getTime()}
