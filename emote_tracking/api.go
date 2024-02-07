@@ -159,7 +159,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	db.AutoMigrate(&ChatCounts{})
+	// db.AutoMigrate(&ChatCounts{})
 
 	// build validColumnSet
 	for i := 0; i < val.NumField(); i++ {
@@ -178,7 +178,17 @@ func main() {
 	// go connectToTwitchChat(db, lionIsLive, setLionIsLive)
 
 	router := chi.NewMux()
+
 	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
+
+	api.UseMiddleware(func(ctx huma.Context, next func(huma.Context)) {
+		fmt.Println(ctx.URL())
+		ctx.SetHeader("Access-Control-Allow-Origin", "*")
+		ctx.SetHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		ctx.SetHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		ctx.SetHeader("Content-Type", "application/json")
+		next(ctx)
+	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-series",
@@ -221,7 +231,7 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/is_live",
 	}, func(ctx context.Context, input *IsLiveInput) (*IsLiveOutput, error) {
-		testClip := doCreateClipRequest()
+		testClip := createTwitchClip()
 
 		if len(testClip.Data) > 0 {
 			return &IsLiveOutput{IsLive: true}, nil
@@ -379,7 +389,7 @@ type ClipResponse struct {
 }
 
 func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
-	responseObject := doCreateClipRequest()
+	responseObject := createTwitchClip()
 
 	if len(responseObject.Data) > 0 {
 		clip_id := responseObject.Data[0].Id
@@ -391,7 +401,7 @@ func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, isLive chan bool
 	}
 }
 
-func doCreateClipRequest() ClipResponse {
+func createTwitchClip() ClipResponse {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",

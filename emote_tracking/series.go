@@ -36,8 +36,8 @@ SELECT %s,
 EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
 FROM chat_counts
 WHERE created_at > (
-SELECT MAX(created_at) - $2::interval 
-FROM chat_counts
+	SELECT MAX(created_at) - $2::interval 
+	FROM chat_counts
 )
 GROUP BY date_trunc($1, created_at)
 ORDER BY date_trunc($1, created_at) asc
@@ -54,10 +54,13 @@ func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 	var result = []ChatCounts{}
 	var dbError error
 
-	if !p.From.IsZero() && !p.To.IsZero() {
+	if p.Span != "" {
+		dbError = db.Raw(querySinceSpan, p.Grouping, p.Span).Scan(&result).Error
+
+	} else if !p.From.IsZero() && !p.To.IsZero() {
 		dbError = db.Raw(queryFromTo, p.Grouping, p.From, p.To).Scan(&result).Error
 	} else {
-		dbError = db.Raw(querySinceSpan, p.Grouping, p.Span).Scan(&result).Error
+		dbError = fmt.Errorf("invalid input, must provide either from and to or span")
 	}
 
 	if dbError != nil {
@@ -95,12 +98,14 @@ func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) 
 	FROM base_sum
 	`
 
-	if !p.From.IsZero() && !p.To.IsZero() {
+	if p.Span != "" {
+		query := fmt.Sprintf(baseQuery, averagedQuerySinceSpan, rollingAverageString)
+		dbError = db.Raw(query, p.Grouping, p.Span).Scan(&result).Error
+	} else if !p.From.IsZero() && !p.To.IsZero() {
 		query := fmt.Sprintf(baseQuery, averagedQueryFromTo, rollingAverageString)
 		dbError = db.Raw(query, p.Grouping, p.From, p.To).Scan(&result).Error
 	} else {
-		query := fmt.Sprintf(baseQuery, averagedQuerySinceSpan, rollingAverageString)
-		dbError = db.Raw(query, p.Grouping, p.Span).Scan(&result).Error
+		dbError = fmt.Errorf("invalid input, must provide either from and to or span")
 	}
 
 	if dbError != nil {

@@ -16,16 +16,17 @@ import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
 import { useClickAway } from "react-use";
-import { SeriesKey, SeriesData, ChatCounts, TimeGroupings } from "./types";
-import { clipAPI } from "@/app/apiURL";
-
-import createClient from "openapi-fetch";
-import type { paths } from "./schema";
-import { MostMinusTwosClips } from "./MostMinusTwosClips";
-import { TopTwitchClips } from "./TopTwitchClips";
+import {
+  SeriesKey,
+  SeriesData,
+  FullChatCountStruct,
+  SeriesParams,
+} from "./types";
+import { MostMinusTwosClips } from "./minus-two-clips";
+import { TopTwitchClips } from "./top-twitch-clips";
 import { useDashboardUrl } from "@/app/hooks";
-
-const { GET } = createClient<paths>({ baseUrl: clipAPI });
+import { timeGroupings, GET, addQueryParamsIfExist } from "@/app/utils";
+import { apiURL } from "@/app/apiURL";
 
 const seriesColors: Record<SeriesKey, string> = {
   two: "#7cb5ec",
@@ -48,15 +49,6 @@ const seriesColors: Record<SeriesKey, string> = {
   life: "#ff0000",
 } as const;
 
-const timeGroupings: NonNullable<TimeGroupings>[] = [
-  "minute",
-  "hour",
-  "day",
-  "week",
-  "month",
-  "year",
-] as const;
-
 export default function Dashboard() {
   const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
     number | undefined
@@ -74,7 +66,6 @@ export default function Dashboard() {
       fromParam,
       toParam,
       chartType,
-      trailingSpan,
       seriesSpan: span,
     },
   } = useDashboardUrl();
@@ -103,21 +94,19 @@ export default function Dashboard() {
       rollingAverage,
       fromParam,
       toParam,
-      trailingSpan,
+      span,
     ],
     queryFn: async () => {
-      const res = await GET("/api/series", {
-        params: {
-          query: {
-            grouping,
-            rolling_average: rollingAverage,
-            from: getFromParam().toISOString(),
-            to: getToParam().toISOString(),
-            span: trailingSpan,
-          },
-        },
-      });
-      return res.data;
+      const res = await fetch(
+        addQueryParamsIfExist(`${apiURL}/api/series`, {
+          grouping,
+          rolling_average: parseInt(rollingAverage),
+          from: getFromParam().toISOString(),
+          to: getToParam().toISOString(),
+          span,
+        } satisfies SeriesParams)
+      );
+      return (await res.json()) as FullChatCountStruct[];
     },
     refetchInterval: 10000,
     keepPreviousData: true,
@@ -502,16 +491,6 @@ function TwitchClipAtTime(props: { time: number }) {
     data.clip_id && <TwitchClip clip_id={data.clip_id} time={props.time} />
   );
 }
-
-export type Clip = {
-  clip_id: string;
-  count: number;
-  time: number;
-};
-
-export type ClipBatch = {
-  clips: Clip[];
-};
 
 export function TwitchClip({
   clip_id,
