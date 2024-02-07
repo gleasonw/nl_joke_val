@@ -271,110 +271,95 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 		return
 	}
 
-	chat_closed := make(chan error)
+	defer conn.Close()
+
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", authToken)))
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
+	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
+
+	incomingMessages := make(chan Message)
+	createClipStatus := make(chan bool)
 
 	go func() {
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", authToken)))
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
-		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
-
-		incomingMessages := make(chan Message)
-		createClipStatus := make(chan bool)
-
-		go func() {
-			for {
-				messageType, messageData, err := conn.ReadMessage()
-				text := string(messageData)
-				if strings.Contains(text, "PING") {
-					conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
-					continue
-				}
-				if err != nil {
-					fmt.Println(text)
-					fmt.Println("Error reading message:", err)
-					chat_closed <- err
-					return
-				}
-				incomingMessages <- Message{Type: messageType, Data: messageData}
-			}
-		}()
-
-		post_count_ticker := time.NewTicker(10 * time.Second)
-		counter := ChatCounts{}
-
 		for {
-			select {
-			case msg := <-incomingMessages:
-				full_message := string(msg.Data)
-				only_message_text := split_and_get_last(full_message, "#northernlion")
-				emotesAndKeywords := map[string]*float64{
-					"LUL":                 &counter.Lol,
-					"ICANT":               &counter.Lol,
-					"KEKW":                &counter.Lol,
-					"Cereal":              &counter.Cereal,
-					"NOOO":                &counter.No,
-					"COCKA":               &counter.Cocka,
-					"monkaS":              &counter.Monkas,
-					"Joel":                &counter.Joel,
-					"POGCRAZY":            &counter.Pog,
-					"Pog":                 &counter.Pog,
-					"LETSGO":              &counter.Pog,
-					"HUHH":                &counter.Huh,
-					"Copium":              &counter.Copium,
-					"D:":                  &counter.Shock,
-					"WhoAsked":            &counter.WhoAsked,
-					"ratJAM":              &counter.Ratjam,
-					"Sure":                &counter.Sure,
-					"Classic":             &counter.Classic,
-					"monkaGIGAftRyanGary": &counter.MonkaGiga,
-					"CAUGHT":              &counter.Caught,
-					"Life":                &counter.Life,
-				}
-
-				for keyword, count := range emotesAndKeywords {
-					if strings.Contains(only_message_text, keyword) {
-						(*count)++
-					}
-				}
-
-				if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
-					counter.Two += parse_val(split_and_get_last(only_message_text, "+"))
-				} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
-					counter.Two -= parse_val(split_and_get_last(only_message_text, "-"))
-				}
-
-			case <-post_count_ticker.C:
-
-				var timestamp time.Time
-
-				if getLiveStatus() {
-					err := db.Create(&counter).Error
-					if err != nil {
-						fmt.Println("Error inserting into db:", err)
-					}
-					timestamp = counter.CreatedAt
-					fmt.Println("creating moment ", timestamp)
-
-				}
-
-				go createClipAndInsert(db, timestamp, createClipStatus)
-				counter = ChatCounts{}
-
-			case clipWasMade := <-createClipStatus:
-				setLiveStatus(clipWasMade)
+			messageType, messageData, err := conn.ReadMessage()
+			text := string(messageData)
+			if strings.Contains(text, "PING") {
+				conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
+				continue
 			}
+			if err != nil {
+				fmt.Println(text)
+				fmt.Println("Error reading message:", err)
+				return
+			}
+			incomingMessages <- Message{Type: messageType, Data: messageData}
 		}
 	}()
 
-	defer conn.Close()
+	post_count_ticker := time.NewTicker(10 * time.Second)
+	counter := ChatCounts{}
 
 	for {
 		select {
-		case err := <-chat_closed:
-			fmt.Println("Chat closed:", err)
-			return
-		default:
-			time.Sleep(100 * time.Millisecond)
+		case msg := <-incomingMessages:
+			full_message := string(msg.Data)
+			only_message_text := split_and_get_last(full_message, "#northernlion")
+			emotesAndKeywords := map[string]*float64{
+				"LUL":                 &counter.Lol,
+				"ICANT":               &counter.Lol,
+				"KEKW":                &counter.Lol,
+				"Cereal":              &counter.Cereal,
+				"NOOO":                &counter.No,
+				"COCKA":               &counter.Cocka,
+				"monkaS":              &counter.Monkas,
+				"Joel":                &counter.Joel,
+				"POGCRAZY":            &counter.Pog,
+				"Pog":                 &counter.Pog,
+				"LETSGO":              &counter.Pog,
+				"HUHH":                &counter.Huh,
+				"Copium":              &counter.Copium,
+				"D:":                  &counter.Shock,
+				"WhoAsked":            &counter.WhoAsked,
+				"ratJAM":              &counter.Ratjam,
+				"Sure":                &counter.Sure,
+				"Classic":             &counter.Classic,
+				"monkaGIGAftRyanGary": &counter.MonkaGiga,
+				"CAUGHT":              &counter.Caught,
+				"Life":                &counter.Life,
+			}
+
+			for keyword, count := range emotesAndKeywords {
+				if strings.Contains(only_message_text, keyword) {
+					(*count)++
+				}
+			}
+
+			if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
+				counter.Two += parse_val(split_and_get_last(only_message_text, "+"))
+			} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
+				counter.Two -= parse_val(split_and_get_last(only_message_text, "-"))
+			}
+
+		case <-post_count_ticker.C:
+
+			var timestamp time.Time
+
+			if getLiveStatus() {
+				err := db.Create(&counter).Error
+				if err != nil {
+					fmt.Println("Error inserting into db:", err)
+				}
+				timestamp = counter.CreatedAt
+				fmt.Println("creating moment ", timestamp)
+
+			}
+
+			go createClipAndInsert(db, timestamp, createClipStatus)
+			counter = ChatCounts{}
+
+		case clipWasMade := <-createClipStatus:
+			setLiveStatus(clipWasMade)
 		}
 	}
 }
