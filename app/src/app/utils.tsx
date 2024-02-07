@@ -28,6 +28,7 @@ export function addQueryParamsIfExist(
 }
 
 export const timeGroupings: NonNullable<TimeGroupings>[] = [
+  "second",
   "minute",
   "hour",
   "day",
@@ -37,10 +38,10 @@ export const timeGroupings: NonNullable<TimeGroupings>[] = [
 ] as const;
 
 export const clipTimeSpans: NonNullable<ClipTimeSpans>[] = [
-  "1 month",
-  "1 week",
-  "1 year",
   "9 hours",
+  "1 week",
+  "1 month",
+  "1 year",
 ] as const;
 
 export const { GET } = createClient<paths>({
