@@ -169,20 +169,32 @@ func main() {
 		}
 	}
 
-	// authErr := authorizeTwitch()
-	// if authErr != nil {
-	// 	fmt.Println(authErr)
-	// 	return
-	// }
+	var lionIsLive = false
 
-	// go connectToTwitchChat(db, lionIsLive, setLionIsLive)
+	getLiveStatus := func() bool {
+		fmt.Println("getting live status: ", lionIsLive)
+		return lionIsLive
+	}
+
+	setLiveStatus := func(isLive bool) {
+		fmt.Println("setting live status: ", isLive)
+		lionIsLive = isLive
+	}
+
+	authError := authorizeTwitch()
+
+	if authError != nil {
+		fmt.Println("Error authorizing Twitch:", authError)
+		return
+	}
+
+	go connectToTwitchChat(db, getLiveStatus, setLiveStatus)
 
 	router := chi.NewMux()
 
 	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
 
 	api.UseMiddleware(func(ctx huma.Context, next func(huma.Context)) {
-		fmt.Println(ctx.URL())
 		ctx.SetHeader("Access-Control-Allow-Origin", "*")
 		ctx.SetHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		ctx.SetHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -251,7 +263,7 @@ func main() {
 
 }
 
-func connectToTwitchChat(db *gorm.DB) {
+func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus func(bool)) {
 
 	conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
 	if err != nil {
@@ -268,7 +280,6 @@ func connectToTwitchChat(db *gorm.DB) {
 
 		incomingMessages := make(chan Message)
 		createClipStatus := make(chan bool)
-		lionIsLive := false
 
 		go func() {
 			for {
@@ -336,7 +347,7 @@ func connectToTwitchChat(db *gorm.DB) {
 
 				var timestamp time.Time
 
-				if lionIsLive {
+				if getLiveStatus() {
 					err := db.Create(&counter).Error
 					if err != nil {
 						fmt.Println("Error inserting into db:", err)
@@ -350,7 +361,7 @@ func connectToTwitchChat(db *gorm.DB) {
 				counter = ChatCounts{}
 
 			case clipWasMade := <-createClipStatus:
-				lionIsLive = clipWasMade
+				setLiveStatus(clipWasMade)
 			}
 		}
 	}()
@@ -361,8 +372,7 @@ func connectToTwitchChat(db *gorm.DB) {
 		select {
 		case err := <-chat_closed:
 			fmt.Println("Chat closed:", err)
-			time.Sleep(30 * time.Second)
-			connectToTwitchChat(db)
+			return
 		default:
 			time.Sleep(100 * time.Millisecond)
 		}
