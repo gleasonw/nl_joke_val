@@ -118,7 +118,7 @@ func main() {
 
 	router := chi.NewMux()
 
-	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
+	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
 	api.UseMiddleware(func(ctx huma.Context, next func(huma.Context)) {
 		ctx.SetHeader("Access-Control-Allow-Origin", "*")
@@ -158,7 +158,9 @@ func main() {
 		return GetNearestClip(*input, db)
 	})
 
-	type IsLiveInput struct{}
+	type IsLiveInput struct {
+		Noop bool
+	}
 	type IsLiveOutput struct {
 		IsLive bool `json:"is_live"`
 	}
