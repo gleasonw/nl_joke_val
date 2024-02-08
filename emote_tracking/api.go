@@ -159,10 +159,10 @@ func main() {
 	})
 
 	type IsLiveInput struct {
-		Noop bool
 	}
+
 	type IsLiveOutput struct {
-		IsLive bool `json:"is_live"`
+		Body bool
 	}
 
 	huma.Register(api, huma.Operation{
@@ -171,7 +171,7 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/is_live",
 	}, func(ctx context.Context, input *IsLiveInput) (*IsLiveOutput, error) {
-		return &IsLiveOutput{IsLive: lionIsLive}, nil
+		return &IsLiveOutput{lionIsLive}, nil
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
