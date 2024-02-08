@@ -62,103 +62,11 @@ type Message struct {
 var nickname string = os.Getenv("NICK")
 var db_url string = os.Getenv("DATABASE_URL")
 var client_id string = os.Getenv("CLIENT_ID")
-var authToken = ""
-var refreshToken = ""
+var client_secret string = os.Getenv("CLIENT_SECRET")
 
 type TwitchResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-}
-
-func authorizeTwitch(db *gorm.DB) error {
-
-	// a little hack to avoid client code auth flow on startup
-	var refreshTokenStore RefreshTokenStore
-	db.Order("created_at desc").First(&refreshTokenStore)
-
-	if refreshTokenStore.RefreshToken != "" {
-		refreshToken = refreshTokenStore.RefreshToken
-		refreshTwitchToken(db)
-		return nil
-	}
-
-	fmt.Println("Authorizing Twitch with client code")
-
-	data := url.Values{}
-	data.Set("client_id", client_id)
-	data.Set("client_secret", os.Getenv("CLIENT_SECRET"))
-	data.Set("grant_type", "authorization_code")
-	data.Set("code", os.Getenv("CLIENT_CODE"))
-	data.Set("redirect_uri", "http://localhost:3000")
-
-	req, err := http.NewRequest("POST", "https://id.twitch.tv/oauth2/token", strings.NewReader(data.Encode()))
-	if err != nil {
-		return err
-	}
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	var twitchResponse TwitchResponse
-	err = json.Unmarshal(body, &twitchResponse)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	if twitchResponse.AccessToken == "" || twitchResponse.RefreshToken == "" {
-		fmt.Println("Tokens are empty. Body was:", string(body))
-		return error(fmt.Errorf("tokens are empty"))
-	}
-	authToken = twitchResponse.AccessToken
-	refreshToken = twitchResponse.RefreshToken
-	return nil
-}
-
-func refreshTwitchToken(db *gorm.DB) {
-	fmt.Println("refreshing token")
-	data := url.Values{}
-	data.Set("client_id", client_id)
-	data.Set("client_secret", os.Getenv("CLIENT_SECRET"))
-	data.Set("grant_type", "refresh_token")
-	data.Set("refresh_token", refreshToken)
-
-	req, err := http.NewRequest("POST", "https://id.twitch.tv/oauth2/token", strings.NewReader(data.Encode()))
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	var twitchResponse TwitchResponse
-	err = json.Unmarshal(body, &twitchResponse)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	authToken = twitchResponse.AccessToken
-	refreshToken = twitchResponse.RefreshToken
-	if refreshToken != "" {
-		db.Create(&RefreshTokenStore{RefreshToken: refreshToken, CreatedAt: time.Now()})
-	}
 }
 
 var val = reflect.ValueOf(ChatCounts{})
@@ -172,6 +80,7 @@ func main() {
 			fmt.Println("Error loading .env file")
 		}
 		client_id = os.Getenv("CLIENT_ID")
+		client_secret = os.Getenv("CLIENT_SECRET")
 		nickname = os.Getenv("NICK")
 		db_url = os.Getenv("DATABASE_URL")
 	}
@@ -203,13 +112,6 @@ func main() {
 	setLiveStatus := func(isLive bool) {
 		fmt.Println("setting live status: ", isLive)
 		lionIsLive = isLive
-	}
-
-	authError := authorizeTwitch(db)
-
-	if authError != nil {
-		fmt.Println("Error authorizing Twitch:", authError)
-		return
 	}
 
 	go connectToTwitchChat(db, getLiveStatus, setLiveStatus)
@@ -283,6 +185,31 @@ func main() {
 
 func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus func(bool)) {
 
+	tokens, err := tryUseLatestRefreshToken(db)
+	if err != nil {
+		tokens, err = getTwitchWithAuthCode(db)
+		if err != nil {
+			fmt.Println("Error getting Twitch token:", err)
+			return
+		}
+	}
+
+	if err != nil {
+		fmt.Println("Error getting Twitch token:", err)
+		return
+	}
+
+	refreshTokens := func() bool {
+		tokens, err = refreshTwitchToken(db, tokens.RefreshToken)
+		if err != nil {
+			fmt.Println("Error refreshing Twitch token:", err)
+			return false
+		}
+		return true
+	}
+
+	counter := ChatCounts{}
+
 	conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
 	if err != nil {
 		fmt.Println("Error connecting to Twitch IRC:", err)
@@ -291,12 +218,11 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 
 	defer conn.Close()
 
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", authToken)))
+	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", tokens.AccessToken)))
 	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
 	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
 
 	incomingMessages := make(chan Message)
-	createClipStatus := make(chan bool)
 
 	go func() {
 		for {
@@ -315,14 +241,13 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 		}
 	}()
 
-	post_count_ticker := time.NewTicker(10 * time.Second)
-	counter := ChatCounts{}
+	insertDbTicker := time.NewTicker(10 * time.Second)
 
 	for {
 		select {
 		case msg := <-incomingMessages:
-			full_message := string(msg.Data)
-			only_message_text := split_and_get_last(full_message, "#northernlion")
+			message := string(msg.Data)
+			messageText := splitAndGetLast(message, "#northernlion")
 			emotesAndKeywords := map[string]*float64{
 				"LUL":                 &counter.Lol,
 				"ICANT":               &counter.Lol,
@@ -348,19 +273,18 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 			}
 
 			for keyword, count := range emotesAndKeywords {
-				if strings.Contains(only_message_text, keyword) {
+				if strings.Contains(messageText, keyword) {
 					(*count)++
 				}
 			}
 
-			if contains_plus := strings.Contains(only_message_text, "+"); contains_plus {
-				counter.Two += parse_val(split_and_get_last(only_message_text, "+"))
-			} else if contains_minus := strings.Contains(only_message_text, "-"); contains_minus {
-				counter.Two -= parse_val(split_and_get_last(only_message_text, "-"))
+			if contains_plus := strings.Contains(messageText, "+"); contains_plus {
+				counter.Two += parseVal(splitAndGetLast(messageText, "+"))
+			} else if contains_minus := strings.Contains(messageText, "-"); contains_minus {
+				counter.Two -= parseVal(splitAndGetLast(messageText, "-"))
 			}
 
-		case <-post_count_ticker.C:
-
+		case <-insertDbTicker.C:
 			var timestamp time.Time
 
 			if getLiveStatus() {
@@ -368,27 +292,48 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 				if err != nil {
 					fmt.Println("Error inserting into db:", err)
 				}
+				counter = ChatCounts{}
 				timestamp = counter.CreatedAt
 				fmt.Println("creating moment ", timestamp)
 
 			}
 
-			go createClipAndInsert(db, timestamp, createClipStatus)
-			counter = ChatCounts{}
+			createClipAndMaybeRefreshToken(db, timestamp, tokens.AccessToken, setLiveStatus, refreshTokens)
 
-		case clipWasMade := <-createClipStatus:
-			setLiveStatus(clipWasMade)
 		}
 	}
 }
 
-func split_and_get_last(text string, splitter string) string {
+func createClipAndMaybeRefreshToken(db *gorm.DB, timestamp time.Time, authToken string, setLiveStatus func(bool), refreshTokens func() bool, retries ...int) {
+
+	clipResultChannel := make(chan CreateClipResponse)
+
+	go func() {
+		clipResultChannel <- createClipAndInsert(db, timestamp, authToken)
+	}()
+
+	clipResult := <-clipResultChannel
+
+	if clipResult.error == "unauthorized" {
+		fmt.Println("Unauthorized, refreshing token")
+		refreshTokens()
+		if len(retries) == 0 {
+			createClipAndMaybeRefreshToken(db, timestamp, authToken, setLiveStatus, refreshTokens, 1)
+		}
+	} else if clipResult.error != "" {
+		fmt.Println("Error creating clip: ", clipResult.error)
+	} else {
+		setLiveStatus(clipResult.isLionLive)
+	}
+}
+
+func splitAndGetLast(text string, splitter string) string {
 	split_text := strings.Split(text, splitter)
 	last := len(split_text) - 1
 	return split_text[last]
 }
 
-func parse_val(text string) float64 {
+func parseVal(text string) float64 {
 	if strings.Contains(text, "2") {
 		return 2
 	}
@@ -401,20 +346,12 @@ type ClipResponse struct {
 	} `json:"data"`
 }
 
-func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, isLive chan bool) {
-	responseObject := createTwitchClip(db)
-
-	if len(responseObject.Data) > 0 {
-		clip_id := responseObject.Data[0].Id
-		fmt.Println("Clip ID:", clip_id)
-		db.Exec("UPDATE chat_counts SET clip_id = $1 WHERE created_at = $2", clip_id, unix_timestamp)
-		isLive <- true
-	} else {
-		isLive <- false
-	}
+type CreateClipResponse struct {
+	error      string
+	isLionLive bool
 }
 
-func createTwitchClip(db *gorm.DB) ClipResponse {
+func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string) CreateClipResponse {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
@@ -423,18 +360,16 @@ func createTwitchClip(db *gorm.DB) ClipResponse {
 
 	requestBodyBytes, err := json.Marshal(requestBody)
 	if err != nil {
-		fmt.Println("Error marshaling JSON:", err)
-		return ClipResponse{}
+		return CreateClipResponse{error: "Error marshaling JSON"}
 	}
 
 	req, err := http.NewRequest("POST", "https://api.twitch.tv/helix/clips", bytes.NewBuffer(requestBodyBytes))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return ClipResponse{}
+		return CreateClipResponse{error: "error creating request"}
 	}
 	fmt.Println(authToken)
 
-	auth := split_and_get_last(authToken, ":")
+	auth := splitAndGetLast(authToken, ":")
 	bearer := fmt.Sprintf("Bearer %s", auth)
 
 	req.Header.Set("Content-Type", "application/json")
@@ -444,36 +379,107 @@ func createTwitchClip(db *gorm.DB) ClipResponse {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return ClipResponse{}
+		return CreateClipResponse{error: "error making request"}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == 401 {
-		fmt.Println("unauthorized: ", auth)
-		refreshTwitchToken(db)
-
-		//TODO: need a better way to refresh our token. here, we'll assign a clip slightly later than we should
-		time.Sleep(2 * time.Second)
-		return createTwitchClip(db)
+		return CreateClipResponse{error: "unauthorized"}
 	}
 
 	if resp.StatusCode == 404 {
-		return ClipResponse{}
+		return CreateClipResponse{error: "not found"}
 	}
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response body:", err)
-		return ClipResponse{}
+		return CreateClipResponse{error: "error reading response body"}
 	}
 
 	var responseObject ClipResponse
 	err = json.Unmarshal(responseBody, &responseObject)
 	if err != nil {
-		fmt.Println("Error unmarshaling JSON:", err)
-		return ClipResponse{}
+		return CreateClipResponse{error: "error unmarshaling response body"}
 	}
 
-	return responseObject
+	if len(responseObject.Data) > 0 {
+		clip_id := responseObject.Data[0].Id
+		fmt.Println("Clip ID:", clip_id)
+		db.Exec("UPDATE chat_counts SET clip_id = $1 WHERE created_at = $2", clip_id, unix_timestamp)
+		return CreateClipResponse{isLionLive: true}
+	}
+
+	return CreateClipResponse{isLionLive: false}
+
+}
+
+func getTwitchWithAuthCode(db *gorm.DB) (TwitchResponse, error) {
+
+	fmt.Println("Authorizing Twitch with client code")
+
+	data := url.Values{}
+	data.Set("client_id", client_id)
+	data.Set("client_secret", client_secret)
+	data.Set("code", os.Getenv("CLIENT_CODE"))
+	data.Set("redirect_uri", "http://localhost:3000")
+	data.Set("grant_type", "authorization_code")
+
+	return getTwitchAuthResponse(data, db)
+}
+
+func refreshTwitchToken(db *gorm.DB, refreshToken string) (TwitchResponse, error) {
+	fmt.Println("Refreshing Twitch auth with refresh token")
+
+	data := url.Values{}
+	data.Set("client_id", client_id)
+	data.Set("client_secret", client_secret)
+	data.Set("grant_type", "refresh_token")
+	data.Set("refresh_token", refreshToken)
+
+	return getTwitchAuthResponse(data, db)
+
+}
+
+func getTwitchAuthResponse(data url.Values, db *gorm.DB) (TwitchResponse, error) {
+	req, err := http.NewRequest("POST", "https://id.twitch.tv/oauth2/token", strings.NewReader(data.Encode()))
+	if err != nil {
+		return TwitchResponse{}, err
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return TwitchResponse{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return TwitchResponse{}, err
+	}
+
+	var twitchResponse TwitchResponse
+	err = json.Unmarshal(body, &twitchResponse)
+	if err != nil {
+		fmt.Println(err)
+		return TwitchResponse{}, err
+	}
+	if twitchResponse.AccessToken == "" || twitchResponse.RefreshToken == "" {
+		fmt.Println("Tokens are empty. Body was:", string(body))
+		return TwitchResponse{}, fmt.Errorf("tokens are empty")
+	}
+
+	db.Create(&RefreshTokenStore{RefreshToken: twitchResponse.RefreshToken, CreatedAt: time.Now()})
+
+	return twitchResponse, nil
+}
+
+func tryUseLatestRefreshToken(db *gorm.DB) (TwitchResponse, error) {
+	var refreshTokenStore RefreshTokenStore
+	db.Order("created_at desc").First(&refreshTokenStore)
+
+	if refreshTokenStore.RefreshToken != "" {
+		return refreshTwitchToken(db, refreshTokenStore.RefreshToken)
+	}
+
+	return TwitchResponse{}, fmt.Errorf("no refresh token found")
 }

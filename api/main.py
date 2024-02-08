@@ -3,27 +3,19 @@ from contextlib import asynccontextmanager
 import datetime
 from typing import List, Literal
 
-import clip_splicer.builder as clip_builder
 from clip_splicer.builder import (
     GROUPING_TYPE,
     SPAN_TYPE,
     RollingChatCount,
-    RollingChatCountWithThumbnail,
-    get_clips_from_intervals,
     get_top_clips,
     make_intervals_from_rolling_sums,
-    fetch_clip_data,
     get_clip_between,
-    get_batched_twitch_clips,
 )
-from psycopg import AsyncConnection
-from psycopg.rows import class_row
 import fastapi
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 from psycopg_pool import AsyncConnectionPool
-from psycopg.rows import class_row
 
 load_dotenv()
 
@@ -36,7 +28,7 @@ async def lifespan(app: fastapi.FastAPI):
     await pool.close()
 
 
-app = fastapi.FastAPI(lifespan=lifespan)
+app = fastapi.FastAPI(lifespan=lifespan)  # type: ignore
 origins = ["*"]
 app.add_middleware(
     CORSMiddleware,

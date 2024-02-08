@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Tab,
   Select,
   SelectItem,
   Card,
@@ -25,7 +24,7 @@ import {
 import { MostMinusTwosClips } from "./minus-two-clips";
 import { TopTwitchClips } from "./top-twitch-clips";
 import { useDashboardUrl } from "@/app/hooks";
-import { timeGroupings, GET, addQueryParamsIfExist } from "@/app/utils";
+import { timeGroupings, addQueryParamsIfExist } from "@/app/utils";
 import { apiURL } from "@/app/apiURL";
 
 const seriesColors: Record<SeriesKey, string> = {

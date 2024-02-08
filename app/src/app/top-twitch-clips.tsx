@@ -124,6 +124,9 @@ export function ClipClicker({
   }
 
   const clip = clips[index];
+  if (!clip) {
+    return <div>No clip found</div>;
+  }
   const totalClipCount = clips.length;
 
   return (

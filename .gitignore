@@ -6,4 +6,8 @@ clips
 # any mp4 files
 *.mp4
 ```
+# any temp directories
 temp
+```
+
+
