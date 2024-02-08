@@ -3,7 +3,6 @@ import { Title, Select, SelectItem, Card } from "@tremor/react";
 import { useQuery } from "@tanstack/react-query";
 import {
   timeGroupings,
-  GET,
   clipTimeSpans,
   addQueryParamsIfExist,
 } from "@/app/utils";

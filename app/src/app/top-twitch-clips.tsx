@@ -7,7 +7,6 @@ import {
   addQueryParamsIfExist,
   clipTimeSpans,
   timeGroupings,
-  GET,
 } from "@/app/utils";
 import { useDashboardUrl } from "@/app/hooks";
 import { apiURL } from "@/app/apiURL";

@@ -1,5 +1,4 @@
 import { components, paths } from "@/app/schema";
-import path from "path";
 
 export type FullChatCountStruct = components["schemas"]["ChatCounts"];
 export type ChatCounts = Omit<FullChatCountStruct, "time">;

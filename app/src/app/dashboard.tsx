@@ -159,7 +159,7 @@ export default function Dashboard() {
         cursor: "pointer",
         point: {
           events: {
-            click: function (e: any) {
+            click: function () {
               const chart = this.series.chart;
               if (this.plotX && this.plotY) {
                 setTooltip({
