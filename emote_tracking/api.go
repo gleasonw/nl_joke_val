@@ -292,8 +292,9 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 				if err != nil {
 					fmt.Println("Error inserting into db:", err)
 				}
-				counter = ChatCounts{}
+
 				timestamp = counter.CreatedAt
+				counter = ChatCounts{}
 				fmt.Println("creating moment ", timestamp)
 
 			}
