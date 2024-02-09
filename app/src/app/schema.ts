@@ -173,12 +173,11 @@ export interface operations {
   /** Is NL live */
   "is-nl-live": {
     responses: {
-      /** @description No Content */
-      204: {
-        headers: {
-          IsLive?: boolean;
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": boolean;
         };
-        content: never;
       };
       /** @description Error */
       default: {

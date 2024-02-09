@@ -23,7 +23,7 @@ import {
 } from "./types";
 import { MostMinusTwosClips } from "./minus-two-clips";
 import { TopTwitchClips } from "./top-twitch-clips";
-import { useDashboardUrl } from "@/app/hooks";
+import { useDashboardUrl, useLiveStatus } from "@/app/hooks";
 import { timeGroupings, addQueryParamsIfExist } from "@/app/utils";
 import { apiURL } from "@/app/apiURL";
 
@@ -267,7 +267,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="flex flex-col gap-3">
           <h1 className={"text-2xl m-5 font-semibold flex flex-col gap-4"}>
-            NL chat emote usage{" "}
+            <span className="flex justify-between">
+              NL chat emote usage <LiveStatus />
+            </span>
             <span className="text-gray-600 text-base">{timeRangeString}</span>
           </h1>
           <div ref={chartRef}>
@@ -538,4 +540,23 @@ export const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
 
 export function Emote({ src }: { src: string }) {
   return <Image src={`/${src}`} alt={src} width={32} height={32} />;
+}
+
+export function LiveStatus() {
+  const { data: nlIsLive } = useLiveStatus();
+  if (nlIsLive) {
+    return (
+      <span className="flex gap-2 items-center">
+        <span className="bg-green-500 rounded rounded-full w-4 h-4" />
+        <a
+          href="https://twitch.tv/northernlion"
+          target="_blank"
+          className="underline"
+        >
+          Live
+        </a>
+      </span>
+    );
+  }
+  return <span className="text-gray-500">Offline</span>;
 }
