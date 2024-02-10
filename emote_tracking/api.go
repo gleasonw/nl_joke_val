@@ -325,6 +325,7 @@ func createClipAndMaybeRefreshToken(db *gorm.DB, timestamp time.Time, authToken 
 		}
 	} else if clipResult.error != "" {
 		fmt.Println("Error creating clip: ", clipResult.error)
+		setLiveStatus(false)
 	} else {
 		setLiveStatus(clipResult.isLionLive)
 	}
