@@ -201,53 +201,70 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 		return
 	}
 
-	refreshTokens := func() bool {
-		tokens, err = refreshTwitchToken(db, tokens.RefreshToken)
-		if err != nil {
-			fmt.Println("Error refreshing Twitch token:", err)
-			return false
-		}
-		return true
-	}
-
-	counter := ChatCounts{}
-
-	conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
-	if err != nil {
-		fmt.Println("Error connecting to Twitch IRC:", err)
-		return
-	}
-
-	defer conn.Close()
-
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", tokens.AccessToken)))
-	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
-	conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
-
-	incomingMessages := make(chan Message)
-
-	go func() {
-		for {
-			messageType, messageData, err := conn.ReadMessage()
-			text := string(messageData)
-			if strings.Contains(text, "PING") {
-				conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
-				continue
-			}
+	for {
+		ctx, cancel := context.WithCancel(context.Background())
+		refreshTokens := func() bool {
+			tokens, err = refreshTwitchToken(db, tokens.RefreshToken)
 			if err != nil {
-				fmt.Println(text)
-				fmt.Println("Error reading message:", err)
-				return
+				fmt.Println("Error refreshing Twitch token:", err)
+				return false
 			}
-			incomingMessages <- Message{Type: messageType, Data: messageData}
+			return true
 		}
-	}()
 
-	insertDbTicker := time.NewTicker(10 * time.Second)
+		conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
+		if err != nil {
+			fmt.Println("Error connecting to Twitch IRC:", err)
+			cancel()
+			return
+		}
 
+		defer conn.Close()
+
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", tokens.AccessToken)))
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
+		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
+
+		incomingMessages := make(chan Message)
+
+		go readChatMessages(conn, incomingMessages, cancel)
+
+		go countEmotes(incomingMessages, *time.NewTicker(5 * time.Minute), db, getLiveStatus, func(timestamp time.Time) {
+			createClipAndMaybeRefreshToken(db, timestamp, tokens.AccessToken, setLiveStatus, refreshTokens)
+		}, ctx)
+
+		<-ctx.Done()
+		cancel()
+
+		time.Sleep(5 * time.Second)
+		fmt.Println("Reconnecting to Twitch chat")
+
+	}
+}
+
+func readChatMessages(conn *websocket.Conn, incomingMessages chan Message, cancel context.CancelFunc) {
+	for {
+		messageType, messageData, err := conn.ReadMessage()
+		text := string(messageData)
+		if strings.Contains(text, "PING") {
+			conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
+			continue
+		}
+		if err != nil {
+			fmt.Println(text)
+			fmt.Println("Error reading message:", err)
+			cancel()
+			return
+		}
+		incomingMessages <- Message{Type: messageType, Data: messageData}
+	}
+}
+
+func countEmotes(message chan Message, postInterval time.Ticker, db *gorm.DB, getLiveStatus func() bool, onPost func(time.Time), ctx context.Context) {
+	counter := ChatCounts{}
 	for {
 		select {
-		case msg := <-incomingMessages:
+		case msg := <-message:
 			message := string(msg.Data)
 			messageText := splitAndGetLast(message, "#northernlion")
 			emotesAndKeywords := map[string]*float64{
@@ -286,7 +303,7 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 				counter.Two -= parseVal(splitAndGetLast(messageText, "-"))
 			}
 
-		case <-insertDbTicker.C:
+		case <-postInterval.C:
 			var timestamp time.Time
 
 			if getLiveStatus() {
@@ -297,12 +314,12 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 
 				timestamp = counter.CreatedAt
 				counter = ChatCounts{}
-				fmt.Println("creating moment ", timestamp)
 
 			}
+			onPost(timestamp)
 
-			createClipAndMaybeRefreshToken(db, timestamp, tokens.AccessToken, setLiveStatus, refreshTokens)
-
+		case <-ctx.Done():
+			return
 		}
 	}
 }
@@ -327,7 +344,7 @@ func createClipAndMaybeRefreshToken(db *gorm.DB, timestamp time.Time, authToken 
 		fmt.Println("Error creating clip: ", clipResult.error)
 		setLiveStatus(false)
 	} else {
-		setLiveStatus(clipResult.isLionLive)
+		setLiveStatus(true)
 	}
 }
 
@@ -351,8 +368,7 @@ type ClipResponse struct {
 }
 
 type CreateClipResponse struct {
-	error      string
-	isLionLive bool
+	error string
 }
 
 func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string) CreateClipResponse {
@@ -410,10 +426,10 @@ func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string
 		clip_id := responseObject.Data[0].Id
 		fmt.Println("Clip ID:", clip_id)
 		db.Exec("UPDATE chat_counts SET clip_id = $1 WHERE created_at = $2", clip_id, unix_timestamp)
-		return CreateClipResponse{isLionLive: true}
+		return CreateClipResponse{}
 	}
 
-	return CreateClipResponse{isLionLive: false}
+	return CreateClipResponse{}
 
 }
 
