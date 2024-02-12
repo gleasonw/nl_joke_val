@@ -229,7 +229,7 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 
 		go readChatMessages(conn, incomingMessages, cancel)
 
-		go countEmotes(incomingMessages, *time.NewTicker(5 * time.Minute), db, getLiveStatus, func(timestamp time.Time) {
+		go countEmotes(incomingMessages, *time.NewTicker(10 * time.Second), db, getLiveStatus, func(timestamp time.Time) {
 			createClipAndMaybeRefreshToken(db, timestamp, tokens.AccessToken, setLiveStatus, refreshTokens)
 		}, ctx)
 
