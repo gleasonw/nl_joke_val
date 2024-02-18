@@ -91,8 +91,8 @@ func main() {
 		return
 	}
 
-	db.AutoMigrate(&ChatCounts{})
-	db.AutoMigrate(&RefreshTokenStore{})
+	//db.AutoMigrate(&ChatCounts{})
+	//db.AutoMigrate(&RefreshTokenStore{})
 
 	// build validColumnSet
 	for i := 0; i < val.NumField(); i++ {
@@ -104,17 +104,7 @@ func main() {
 
 	var lionIsLive = false
 
-	getLiveStatus := func() bool {
-		fmt.Println("getting live status: ", lionIsLive)
-		return lionIsLive
-	}
-
-	setLiveStatus := func(isLive bool) {
-		fmt.Println("setting live status: ", isLive)
-		lionIsLive = isLive
-	}
-
-	go connectToTwitchChat(db, getLiveStatus, setLiveStatus)
+	//go connectToTwitchChat(db, func() bool { return lionIsLive }, func(isLive bool) { lionIsLive = isLive })
 
 	router := chi.NewMux()
 
@@ -134,6 +124,8 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
+		fmt.Println(input.From)
+		fmt.Println(input.To)
 		if input.RollingAverage > 0 {
 			return GetRollingAverageSeries(*input, db)
 		}
@@ -158,8 +150,7 @@ func main() {
 		return GetNearestClip(*input, db)
 	})
 
-	type IsLiveInput struct {
-	}
+	type IsLiveInput struct{}
 
 	type IsLiveOutput struct {
 		Body bool

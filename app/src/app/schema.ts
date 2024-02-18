@@ -68,11 +68,16 @@ export interface components {
       who_asked: number;
     };
     Clip: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       */
+      $schema?: string;
       clip_id: string;
       /** Format: int64 */
       count: number;
-      /** Format: double */
-      time: number;
+      /** Format: date-time */
+      time: string;
     };
     ErrorDetail: {
       /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
@@ -127,14 +132,17 @@ export interface operations {
 
   /** Get nearest clip */
   "get-nearest-clip": {
+    parameters: {
+      query?: {
+        time?: number;
+      };
+    };
     responses: {
-      /** @description No Content */
-      204: {
-        headers: {
-          ClipID?: string;
-          Time?: string;
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["Clip"];
         };
-        content: never;
       };
       /** @description Error */
       default: {
@@ -150,7 +158,7 @@ export interface operations {
       query?: {
         column?: string[];
         span?: "9 hours" | "1 week" | "1 month" | "1 year";
-        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        grouping?: "25 seconds" | " 1 minute" | " 5 minutes" | " 15 minutes" | " 1 hour" | " 1 day";
         order?: "ASC" | "DESC";
         limit?: number;
       };
@@ -191,7 +199,7 @@ export interface operations {
   "get-series": {
     parameters: {
       query?: {
-        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
         grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
         rolling_average?: number;
         from?: string;

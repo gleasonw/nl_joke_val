@@ -14,12 +14,7 @@ import { apiURL } from "@/app/apiURL";
 export function TopTwitchClips() {
   const {
     handleNavigate: onNavigate,
-    currentParams: {
-      maxClipGrouping: grouping,
-      maxClipSpan: span,
-      emotes,
-      maxClipIndex,
-    },
+    currentParams: { maxClipGrouping, maxClipSpan: span, emotes, maxClipIndex },
   } = useDashboardUrl();
 
   const {
@@ -27,13 +22,13 @@ export function TopTwitchClips() {
     isLoading,
     isRefetching,
   } = useQuery({
-    queryKey: ["top_clips", span, grouping, emotes],
+    queryKey: ["top_clips", span, maxClipGrouping, emotes],
     queryFn: async () => {
       const res = await fetch(
         addQueryParamsIfExist(`${apiURL}/api/clip_counts`, {
           column: emotes,
           span,
-          grouping,
+          grouping: maxClipGrouping,
           order: "DESC",
         } satisfies ClipParams)
       );
@@ -68,7 +63,7 @@ export function TopTwitchClips() {
           <label>
             Bin size
             <Select
-              value={grouping}
+              value={maxClipGrouping}
               onValueChange={(value) => onNavigate({ maxClipGrouping: value })}
             >
               {timeGroupings.map((grouping) => (
@@ -112,12 +107,7 @@ export interface ClipClickerProps {
   setIndex: (index: number) => void;
 }
 
-export function ClipClicker({
-  clips,
-  isLoading,
-  index,
-  setIndex,
-}: ClipClickerProps) {
+export function ClipClicker({ clips, index, setIndex }: ClipClickerProps) {
   if (!clips || clips.length === 0) {
     return <div className="w-full h-96 bg-gray-100 animate-pulse" />;
   }
@@ -129,14 +119,11 @@ export function ClipClicker({
   const totalClipCount = clips.length;
 
   return (
-    <div className={`flex flex-col gap-5 ${isLoading && "opacity-50"}`}>
+    <div className={`flex flex-col gap-5 `}>
       <div>
         <span className={"text-3xl"}>#{index + 1}</span>
         <span className="pl-2 text-xl">({clip.count})</span>
-        <TwitchClip
-          clip_id={clip.clip_id!}
-          time={new Date(clip.time).getTime()}
-        />
+        <TwitchClip clip_id={clip.clip_id!} time={clip.time} />
       </div>
       <div className="flex gap-2">
         <Button onClick={() => setIndex(index - 1)} disabled={index === 0}>

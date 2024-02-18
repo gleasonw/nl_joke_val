@@ -11,7 +11,7 @@ import (
 )
 
 type SeriesInput struct {
-	Span           string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours" default:"9 hours"`
+	Span           string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours,custom" default:"9 hours"`
 	Grouping       string    `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
 	RollingAverage int       `query:"rolling_average"`
 	From           time.Time `query:"from"`
@@ -51,24 +51,25 @@ var queryFromTo = fmt.Sprintf(baseFromToQuery, baseSumStrings)
 var querySinceSpan = fmt.Sprintf(baseSinceSpanQuery, baseSumStrings)
 
 func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
-	var result = []ChatCounts{}
-	var dbError error
+	result := runQuery(p, queryRunner{
+		getResultsFromTo: func() queryReturn {
+			result := []ChatCounts{}
+			dbError := db.Raw(queryFromTo, p.Grouping, p.From, p.To).Scan(&result).Error
+			return queryReturn{result, dbError}
+		},
+		getResultsSpanSinceLive: func() queryReturn {
+			result := []ChatCounts{}
+			dbError := db.Raw(querySinceSpan, p.Grouping, p.Span).Scan(&result).Error
+			return queryReturn{result, dbError}
+		},
+	})
 
-	if p.Span != "" {
-		dbError = db.Raw(querySinceSpan, p.Grouping, p.Span).Scan(&result).Error
-
-	} else if !p.From.IsZero() && !p.To.IsZero() {
-		dbError = db.Raw(queryFromTo, p.Grouping, p.From, p.To).Scan(&result).Error
-	} else {
-		dbError = fmt.Errorf("invalid input, must provide either from and to or span")
+	if result.error != nil {
+		fmt.Println(result.error)
+		return &SeriesOutput{}, result.error
 	}
 
-	if dbError != nil {
-		fmt.Println(dbError)
-		return &SeriesOutput{}, dbError
-	}
-
-	return &SeriesOutput{result}, nil
+	return &SeriesOutput{result.result}, nil
 
 }
 
@@ -88,7 +89,6 @@ func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) 
 	rollingAverageString := buildStringForEachColumn(func(fieldName string) string {
 		return fmt.Sprintf("AVG(%s) OVER (ROWS BETWEEN %d PRECEDING AND CURRENT ROW) as %s", tempColumnSumName(fieldName), p.RollingAverage, fieldName)
 	})
-	result := []ChatCounts{}
 	var dbError error
 
 	baseQuery := `
@@ -98,22 +98,27 @@ func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) 
 	FROM base_sum
 	`
 
-	if p.Span != "" {
-		query := fmt.Sprintf(baseQuery, averagedQuerySinceSpan, rollingAverageString)
-		dbError = db.Raw(query, p.Grouping, p.Span).Scan(&result).Error
-	} else if !p.From.IsZero() && !p.To.IsZero() {
-		query := fmt.Sprintf(baseQuery, averagedQueryFromTo, rollingAverageString)
-		dbError = db.Raw(query, p.Grouping, p.From, p.To).Scan(&result).Error
-	} else {
-		dbError = fmt.Errorf("invalid input, must provide either from and to or span")
-	}
+	result := runQuery(p, queryRunner{
+		getResultsFromTo: func() queryReturn {
+			result := []ChatCounts{}
+			query := fmt.Sprintf(baseQuery, averagedQueryFromTo, rollingAverageString)
+			dbError = db.Raw(query, p.Grouping, p.From, p.To).Scan(&result).Error
+			return queryReturn{result, dbError}
+		},
+		getResultsSpanSinceLive: func() queryReturn {
+			result := []ChatCounts{}
+			query := fmt.Sprintf(baseQuery, averagedQuerySinceSpan, rollingAverageString)
+			dbError = db.Raw(query, p.Grouping, p.Span).Scan(&result).Error
+			return queryReturn{result, dbError}
+		},
+	})
 
-	if dbError != nil {
+	if result.error != nil {
 		fmt.Println(dbError)
 		return &SeriesOutput{}, dbError
 	}
 
-	return &SeriesOutput{result}, nil
+	return &SeriesOutput{result.result}, nil
 }
 
 func buildStringForEachColumn(fn func(string) string) string {
@@ -127,4 +132,24 @@ func buildStringForEachColumn(fn func(string) string) string {
 		}
 	}
 	return strings.Join(columnStrings, ",\n")
+}
+
+type queryReturn struct {
+	result []ChatCounts
+	error  error
+}
+
+type queryRunner struct {
+	getResultsFromTo        func() queryReturn
+	getResultsSpanSinceLive func() queryReturn
+}
+
+func runQuery(p SeriesInput, runner queryRunner) queryReturn {
+	if !p.From.IsZero() && !p.To.IsZero() {
+		return runner.getResultsFromTo()
+	} else if p.Span != "" {
+		return runner.getResultsSpanSinceLive()
+	} else {
+		return queryReturn{error: fmt.Errorf("invalid input, must provide either from and to or span")}
+	}
 }

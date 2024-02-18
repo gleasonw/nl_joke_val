@@ -10,6 +10,9 @@ export type TimeSpans = NonNullable<
 export type TimeGroupings = NonNullable<
   paths["/api/series"]["get"]["parameters"]["query"]
 >["grouping"];
+export type ClipTimeGroupings = NonNullable<
+  paths["/api/clip_counts"]["get"]["parameters"]["query"]
+>["grouping"];
 
 export type ClipTimeSpans = NonNullable<
   paths["/api/clip_counts"]["get"]["parameters"]["query"]

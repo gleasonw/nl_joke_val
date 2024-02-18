@@ -1,7 +1,12 @@
 import { useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addQueryParamsIfExist } from "@/app/utils";
-import { ClipTimeSpans, TimeGroupings, TimeSpans } from "@/app/types";
+import {
+  ClipTimeGroupings,
+  ClipTimeSpans,
+  TimeGroupings,
+  TimeSpans,
+} from "@/app/types";
 import { useQuery } from "@tanstack/react-query";
 import { apiURL } from "@/app/apiURL";
 
@@ -47,10 +52,12 @@ export function useDashboardUrl() {
   const emotes =
     params.getAll("emote").length > 0 ? params.getAll("emote") : ["two"];
   const maxClipGrouping = (params.get("maxClipGrouping") ??
-    "second") as TimeGroupings;
+    "25 seconds") as ClipTimeGroupings;
   const maxClipSpan: ClipTimeSpans =
     (params.get("maxClipSpan") as ClipTimeSpans) ?? "9 hours";
   const maxClipIndex = params.get("maxClipIndex");
+
+  const clickedUnixSeconds = params.get("clickedUnixSeconds");
 
   const handleNavigate = useCallback(
     (newParam: { [key: string]: string | string[] | undefined | number }) => {
@@ -96,6 +103,9 @@ export function useDashboardUrl() {
     seriesSpan,
     minClipIndex: minClipIndex ? parseInt(minClipIndex as string) : 0,
     maxClipIndex: maxClipIndex ? parseInt(maxClipIndex as string) : 0,
+    clickedUnixSeconds: clickedUnixSeconds
+      ? parseInt(clickedUnixSeconds as string)
+      : undefined,
   };
 
   return { handleNavigate, currentParams };

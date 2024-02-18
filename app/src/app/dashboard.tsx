@@ -4,28 +4,33 @@ import {
   Select,
   SelectItem,
   Card,
-  Button,
   DateRangePicker,
   DateRangePickerItem,
   DateRangePickerValue,
 } from "@tremor/react";
-import { CSSProperties, useRef, useState } from "react";
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import Image from "next/image";
-import { useClickAway } from "react-use";
 import {
   SeriesKey,
   SeriesData,
   FullChatCountStruct,
   SeriesParams,
+  Clip,
 } from "./types";
 import { MostMinusTwosClips } from "./minus-two-clips";
 import { TopTwitchClips } from "./top-twitch-clips";
 import { useDashboardUrl, useLiveStatus } from "@/app/hooks";
 import { timeGroupings, addQueryParamsIfExist } from "@/app/utils";
 import { apiURL } from "@/app/apiURL";
+
+const timeSinceLiveSet = new Set<"1 minute" | "1 hour" | "9 hours">([
+  "1 minute",
+  "1 hour",
+  "9 hours",
+]);
 
 const seriesColors: Record<SeriesKey, string> = {
   two: "#7cb5ec",
@@ -49,13 +54,6 @@ const seriesColors: Record<SeriesKey, string> = {
 } as const;
 
 export default function Dashboard() {
-  const [clickedUnixSeconds, setClickedUnixSeconds] = useState<
-    number | undefined
-  >(undefined);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number } | undefined>(
-    undefined
-  );
-
   const {
     handleNavigate,
     currentParams: {
@@ -69,19 +67,19 @@ export default function Dashboard() {
     },
   } = useDashboardUrl();
 
-  function getFromParam(): Date {
+  function getFromParam(): string | undefined {
     if (fromParam) {
-      return new Date(fromParam);
+      return new Date(fromParam).toISOString();
     } else {
-      return new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+      return undefined;
     }
   }
 
-  function getToParam(): Date {
+  function getToParam(): string | undefined {
     if (toParam) {
-      return new Date(toParam);
+      return new Date(toParam).toISOString();
     } else {
-      return new Date();
+      return undefined;
     }
   }
 
@@ -100,8 +98,8 @@ export default function Dashboard() {
         addQueryParamsIfExist(`${apiURL}/api/series`, {
           grouping,
           rolling_average: parseInt(rollingAverage),
-          from: getFromParam().toISOString(),
-          to: getToParam().toISOString(),
+          from: getFromParam(),
+          to: getToParam(),
           span,
         } satisfies SeriesParams)
       );
@@ -112,8 +110,6 @@ export default function Dashboard() {
   });
 
   const chartRef = useRef<HTMLDivElement | null>(null);
-  const tooltipRef = useRef<HTMLDivElement | null>(null);
-  useClickAway(chartRef, () => setTooltip(undefined));
 
   const emoteSeries =
     series.map((key) => ({
@@ -126,7 +122,7 @@ export default function Dashboard() {
       color: seriesColors[key as unknown as SeriesKey],
       events: {
         click: function (e: any) {
-          setClickedUnixSeconds(e.point.x / 1000);
+          handleNavigate({ clickedUnixSeconds: e.point.x / 1000 });
         },
       },
     })) || ([] as Highcharts.SeriesOptionsType[]);
@@ -157,19 +153,6 @@ export default function Dashboard() {
           enabled: false,
         },
         cursor: "pointer",
-        point: {
-          events: {
-            click: function () {
-              const chart = this.series.chart;
-              if (this.plotX && this.plotY) {
-                setTooltip({
-                  x: this.plotX + chart.plotLeft,
-                  y: this.plotY + chart.plotTop,
-                });
-              }
-            },
-          },
-        },
       },
       line: {
         linecap: "round",
@@ -187,7 +170,7 @@ export default function Dashboard() {
           console.log(e);
           let xVal = e?.xAxis?.[0]?.value;
           if (xVal) {
-            setClickedUnixSeconds(xVal / 1000);
+            handleNavigate({ clickedUnixSeconds: xVal / 1000 });
           }
         },
       },
@@ -210,32 +193,6 @@ export default function Dashboard() {
     series: emoteSeries,
   };
 
-  function getTooltipStyle(): CSSProperties {
-    if (window.innerWidth < 768) {
-      return {
-        position: "absolute",
-        top: tooltip?.y ?? 0,
-        left: "0",
-        transform: "translate('-50%', '-50%')",
-      };
-    }
-    let xDistance = "-50%";
-    let yDistance = "-10%";
-    if (tooltip && tooltipRef.current) {
-      if (tooltip.x + tooltipRef.current.clientWidth > window.innerWidth) {
-        xDistance = "-100%";
-      } else if (tooltip.x - tooltipRef.current.clientWidth < 0) {
-        xDistance = "0%";
-      }
-    }
-    return {
-      position: "absolute",
-      top: tooltip?.y,
-      left: tooltip?.x,
-      transform: `translate(${xDistance}, ${yDistance})`,
-    };
-  }
-
   function getNewSeriesList(emote: string) {
     if (series.includes(emote)) {
       return series.filter((item) => item !== emote);
@@ -244,27 +201,9 @@ export default function Dashboard() {
     }
   }
 
-  const last9HoursRange = {
-    from: undefined,
-    to: undefined,
-    span: "9 hours",
-  };
-
-  const lastHourRange = {
-    from: undefined,
-    to: undefined,
-    span: "1 hour",
-  };
-
-  const lastMinuteRange = {
-    from: undefined,
-    to: undefined,
-    span: "1 minute",
-  };
-
   return (
-    <div className="min-h-screen bg-gray-100 lg:p-8 flex flex-col gap-8">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div className="min-h-screen bg-gray-100 lg:p-5 flex flex-col gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card className="flex flex-col gap-3">
           <h1 className={"text-2xl m-5 font-semibold flex flex-col gap-4"}>
             <span className="flex justify-between">
@@ -277,25 +216,136 @@ export default function Dashboard() {
               highcharts={Highcharts}
               options={highChartsOptions}
             />
-
-            {tooltip && (
-              <div
-                className={"w-96 transition-all"}
-                style={getTooltipStyle()}
-                ref={tooltipRef}
-              >
-                <button
-                  onClick={() => setTooltip(undefined)}
-                  className={"absolute -top-10 right-0 p-5 bg-white rounded"}
-                >
-                  X
-                </button>
-                {clickedUnixSeconds ? (
-                  <TwitchClipAtTime time={clickedUnixSeconds} />
-                ) : null}
-              </div>
-            )}
           </div>
+          <div className="flex gap-4 items-center flex-wrap">
+            <label>
+              Time range
+              <DateRangePicker
+                value={{
+                  from: getFromParam(),
+                  to: getToParam(),
+                }}
+                onValueChange={(value: DateRangePickerValue) => {
+                  if (
+                    value.selectValue &&
+                    timeSinceLiveSet.has(
+                      value.selectValue as "1 minute" | "1 hour" | "9 hours"
+                    )
+                  ) {
+                    return handleNavigate({
+                      from: undefined,
+                      to: undefined,
+                      span: value.selectValue,
+                    });
+                  }
+                  return handleNavigate({
+                    from: value.from?.toISOString(),
+                    to: value.to?.toISOString(),
+                    span: "custom",
+                  });
+                }}
+                selectPlaceholder="Select a range"
+              >
+                {
+                  ["1 minute", "1 hour", "9 hours"].map((s) => (
+                    <DateRangePickerItem
+                      key={s}
+                      value={s}
+                      from={new Date()}
+                      to={new Date()}
+                    >
+                      {s}
+                    </DateRangePickerItem>
+                  )) as any
+                }
+                <DateRangePickerItem
+                  key="week"
+                  value="week"
+                  from={
+                    new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000)
+                  }
+                  to={new Date()}
+                >
+                  Past week
+                </DateRangePickerItem>
+                <DateRangePickerItem
+                  key="half"
+                  value="half"
+                  from={
+                    new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000)
+                  }
+                  to={new Date()}
+                >
+                  Past 30 days
+                </DateRangePickerItem>
+
+                <DateRangePickerItem
+                  key="ytd"
+                  value="ytd"
+                  from={new Date(2023, 3, 18)}
+                  to={new Date()}
+                >
+                  To date
+                </DateRangePickerItem>
+              </DateRangePicker>
+            </label>
+            <label>
+              Group By
+              <Select
+                className="w-40"
+                id="groupBySelect"
+                value={grouping}
+                placeholder={"Group by"}
+                onValueChange={(value) =>
+                  handleNavigate({
+                    timeGrouping: value,
+                  })
+                }
+              >
+                {timeGroupings.map((grouping) => (
+                  <SelectItem value={grouping} key={grouping} />
+                ))}
+              </Select>
+            </label>
+            <label>
+              Smoothing
+              <Select
+                className="w-40"
+                id="smoothing"
+                value={rollingAverage.toString()}
+                placeholder={"Smoothing"}
+                onValueChange={(value) =>
+                  handleNavigate({
+                    rollingAverage: value,
+                  })
+                }
+              >
+                {[0, 5, 10, 15, 30, 60].map((smoothing) => (
+                  <SelectItem value={smoothing.toString()} key={smoothing}>
+                    {smoothing === 0 ? "None" : smoothing}
+                  </SelectItem>
+                ))}
+              </Select>
+            </label>
+            <label>
+              Chart Type
+              <Select
+                className="w-40"
+                id="chartTypeSelect"
+                value={chartType}
+                placeholder={"Chart type"}
+                onValueChange={(value) =>
+                  handleNavigate({
+                    chartType: value,
+                  })
+                }
+              >
+                <SelectItem value="line">Line</SelectItem>
+                <SelectItem value="bar">Bar</SelectItem>
+              </Select>
+            </label>
+          </div>
+
           <div className="flex flex-col p-3">
             <div className="flex flex-row flex-wrap gap-3 m-2">
               {Object.keys(seriesColors).map((key) => (
@@ -322,137 +372,10 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <SettingsDropLayout>
-            <Button
-              onClick={() => handleNavigate(lastMinuteRange)}
-              variant={span === "1 minute" ? "primary" : "secondary"}
-            >
-              Last minute of stream
-            </Button>
-            <Button
-              onClick={() => handleNavigate(lastHourRange)}
-              variant={span === "1 hour" ? "primary" : "secondary"}
-            >
-              Last hour of stream
-            </Button>
-            <Button
-              onClick={() => handleNavigate(last9HoursRange)}
-              variant={
-                span === "9 hours" || span === null ? "primary" : "secondary"
-              }
-            >
-              Last 9 hours of stream
-            </Button>
-            <DateRangePicker
-              value={{
-                from: getFromParam(),
-                to: getToParam(),
-              }}
-              onValueChange={(value: DateRangePickerValue) =>
-                handleNavigate({
-                  from: value.from?.toISOString(),
-                  to: value.to?.toISOString(),
-                  span: "custom",
-                })
-              }
-              selectPlaceholder="Select a range"
-            >
-              <DateRangePickerItem
-                key="day"
-                value="day"
-                from={new Date(new Date().getTime() - 24 * 60 * 60 * 1000)}
-                to={new Date()}
-              >
-                Past day
-              </DateRangePickerItem>
-              <DateRangePickerItem
-                key="week"
-                value="week"
-                from={new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000)}
-                to={new Date()}
-              >
-                Past week
-              </DateRangePickerItem>
-              <DateRangePickerItem
-                key="half"
-                value="half"
-                from={new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000)}
-                to={new Date()}
-              >
-                Past 30 days
-              </DateRangePickerItem>
-
-              <DateRangePickerItem
-                key="ytd"
-                value="ytd"
-                from={new Date(2023, 3, 18)}
-                to={new Date()}
-              >
-                To date
-              </DateRangePickerItem>
-            </DateRangePicker>
-          </SettingsDropLayout>
-          <SettingsDropLayout>
-            <label>
-              Group By
-              <Select
-                id="groupBySelect"
-                value={grouping}
-                placeholder={"Group by"}
-                onValueChange={(value) =>
-                  handleNavigate({
-                    timeGrouping: value,
-                  })
-                }
-              >
-                {timeGroupings.map((grouping) => (
-                  <SelectItem value={grouping} key={grouping} />
-                ))}
-              </Select>
-            </label>
-            <label>
-              Smoothing
-              <Select
-                id="smoothing"
-                value={rollingAverage.toString()}
-                placeholder={"Smoothing"}
-                onValueChange={(value) =>
-                  handleNavigate({
-                    rollingAverage: value,
-                  })
-                }
-              >
-                {[0, 5, 10, 15, 30, 60].map((smoothing) => (
-                  <SelectItem value={smoothing.toString()} key={smoothing}>
-                    {smoothing === 0 ? "None" : smoothing}
-                  </SelectItem>
-                ))}
-              </Select>
-            </label>
-            <label>
-              Chart Type
-              <Select
-                id="chartTypeSelect"
-                value={chartType}
-                placeholder={"Chart type"}
-                onValueChange={(value) =>
-                  handleNavigate({
-                    chartType: value,
-                  })
-                }
-              >
-                <SelectItem value="line">Line</SelectItem>
-                <SelectItem value="bar">Bar</SelectItem>
-              </Select>
-            </label>
-          </SettingsDropLayout>
-
-          <span className="text-center">
-            Select a point in the graph to pull the nearest clip
-          </span>
         </Card>
 
         <div className={"flex flex-col gap-8"}>
+          <TwitchClipAtTime />
           <TopTwitchClips />
           <MostMinusTwosClips />
         </div>
@@ -469,28 +392,33 @@ export function SettingsDropLayout({ children }: SettingsDropLayoutProps) {
   return <div className="flex gap-8 flex-wrap">{children}</div>;
 }
 
-type ClipData = {
-  clip_id: string;
-  time: number;
-};
+function TwitchClipAtTime() {
+  const {
+    currentParams: { clickedUnixSeconds },
+  } = useDashboardUrl();
 
-function TwitchClipAtTime(props: { time: number }) {
-  const { isSuccess, data } = useQuery({
-    queryKey: ["clip", props.time],
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["clip", clickedUnixSeconds],
     queryFn: async () => {
-      const res = await fetch(
-        `https://nljokeval-production.up.railway.app/api/clip?time=${props.time}`
-      );
-      return (await res.json()) as ClipData;
+      const res = await fetch(`${apiURL}/api/clip?time=${clickedUnixSeconds}`);
+      return (await res.json()) as Clip;
     },
     keepPreviousData: true,
   });
-  return (
-    data &&
-    isSuccess &&
-    props.time &&
-    data.clip_id && <TwitchClip clip_id={data.clip_id} time={props.time} />
-  );
+
+  if (!clickedUnixSeconds) {
+    return <div>Select a point on the graph to pull the nearest clip.</div>;
+  }
+
+  if (isLoading) {
+    return <div className="text-center">Loading...</div>;
+  }
+
+  if (isError) {
+    return <div className="text-center">Error loading clip</div>;
+  }
+
+  return <TwitchClip clip_id={data.clip_id} time={data.time} />;
 }
 
 export function TwitchClip({
@@ -498,13 +426,13 @@ export function TwitchClip({
   time,
 }: {
   clip_id: string;
-  time?: number;
+  time?: string;
 }) {
   return (
     <span>
       {time && (
         <span className={"m-5 text-center text-gray-500"}>
-          {new Date(time * 1000).toLocaleString()}
+          {new Date(time).toLocaleString()}
         </span>
       )}
       <iframe
