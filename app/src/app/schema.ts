@@ -158,7 +158,7 @@ export interface operations {
       query?: {
         column?: string[];
         span?: "9 hours" | "1 week" | "1 month" | "1 year";
-        grouping?: "25 seconds" | " 1 minute" | " 5 minutes" | " 15 minutes" | " 1 hour" | " 1 day";
+        grouping?: "25 seconds" | "1 minute" | "5 minutes" | "15 minutes" | "1 hour" | "1 day";
         order?: "ASC" | "DESC";
         limit?: number;
       };

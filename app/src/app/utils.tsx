@@ -1,6 +1,6 @@
 import { apiURL } from "@/app/apiURL";
 import { paths } from "@/app/schema";
-import { ClipTimeSpans, TimeGroupings } from "@/app/types";
+import { ClipTimeGroupings, ClipTimeSpans, TimeGroupings } from "@/app/types";
 import createClient from "openapi-fetch";
 
 export function addQueryParamsIfExist(
@@ -35,6 +35,14 @@ export const timeGroupings: NonNullable<TimeGroupings>[] = [
   "week",
   "month",
   "year",
+] as const;
+
+export const clipTimeGroupings: NonNullable<ClipTimeGroupings>[] = [
+  "25 seconds",
+  "1 minute",
+  "5 minutes",
+  "15 minutes",
+  "1 hour",
 ] as const;
 
 export const clipTimeSpans: NonNullable<ClipTimeSpans>[] = [

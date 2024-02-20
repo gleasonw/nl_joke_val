@@ -16,7 +16,7 @@ type Clip struct {
 type ClipCountsInput struct {
 	Column   []string `query:"column" default:"two"`
 	Span     string   `query:"span" default:"9 hours" enum:"9 hours,1 week,1 month,1 year"`
-	Grouping string   `query:"grouping" default:"hour" enum:"25 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, 1 day"`
+	Grouping string   `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
 	Order    string   `query:"order" default:"DESC" enum:"ASC,DESC"`
 	Limit    int      `query:"limit" default:"10"`
 }
@@ -66,8 +66,7 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 	// }
 
 	rollingSumQuery := fmt.Sprintf(`
-	SELECT created_at, SUM(%s) as count 
-	OVER (                                                   
+	SELECT created_at, SUM(%s) OVER (                                                   
 		ORDER BY created_at                                                                    
 		RANGE BETWEEN INTERVAL '%s' PRECEDING AND CURRENT ROW
 	) AS rolling_sum
@@ -84,12 +83,14 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 
 	}
 
+	rollingSumQuery = fmt.Sprintf("%s LIMIT 10000", rollingSumQuery)
+
 	query = fmt.Sprintf(`
 	WITH RollingSums AS (%s),
 	RankedIntervals AS (
 		SELECT created_at, rolling_sum, ROW_NUMBER() 
 		OVER (
-			ORDER BY rolling_sum DESC, created_at DESC
+			ORDER BY rolling_sum %s, created_at DESC
 		) AS rn
 		FROM RollingSums
 	),
@@ -105,17 +106,17 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 		)
 		LIMIT $1
 	)
-	SELECT fi.max_created_at, fi.rolling_sum, cc.created_at AS closest_created_at, cc.clip_id, cc.count
+	SELECT fi.rolling_sum as count, cc.created_at AS time, cc.clip_id
 	FROM FilteredIntervals fi
 	JOIN chat_counts cc
 		ON cc.created_at = (
 			SELECT created_at
 			FROM chat_counts
 			WHERE created_at BETWEEN fi.max_created_at - INTERVAL '%s' AND fi.max_created_at + INTERVAL '1 second'
-			ORDER BY %s DESC
+			ORDER BY %s %s
 			LIMIT 1
 		);
-	`, rollingSumQuery, likelyBitLength, likelyBitLength, p.Grouping, columnToSelect)
+	`, rollingSumQuery, p.Order, likelyBitLength, likelyBitLength, p.Grouping, columnToSelect, p.Order)
 
 	var clips []Clip
 	err := db.Raw(query, p.Limit).Scan(&clips).Error

@@ -1,14 +1,10 @@
 import { useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addQueryParamsIfExist } from "@/app/utils";
-import {
-  ClipTimeGroupings,
-  ClipTimeSpans,
-  TimeGroupings,
-  TimeSpans,
-} from "@/app/types";
+import { TimeSpans } from "@/app/types";
 import { useQuery } from "@tanstack/react-query";
 import { apiURL } from "@/app/apiURL";
+import { dashboardUrlState } from "@/app/server/utils";
 
 export function useLiveStatus() {
   return useQuery({
@@ -17,7 +13,6 @@ export function useLiveStatus() {
       return response.json();
     },
     queryKey: ["liveStatus"],
-    cacheTime: 0,
   });
 }
 export function useDashboardUrl() {
@@ -25,39 +20,18 @@ export function useDashboardUrl() {
   const router = useRouter();
   const { data: nlIsLive } = useLiveStatus();
 
+  const paramsAsRecord = Object.fromEntries(params);
+
+  const validatedParams = dashboardUrlState(paramsAsRecord);
+
   const defaultSeriesGrouping = nlIsLive ? "minute" : "minute";
   const defaultRollingAverage = nlIsLive ? "0" : "5";
   const defaultChartType = nlIsLive ? "bar" : "line";
-
-  const series =
-    params.getAll("series").length > 0 ? params.getAll("series") : ["two"];
-  const chartType = params.get("chartType") ?? defaultChartType;
-  const seriesGrouping: TimeGroupings =
-    (params.get("timeGrouping") as TimeGroupings) ?? defaultSeriesGrouping;
-  const rollingAverage = params.get("rollingAverage") ?? defaultRollingAverage;
-  const fromParam = params.get("from");
-  const toParam = params.get("to");
 
   let seriesSpan: TimeSpans | undefined = params.get("span") as TimeSpans;
   if (!seriesSpan && nlIsLive) {
     seriesSpan = "30 minutes";
   }
-
-  const minClipGrouping = (params.get("minClipGrouping") ??
-    "second") as TimeGroupings;
-  const minClipSpan: ClipTimeSpans =
-    (params.get("minClipSpan") as ClipTimeSpans) ?? "9 hours";
-  const minClipIndex = params.get("minClipIndex");
-
-  const emotes =
-    params.getAll("emote").length > 0 ? params.getAll("emote") : ["two"];
-  const maxClipGrouping = (params.get("maxClipGrouping") ??
-    "25 seconds") as ClipTimeGroupings;
-  const maxClipSpan: ClipTimeSpans =
-    (params.get("maxClipSpan") as ClipTimeSpans) ?? "9 hours";
-  const maxClipIndex = params.get("maxClipIndex");
-
-  const clickedUnixSeconds = params.get("clickedUnixSeconds");
 
   const handleNavigate = useCallback(
     (newParam: { [key: string]: string | string[] | undefined | number }) => {
@@ -88,25 +62,18 @@ export function useDashboardUrl() {
     [params, router]
   );
 
-  const currentParams = {
-    series,
-    chartType,
-    seriesGrouping,
-    rollingAverage,
-    fromParam,
-    toParam,
-    minClipGrouping,
-    minClipSpan,
-    emotes,
-    maxClipGrouping,
-    maxClipSpan,
-    seriesSpan,
-    minClipIndex: minClipIndex ? parseInt(minClipIndex as string) : 0,
-    maxClipIndex: maxClipIndex ? parseInt(maxClipIndex as string) : 0,
-    clickedUnixSeconds: clickedUnixSeconds
-      ? parseInt(clickedUnixSeconds as string)
-      : undefined,
+  return {
+    handleNavigate,
+    currentParams: {
+      ...validatedParams,
+      seriesParams: {
+        grouping:
+          validatedParams.seriesParams.grouping ?? defaultSeriesGrouping,
+        rollingAverage:
+          validatedParams.seriesParams.rolling_average ?? defaultRollingAverage,
+        span: seriesSpan || "30 minutes",
+      },
+      chartType: validatedParams.chartType ?? defaultChartType,
+    },
   };
-
-  return { handleNavigate, currentParams };
 }
