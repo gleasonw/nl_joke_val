@@ -2,24 +2,35 @@
 
 import { useDashboardUrl } from "@/app/hooks";
 import { SettingsDropLayout } from "@/app/page";
+import { DashboardURLState } from "@/app/server/utils";
 import { Clip, ClipTimeGroupings, SeriesKey } from "@/app/types";
 import { clipTimeGroupings, clipTimeSpans } from "@/app/utils";
 import { Card, Title, Select, SelectItem, Button } from "@tremor/react";
+import Image from "next/image";
+
+type LocalClipState = NonNullable<DashboardURLState["maxClipParams"]>;
 
 export interface TopClipsProps {
   clips: Clip[];
+  params: LocalClipState;
 }
 
-export function TopClips({ clips }: TopClipsProps) {
-  const {
-    handleNavigate,
-    currentParams: {
-      maxClipParams: { emote, span, grouping },
-    },
-  } = useDashboardUrl();
+export function TopClips({
+  clips,
+  params: { emote, grouping, span },
+}: TopClipsProps) {
+  const { handleNavigate, currentParams } = useDashboardUrl();
+
+  function handleTopClipNavigate(newParams: LocalClipState) {
+    handleNavigate({ maxClipParams: newParams });
+  }
+
+  const maxClipIndex = currentParams?.maxClipIndex ?? 0;
+
   const sortedClips = clips
     ?.sort((a, b) => b.count - a.count)
     .filter((clip) => !!clip.clip_id);
+
   return (
     <Card className="flex flex-col gap-5">
       <div className={"flex flex-col gap-3"}>
@@ -29,7 +40,7 @@ export function TopClips({ clips }: TopClipsProps) {
             Emote
             <Select
               value={emote?.[0]}
-              onValueChange={(value) => handleNavigate({ emote: value })}
+              onValueChange={(value) => handleTopClipNavigate({ emote: value })}
             >
               {Object.keys(seriesEmotes).map((emote) => (
                 <SelectItem value={emote} key={emote}>
@@ -41,14 +52,16 @@ export function TopClips({ clips }: TopClipsProps) {
           <ClipBinSizeSelect
             value={grouping}
             onValueChange={(value) =>
-              handleNavigate({ maxClipGrouping: value })
+              handleTopClipNavigate({ grouping: value as any })
             }
           />
           <label>
             Over the past
             <Select
               value={span}
-              onValueChange={(value) => handleNavigate({ maxClipSpan: value })}
+              onValueChange={(value) =>
+                handleTopClipNavigate({ span: value as any })
+              }
             >
               {clipTimeSpans.map((span) => (
                 <SelectItem value={span} key={span}>
@@ -68,14 +81,22 @@ export function TopClips({ clips }: TopClipsProps) {
   );
 }
 
-export function MinClips({ clips }: { clips: Clip[] }) {
-  const {
-    handleNavigate: onNavigate,
-    currentParams: {
-      minClipParams: { grouping, span },
-      minClipIndex,
-    },
-  } = useDashboardUrl();
+export type LocalMinClipState = NonNullable<DashboardURLState["minClipParams"]>;
+
+export function MinClips({
+  clips,
+  params: { grouping, span },
+}: {
+  clips: Clip[];
+  params: LocalMinClipState;
+}) {
+  const { handleNavigate, currentParams } = useDashboardUrl();
+
+  function handleMinClipNavigate(newParams: LocalMinClipState) {
+    handleNavigate({ minClipParams: newParams });
+  }
+
+  const minClipIndex = currentParams?.minClipIndex ?? 0;
 
   const sortedClips = clips?.sort((a, b) => a.count - b.count);
 
@@ -86,13 +107,17 @@ export function MinClips({ clips }: { clips: Clip[] }) {
         <SettingsDropLayout>
           <ClipBinSizeSelect
             value={grouping}
-            onValueChange={(value) => onNavigate({ minClipGrouping: value })}
+            onValueChange={(value) =>
+              handleMinClipNavigate({ grouping: value as any })
+            }
           />
           <label>
             Over the past
             <Select
               value={span}
-              onValueChange={(value) => onNavigate({ minClipSpan: value })}
+              onValueChange={(value) =>
+                handleMinClipNavigate({ span: value as any })
+              }
             >
               {clipTimeSpans.map((span) => (
                 <SelectItem value={span} key={span}>
@@ -106,7 +131,7 @@ export function MinClips({ clips }: { clips: Clip[] }) {
       <ClipClicker
         clips={sortedClips ?? []}
         index={minClipIndex}
-        setIndex={(index) => onNavigate({ minClipIndex: index })}
+        setIndex={(index) => handleNavigate({ minClipIndex: index })}
       />
     </Card>
   );
@@ -180,6 +205,11 @@ export function TwitchClip({
   clip_id: string;
   time?: string;
 }) {
+  // check if we are server rendering
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   return (
     <span>
       {time && <span className={"m-5 text-center text-gray-500"}>{time}</span>}

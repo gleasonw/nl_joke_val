@@ -13,7 +13,7 @@ import (
 type SeriesInput struct {
 	Span           string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours,custom" default:"9 hours"`
 	Grouping       string    `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
-	RollingAverage int       `query:"rolling_average"`
+	RollingAverage int       `query:"rollingAverage"`
 	From           time.Time `query:"from"`
 	To             time.Time `query:"to"`
 }

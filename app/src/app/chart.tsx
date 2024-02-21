@@ -1,6 +1,9 @@
+"use client";
+
 import { seriesEmotes } from "@/app/clip-clients";
-import { useDashboardUrl } from "@/app/hooks";
+import { useDashboardUrl, useLiveStatus } from "@/app/hooks";
 import { LiveStatus, SettingsDropLayout } from "@/app/page";
+import { DashboardURLState } from "@/app/server/utils";
 import { FullChatCountStruct, SeriesData, SeriesKey } from "@/app/types";
 import { timeGroupings } from "@/app/utils";
 import {
@@ -10,6 +13,7 @@ import {
   DateRangePickerItem,
   Select,
   SelectItem,
+  Card,
 } from "@tremor/react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
@@ -39,32 +43,52 @@ const last9HoursRange = {
   from: undefined,
   to: undefined,
   span: "9 hours",
-};
+} as const;
 
 const lastHourRange = {
   from: undefined,
   to: undefined,
   span: "1 hour",
-};
+} as const;
 
 const lastMinuteRange = {
   from: undefined,
   to: undefined,
   span: "1 minute",
-};
+} as const;
 
-export function Chart({ chartData }: { chartData: FullChatCountStruct[] }) {
-  const {
-    handleNavigate,
-    currentParams: {
-      seriesParams: { grouping, span, rolling_average },
-      chartType,
-      series,
-    },
-  } = useDashboardUrl();
+type LocalChartState = NonNullable<DashboardURLState["seriesParams"]>;
+
+export function Chart({
+  chartData,
+  params: { span, grouping, rollingAverage, series, from, to },
+}: {
+  chartData: FullChatCountStruct[];
+  params: LocalChartState;
+}) {
+  const { handleNavigate, currentParams } = useDashboardUrl();
+  const { data: isNlLive } = useLiveStatus();
+
+  let chartType = "line";
+
+  // depends on there being fewer datapoints... bar easier to read. More of a client side
+  // concern, but I could see it making sense to set the default higher up
+  if (!currentParams?.chartType && isNlLive) {
+    chartType = "bar";
+  }
+
+  const seriesToDisplay = series ?? ["two"];
+
+  function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
+    return handleNavigate({
+      seriesParams: {
+        ...newParams,
+      },
+    });
+  }
 
   const emoteSeries =
-    series.map((key) => ({
+    seriesToDisplay?.map((key) => ({
       name: key,
       data:
         chartData?.map((d) => [
@@ -147,36 +171,71 @@ export function Chart({ chartData }: { chartData: FullChatCountStruct[] }) {
   }
 
   function getNewSeriesList(emote: string) {
-    if (series.includes(emote)) {
-      return series.filter((item) => item !== emote);
-    } else {
-      return [...series, emote];
+    if (!series) {
+      return [emote];
     }
+
+    if (series?.includes(emote)) {
+      return series.filter((item) => item !== emote);
+    }
+
+    return [...series, emote];
   }
 
+  const fromTo = {
+    from: from ? new Date(from) : undefined,
+    to: to ? new Date(to) : undefined,
+  } as DateRangePickerValue;
+
   return (
-    <>
+    <Card className="flex flex-col gap-2">
       <h1 className={"text-2xl m-5 font-semibold flex flex-col gap-4"}>
         <span className="flex justify-between">
           NL chat emote usage <LiveStatus />
         </span>
         <span className="text-gray-600 text-base">{timeRangeString}</span>
       </h1>
+      <div className="flex flex-row flex-wrap gap-3 m-2">
+        {Object.keys(seriesColors).map((key) => (
+          <button
+            className={"w-auto hover:shadow-lg rounded-lg p-3"}
+            style={
+              seriesToDisplay?.includes(key as SeriesKey)
+                ? {
+                    boxShadow: `0 0 0 4px ${seriesColors[key as SeriesKey]}`,
+                  }
+                : {}
+            }
+            key={key}
+            onClick={() => {
+              handleNavigate({
+                series: getNewSeriesList(key),
+              });
+            }}
+          >
+            {seriesEmotes[key as SeriesKey]}
+          </button>
+        ))}
+      </div>
+      <span className="text-center">
+        Select a point in the graph to pull the nearest clip
+      </span>
+      <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
       <SettingsDropLayout>
         <Button
-          onClick={() => handleNavigate(lastMinuteRange)}
+          onClick={() => handleUpdateChart(lastMinuteRange)}
           variant={span === "1 minute" ? "primary" : "secondary"}
         >
           Last minute of stream
         </Button>
         <Button
-          onClick={() => handleNavigate(lastHourRange)}
+          onClick={() => handleUpdateChart(lastHourRange)}
           variant={span === "1 hour" ? "primary" : "secondary"}
         >
           Last hour of stream
         </Button>
         <Button
-          onClick={() => handleNavigate(last9HoursRange)}
+          onClick={() => handleUpdateChart(last9HoursRange)}
           variant={
             span === "9 hours" || span === null ? "primary" : "secondary"
           }
@@ -184,12 +243,9 @@ export function Chart({ chartData }: { chartData: FullChatCountStruct[] }) {
           Last 9 hours of stream
         </Button>
         <DateRangePicker
-          value={{
-            from: getFromParam(),
-            to: getToParam(),
-          }}
+          value={fromTo}
           onValueChange={(value: DateRangePickerValue) =>
-            handleNavigate({
+            handleUpdateChart({
               from: value.from?.toISOString(),
               to: value.to?.toISOString(),
               span: "custom",
@@ -240,8 +296,8 @@ export function Chart({ chartData }: { chartData: FullChatCountStruct[] }) {
             value={grouping}
             placeholder={"Group by"}
             onValueChange={(value) =>
-              handleNavigate({
-                timeGrouping: value,
+              handleUpdateChart({
+                grouping: value as any,
               })
             }
           >
@@ -254,11 +310,11 @@ export function Chart({ chartData }: { chartData: FullChatCountStruct[] }) {
           Smoothing
           <Select
             id="smoothing"
-            value={rolling_average?.toString()}
+            value={rollingAverage?.toString()}
             placeholder={"Smoothing"}
             onValueChange={(value) =>
-              handleNavigate({
-                rollingAverage: value,
+              handleUpdateChart({
+                rollingAverage: value as any,
               })
             }
           >
@@ -277,7 +333,7 @@ export function Chart({ chartData }: { chartData: FullChatCountStruct[] }) {
             placeholder={"Chart type"}
             onValueChange={(value) =>
               handleNavigate({
-                chartType: value,
+                chartType: value as any,
               })
             }
           >
@@ -286,33 +342,6 @@ export function Chart({ chartData }: { chartData: FullChatCountStruct[] }) {
           </Select>
         </label>
       </SettingsDropLayout>
-
-      <div className="flex flex-row flex-wrap gap-3 m-2">
-        {Object.keys(seriesColors).map((key) => (
-          <button
-            className={"w-auto hover:shadow-lg rounded-lg p-3"}
-            style={
-              series.includes(key as SeriesKey)
-                ? {
-                    boxShadow: `0 0 0 4px ${seriesColors[key as SeriesKey]}`,
-                  }
-                : {}
-            }
-            key={key}
-            onClick={() => {
-              handleNavigate({
-                series: getNewSeriesList(key),
-              });
-            }}
-          >
-            {seriesEmotes[key as SeriesKey]}
-          </button>
-        ))}
-      </div>
-      <span className="text-center">
-        Select a point in the graph to pull the nearest clip
-      </span>
-      <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
-    </>
+    </Card>
   );
 }

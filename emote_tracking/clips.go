@@ -15,7 +15,7 @@ type Clip struct {
 
 type ClipCountsInput struct {
 	Column   []string `query:"column" default:"two"`
-	Span     string   `query:"span" default:"9 hours" enum:"9 hours,1 week,1 month,1 year"`
+	Span     string   `query:"span" default:"9 hours" enum:"30 minutes,9 hours,1 week,1 month,1 year"`
 	Grouping string   `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
 	Order    string   `query:"order" default:"DESC" enum:"ASC,DESC"`
 	Limit    int      `query:"limit" default:"10"`

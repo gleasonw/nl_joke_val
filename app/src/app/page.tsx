@@ -1,5 +1,5 @@
 import { useLiveStatus } from "@/app/hooks";
-import { dashboardUrlState } from "@/app/server/utils";
+import { dashboardUrlState, dataQueryParam } from "@/app/server/utils";
 import {
   ChartFetcher,
   ClipAtTimeFetcher,
@@ -13,25 +13,30 @@ export default async function Home({
 }: {
   searchParams: Record<string, any>;
 }) {
-  const { seriesParams, minClipParams, maxClipParams, clickedUnixSeconds } =
-    dashboardUrlState(searchParams);
+  const jsonStringState = searchParams[dataQueryParam];
+  const dashboardState = dashboardUrlState(jsonStringState);
 
   return (
     <div className="min-h-screen bg-gray-100 lg:p-8 flex flex-col gap-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Suspense fallback={<div>Loading chart...</div>}>
-          <ChartFetcher params={seriesParams} />
+          <ChartFetcher params={dashboardState?.seriesParams} />
         </Suspense>
 
         <div className={"flex flex-col gap-8"}>
-          <Suspense fallback={<div>Loading clip at clicked time...</div>}>
-            <ClipAtTimeFetcher time={clickedUnixSeconds} />
+          {/* <Suspense fallback={<div>Loading clip at clicked time...</div>}>
+            <ClipAtTimeFetcher time={dashboardState?.clickedUnixSeconds} />
           </Suspense>
           <Suspense fallback={<div>Loading top clips...</div>}>
-            <TopClipFetcher params={maxClipParams} />
+            <TopClipFetcher params={dashboardState?.maxClipParams} />
           </Suspense>
+        */}
+          {/* <Suspense fallback={<div>Loading top clips...</div>}>
+            <TopClipFetcher params={dashboardState?.maxClipParams} />
+          </Suspense> */}
+
           <Suspense fallback={<div>Loading min clips...</div>}>
-            <MinClipFetcher params={minClipParams} />
+            <MinClipFetcher params={dashboardState?.minClipParams} />
           </Suspense>
         </div>
       </div>

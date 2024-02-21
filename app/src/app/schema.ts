@@ -157,7 +157,7 @@ export interface operations {
     parameters: {
       query?: {
         column?: string[];
-        span?: "9 hours" | "1 week" | "1 month" | "1 year";
+        span?: "30 minutes" | "9 hours" | "1 week" | "1 month" | "1 year";
         grouping?: "25 seconds" | "1 minute" | "5 minutes" | "15 minutes" | "1 hour" | "1 day";
         order?: "ASC" | "DESC";
         limit?: number;
@@ -201,7 +201,7 @@ export interface operations {
       query?: {
         span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
         grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
-        rolling_average?: number;
+        rollingAverage?: number;
         from?: string;
         to?: string;
       };
