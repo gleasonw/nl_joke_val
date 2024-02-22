@@ -1,14 +1,15 @@
 import { Chart } from "@/app/chart";
-import { ClipParams, SeriesParams } from "./types";
-import { GET } from "./utils";
+import { ClipParams, SeriesKey, SeriesParams } from "./types";
 import { MinClips, TopClips, TwitchClip } from "@/app/clip-clients";
-import { getLiveStatus } from "@/app/server/actions";
+import {
+  getClipAtTime,
+  getClips,
+  getLiveStatus,
+  getSeries,
+} from "@/app/server/actions";
+import Image from "next/image";
 
-export async function ChartFetcher({
-  params,
-}: {
-  params: NonNullable<SeriesParams> | undefined;
-}) {
+export async function ChartFetcher({ params }: { params: SeriesParams }) {
   const isStreamerLive = await getLiveStatus();
 
   const defaultSpan = isStreamerLive ? "30 minutes" : "9 hours";
@@ -22,17 +23,9 @@ export async function ChartFetcher({
     rollingAverage: params?.rollingAverage ?? defaultRollingAverage,
   };
 
-  const result = await GET("/api/series", {
-    params: {
-      query: chartState,
-    },
-  });
+  const chartData = await getSeries(chartState);
 
-  if (result.error) {
-    throw new Error("Failed to fetch series");
-  }
-
-  return <Chart chartData={result.data} params={chartState} />;
+  return <Chart chartData={chartData} params={chartState} />;
 }
 
 export async function TopClipFetcher({ params }: { params: ClipParams }) {
@@ -45,22 +38,12 @@ export async function TopClipFetcher({ params }: { params: ClipParams }) {
     ...params,
     span: params?.span ?? defaultSpan,
     grouping: params?.grouping ?? defaultGrouping,
+    order: "DESC",
   } as const;
 
-  const result = await GET("/api/clip_counts", {
-    params: {
-      query: {
-        ...clipState,
-        order: "DESC",
-      },
-    },
-  });
+  const clips = await getClips(clipState);
 
-  if (result.error) {
-    throw new Error("Failed to fetch top clips");
-  }
-
-  return <TopClips clips={result.data} params={clipState} />;
+  return <TopClips clips={clips} params={clipState} />;
 }
 
 export async function MinClipFetcher({ params }: { params: ClipParams }) {
@@ -73,23 +56,12 @@ export async function MinClipFetcher({ params }: { params: ClipParams }) {
     ...params,
     span: params?.span ?? defaultSpan,
     grouping: params?.grouping ?? defaultGrouping,
+    order: "ASC",
   } as const;
 
-  const result = await GET("/api/clip_counts", {
-    params: {
-      query: {
-        ...clipState,
-        order: "ASC",
-        columns: ["two"],
-      },
-    },
-  });
+  const clips = await getClips(clipState);
 
-  if (result.error) {
-    throw new Error("Failed to fetch min clips");
-  }
-
-  return <MinClips clips={result.data} params={clipState} />;
+  return <MinClips clips={clips} params={clipState} />;
 }
 
 export async function ClipAtTimeFetcher({
@@ -101,22 +73,37 @@ export async function ClipAtTimeFetcher({
     return <div>Click on the chart to pull the nearest clip</div>;
   }
 
-  const result = await GET("/api/clip", {
-    params: {
-      query: {
-        time: clickedUnixSeconds,
-      },
-    },
-  });
-
-  if (result.error) {
-    throw new Error("Failed to fetch clip");
-  }
+  const clip = await getClipAtTime({ time: clickedUnixSeconds });
 
   return (
     <TwitchClip
-      clip_id={result.data.clip_id}
+      clip_id={clip.clip_id}
       time={new Date(clickedUnixSeconds * 1000).toLocaleString()}
     />
   );
+}
+
+export const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
+  two: <div className={"text-xl "}>∑ ± 2</div>,
+  lol: <Emote src={"lul.jpg"} />,
+  cereal: <Emote src={"cereal.webp"} />,
+  monkas: <Emote src={"monkaS.webp"} />,
+  joel: <Emote src={"Joel.webp"} />,
+  pog: <Emote src={"Pog.webp"} />,
+  huh: <Emote src={"huhh.webp"} />,
+  no: <Emote src={"nooo.webp"} />,
+  cocka: <Emote src={"cocka.webp"} />,
+  shock: <Emote src={"shockface.png"} />,
+  who_asked: <Emote src={"whoasked.webp"} />,
+  copium: <Emote src={"copium.webp"} />,
+  ratjam: <Emote src={"ratJAM.webp"} />,
+  sure: <Emote src={"sure.webp"} />,
+  classic: <Emote src={"classic.webp"} />,
+  monka_giga: <Emote src={"monkaGiga.webp"} />,
+  caught: <Emote src={"caught.webp"} />,
+  life: <Emote src={"life.webp"} />,
+} as const;
+
+export function Emote({ src }: { src: string }) {
+  return <Image src={`/${src}`} alt={src} width={32} height={32} />;
 }

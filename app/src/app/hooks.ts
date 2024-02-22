@@ -1,6 +1,8 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiURL } from "@/app/apiURL";
+var mergeWith = require("lodash.mergewith");
+
 import {
   DashboardURLState,
   dashboardUrlState,
@@ -24,22 +26,12 @@ function patchUrlState(
   if (!oldParams) {
     return newParams;
   }
-  return {
-    ...oldParams,
-    ...newParams,
-    seriesParams: {
-      ...oldParams.seriesParams,
-      ...newParams.seriesParams,
-    },
-    minClipParams: {
-      ...oldParams.minClipParams,
-      ...newParams.minClipParams,
-    },
-    maxClipParams: {
-      ...oldParams.maxClipParams,
-      ...newParams.maxClipParams,
-    },
-  };
+
+  return mergeWith(oldParams, newParams, (objValue, srcValue) => {
+    if (Array.isArray(objValue)) {
+      return objValue.concat(srcValue);
+    }
+  });
 }
 
 export function useDashboardUrl() {

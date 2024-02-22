@@ -91,6 +91,8 @@ func main() {
 		return
 	}
 
+	fmt.Println(fetchNlEmotesFromBTTV())
+
 	//db.AutoMigrate(&ChatCounts{})
 	//db.AutoMigrate(&RefreshTokenStore{})
 

@@ -50,20 +50,20 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 	// // we want just the x top bits, but some bit have many clips in the top rankings
 	// // so we limit to a reasonable value.
 	// // maybe there are no perf implications? I should test this
-	// rollingSumValueLimit := 100
+	rollingSumValueLimit := 100
 
-	// switch p.Grouping {
-	// case "1 minute":
-	// 	rollingSumValueLimit = 300
-	// case "5 minutes":
-	// 	rollingSumValueLimit = 1500
-	// case "15 minutes":
-	// 	rollingSumValueLimit = 4500
-	// case "1 hour":
-	// 	rollingSumValueLimit = 18000
-	// case "1 day":
-	// 	rollingSumValueLimit = 432000
-	// }
+	switch p.Grouping {
+	case "1 minute":
+		rollingSumValueLimit = 300
+	case "5 minutes":
+		rollingSumValueLimit = 1500
+	case "15 minutes":
+		rollingSumValueLimit = 4500
+	case "1 hour":
+		rollingSumValueLimit = 18000
+	case "1 day":
+		rollingSumValueLimit = 432000
+	}
 
 	rollingSumQuery := fmt.Sprintf(`
 	SELECT created_at, SUM(%s) OVER (                                                   
@@ -83,7 +83,7 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 
 	}
 
-	rollingSumQuery = fmt.Sprintf("%s LIMIT 10000", rollingSumQuery)
+	rollingSumQuery = fmt.Sprintf("%s LIMIT %d", rollingSumQuery, rollingSumValueLimit)
 
 	query = fmt.Sprintf(`
 	WITH RollingSums AS (%s),

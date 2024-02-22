@@ -2,9 +2,7 @@ import { ClipTimeGroupings, ClipTimeSpans, SeriesParams } from "@/app/types";
 import z from "zod";
 
 export type DashboardURLState = {
-  seriesParams?: NonNullable<SeriesParams> & {
-    series?: string[];
-  };
+  seriesParams?: SeriesParams;
   minClipParams?: {
     span?: ClipTimeSpans;
     grouping?: ClipTimeGroupings;

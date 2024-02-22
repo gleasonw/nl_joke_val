@@ -1,11 +1,13 @@
 "use client";
 
-import { seriesEmotes } from "@/app/clip-clients";
+import { seriesEmotes } from "@/app/clip-server";
 import { useDashboardUrl, useLiveStatus } from "@/app/hooks";
 import { LiveStatus, SettingsDropLayout } from "@/app/page";
+import { getSeries } from "@/app/server/actions";
 import { DashboardURLState } from "@/app/server/utils";
 import { FullChatCountStruct, SeriesData, SeriesKey } from "@/app/types";
 import { timeGroupings } from "@/app/utils";
+import { useQuery } from "@tanstack/react-query";
 import {
   Button,
   DateRangePicker,
@@ -61,13 +63,20 @@ type LocalChartState = NonNullable<DashboardURLState["seriesParams"]>;
 
 export function Chart({
   chartData,
-  params: { span, grouping, rollingAverage, series, from, to },
+  params: { span, grouping, rollingAverage, from, to },
 }: {
   chartData: FullChatCountStruct[];
   params: LocalChartState;
 }) {
   const { handleNavigate, currentParams } = useDashboardUrl();
   const { data: isNlLive } = useLiveStatus();
+
+  const { data: localFetchedSeries } = useQuery({
+    queryFn: () => getSeries(currentParams?.seriesParams),
+    queryKey: ["series", currentParams?.seriesParams],
+    initialData: chartData,
+    refetchInterval: 1000 * 5,
+  });
 
   let chartType = "line";
 
@@ -77,7 +86,7 @@ export function Chart({
     chartType = "bar";
   }
 
-  const seriesToDisplay = series ?? ["two"];
+  const seriesToDisplay = currentParams?.series ?? ["two"];
 
   function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
     return handleNavigate({
@@ -91,7 +100,7 @@ export function Chart({
     seriesToDisplay?.map((key) => ({
       name: key,
       data:
-        chartData?.map((d) => [
+        localFetchedSeries?.map((d) => [
           d.time * 1000 ?? 0,
           d[key as keyof SeriesData] ?? "",
         ]) ?? [],
@@ -171,6 +180,7 @@ export function Chart({
   }
 
   function getNewSeriesList(emote: string) {
+    const series = currentParams?.series;
     if (!series) {
       return [emote];
     }

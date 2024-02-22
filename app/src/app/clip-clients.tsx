@@ -1,12 +1,22 @@
 "use client";
 
+import { seriesEmotes } from "@/app/clip-server";
 import { useDashboardUrl } from "@/app/hooks";
 import { SettingsDropLayout } from "@/app/page";
+import { getClips } from "@/app/server/actions";
 import { DashboardURLState } from "@/app/server/utils";
-import { Clip, ClipTimeGroupings, SeriesKey } from "@/app/types";
+import { Clip, ClipTimeGroupings } from "@/app/types";
 import { clipTimeGroupings, clipTimeSpans } from "@/app/utils";
-import { Card, Title, Select, SelectItem, Button } from "@tremor/react";
-import Image from "next/image";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Card,
+  Title,
+  Select,
+  SelectItem,
+  Button,
+  SelectProps,
+} from "@tremor/react";
+import { useEffect, useState } from "react";
 
 type LocalClipState = NonNullable<DashboardURLState["maxClipParams"]>;
 
@@ -25,9 +35,16 @@ export function TopClips({
     handleNavigate({ maxClipParams: newParams });
   }
 
+  const { data: localFetchedClips } = useQuery({
+    queryFn: () => getClips(currentParams?.maxClipParams),
+    queryKey: ["clips", currentParams?.maxClipParams],
+    initialData: clips,
+    refetchInterval: 1000 * 30,
+  });
+
   const maxClipIndex = currentParams?.maxClipIndex ?? 0;
 
-  const sortedClips = clips
+  const sortedClips = localFetchedClips
     ?.sort((a, b) => b.count - a.count)
     .filter((clip) => !!clip.clip_id);
 
@@ -36,40 +53,36 @@ export function TopClips({
       <div className={"flex flex-col gap-3"}>
         <Title>Clips from Top Windows</Title>
         <SettingsDropLayout>
-          <label>
-            Emote
-            <Select
-              value={emote?.[0]}
-              onValueChange={(value) => handleTopClipNavigate({ emote: value })}
-            >
-              {Object.keys(seriesEmotes).map((emote) => (
-                <SelectItem value={emote} key={emote}>
-                  {seriesEmotes[emote as SeriesKey]}
-                </SelectItem>
-              ))}
-            </Select>
-          </label>
+          <LabeledSelect
+            label="Emote"
+            value={emote?.[0]}
+            onValueChange={(value) => handleTopClipNavigate({ emote: value })}
+          >
+            {Object.keys(seriesEmotes).map((emote) => (
+              <SelectItem value={emote} key={emote}>
+                {emote}
+              </SelectItem>
+            ))}
+          </LabeledSelect>
           <ClipBinSizeSelect
             value={grouping}
             onValueChange={(value) =>
               handleTopClipNavigate({ grouping: value as any })
             }
           />
-          <label>
-            Over the past
-            <Select
-              value={span}
-              onValueChange={(value) =>
-                handleTopClipNavigate({ span: value as any })
-              }
-            >
-              {clipTimeSpans.map((span) => (
-                <SelectItem value={span} key={span}>
-                  {span}
-                </SelectItem>
-              ))}
-            </Select>
-          </label>
+          <LabeledSelect
+            label="Over the past"
+            value={span}
+            onValueChange={(value) =>
+              handleTopClipNavigate({ span: value as any })
+            }
+          >
+            {clipTimeSpans.map((span) => (
+              <SelectItem value={span} key={span}>
+                {span}
+              </SelectItem>
+            ))}
+          </LabeledSelect>
         </SettingsDropLayout>
       </div>
       <ClipClicker
@@ -96,9 +109,16 @@ export function MinClips({
     handleNavigate({ minClipParams: newParams });
   }
 
+  const { data: localFetchedClips } = useQuery({
+    queryFn: () => getClips(currentParams?.minClipParams),
+    queryKey: ["clips", currentParams?.minClipParams],
+    initialData: clips,
+    refetchInterval: 1000 * 30,
+  });
+
   const minClipIndex = currentParams?.minClipIndex ?? 0;
 
-  const sortedClips = clips?.sort((a, b) => a.count - b.count);
+  const sortedClips = localFetchedClips?.sort((a, b) => a.count - b.count);
 
   return (
     <Card className="flex gap-5 flex-col">
@@ -111,21 +131,19 @@ export function MinClips({
               handleMinClipNavigate({ grouping: value as any })
             }
           />
-          <label>
-            Over the past
-            <Select
-              value={span}
-              onValueChange={(value) =>
-                handleMinClipNavigate({ span: value as any })
-              }
-            >
-              {clipTimeSpans.map((span) => (
-                <SelectItem value={span} key={span}>
-                  {span}
-                </SelectItem>
-              ))}
-            </Select>
-          </label>
+          <LabeledSelect
+            value={span}
+            onValueChange={(value) =>
+              handleMinClipNavigate({ span: value as any })
+            }
+            label="Over the past"
+          >
+            {clipTimeSpans.map((span) => (
+              <SelectItem value={span} key={span}>
+                {span}
+              </SelectItem>
+            ))}
+          </LabeledSelect>
         </SettingsDropLayout>
       </div>
       <ClipClicker
@@ -137,6 +155,24 @@ export function MinClips({
   );
 }
 
+export interface LabeledSelectProps extends SelectProps {
+  children: React.ReactNode;
+  label: string;
+}
+
+export function LabeledSelect({
+  children,
+  label,
+  ...props
+}: LabeledSelectProps) {
+  return (
+    <label>
+      {label}
+      <Select {...props}>{children}</Select>
+    </label>
+  );
+}
+
 function ClipBinSizeSelect({
   onValueChange,
   value,
@@ -145,16 +181,13 @@ function ClipBinSizeSelect({
   value: ClipTimeGroupings;
 }) {
   return (
-    <label>
-      Bin size
-      <Select value={value} onValueChange={onValueChange}>
-        {clipTimeGroupings.map((grouping) => (
-          <SelectItem value={grouping} key={grouping}>
-            {grouping}
-          </SelectItem>
-        ))}
-      </Select>
-    </label>
+    <LabeledSelect label="Bin size" value={value} onValueChange={onValueChange}>
+      {clipTimeGroupings.map((grouping) => (
+        <SelectItem value={grouping} key={grouping}>
+          {grouping}
+        </SelectItem>
+      ))}
+    </LabeledSelect>
   );
 }
 
@@ -205,45 +238,21 @@ export function TwitchClip({
   clip_id: string;
   time?: string;
 }) {
-  // check if we are server rendering
-  if (typeof window === "undefined") {
-    return null;
-  }
+  const [parentName, setParentName] = useState<string>("");
+
+  useEffect(() => {
+    setParentName(window.location.hostname);
+  }, []);
 
   return (
     <span>
       {time && <span className={"m-5 text-center text-gray-500"}>{time}</span>}
       <iframe
-        src={`https://clips.twitch.tv/embed?clip=${clip_id}&parent=${window.location.hostname}`}
+        src={`https://clips.twitch.tv/embed?clip=${clip_id}&parent=${parentName}`}
         width="100%"
         className="aspect-video"
         allowFullScreen={true}
       />
     </span>
   );
-}
-
-export const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
-  two: <div className={"text-xl "}>∑ ± 2</div>,
-  lol: <Emote src={"lul.jpg"} />,
-  cereal: <Emote src={"cereal.webp"} />,
-  monkas: <Emote src={"monkaS.webp"} />,
-  joel: <Emote src={"Joel.webp"} />,
-  pog: <Emote src={"Pog.webp"} />,
-  huh: <Emote src={"huhh.webp"} />,
-  no: <Emote src={"nooo.webp"} />,
-  cocka: <Emote src={"cocka.webp"} />,
-  shock: <Emote src={"shockface.png"} />,
-  who_asked: <Emote src={"whoasked.webp"} />,
-  copium: <Emote src={"copium.webp"} />,
-  ratjam: <Emote src={"ratJAM.webp"} />,
-  sure: <Emote src={"sure.webp"} />,
-  classic: <Emote src={"classic.webp"} />,
-  monka_giga: <Emote src={"monkaGiga.webp"} />,
-  caught: <Emote src={"caught.webp"} />,
-  life: <Emote src={"life.webp"} />,
-} as const;
-
-export function Emote({ src }: { src: string }) {
-  return <Image src={`/${src}`} alt={src} width={32} height={32} />;
 }

@@ -15,6 +15,7 @@ export default async function Home({
 }) {
   const jsonStringState = searchParams[dataQueryParam];
   const dashboardState = dashboardUrlState(jsonStringState);
+  console.log(dashboardState);
 
   return (
     <div className="min-h-screen bg-gray-100 lg:p-8 flex flex-col gap-8">
@@ -24,17 +25,12 @@ export default async function Home({
         </Suspense>
 
         <div className={"flex flex-col gap-8"}>
-          {/* <Suspense fallback={<div>Loading clip at clicked time...</div>}>
+          <Suspense fallback={<div>Loading clip at clicked time...</div>}>
             <ClipAtTimeFetcher time={dashboardState?.clickedUnixSeconds} />
           </Suspense>
           <Suspense fallback={<div>Loading top clips...</div>}>
             <TopClipFetcher params={dashboardState?.maxClipParams} />
           </Suspense>
-        */}
-          {/* <Suspense fallback={<div>Loading top clips...</div>}>
-            <TopClipFetcher params={dashboardState?.maxClipParams} />
-          </Suspense> */}
-
           <Suspense fallback={<div>Loading min clips...</div>}>
             <MinClipFetcher params={dashboardState?.minClipParams} />
           </Suspense>
