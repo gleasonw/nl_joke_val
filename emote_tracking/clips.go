@@ -14,11 +14,11 @@ type Clip struct {
 }
 
 type ClipCountsInput struct {
-	Column   []string `query:"column" default:"two"`
-	Span     string   `query:"span" default:"9 hours" enum:"30 minutes,9 hours,1 week,1 month,1 year"`
-	Grouping string   `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
-	Order    string   `query:"order" default:"DESC" enum:"ASC,DESC"`
-	Limit    int      `query:"limit" default:"10"`
+	Column   string `query:"column" default:"two"`
+	Span     string `query:"span" default:"9 hours" enum:"30 minutes,9 hours,1 week,1 month,1 year"`
+	Grouping string `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
+	Order    string `query:"order" default:"DESC" enum:"ASC,DESC"`
+	Limit    int    `query:"limit" default:"10"`
 }
 
 type ClipCountsOutput struct {
@@ -33,18 +33,8 @@ const likelyBitLength = "1 minutes"
 func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 	var query string
 
-	if len(p.Column) == 0 {
-		return &ClipCountsOutput{}, fmt.Errorf("no column provided")
-	}
-
-	if len(p.Column) > 1 {
-		return &ClipCountsOutput{}, fmt.Errorf("multi column not yet supported")
-	}
-
-	columnToSelect := p.Column[0]
-
-	if !validColumnSet[columnToSelect] {
-		return &ClipCountsOutput{}, fmt.Errorf("invalid column: %s", columnToSelect)
+	if !validColumnSet[p.Column] {
+		return &ClipCountsOutput{}, fmt.Errorf("invalid column: %s", p.Column)
 	}
 
 	// // we want just the x top bits, but some bit have many clips in the top rankings
@@ -71,7 +61,7 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 		RANGE BETWEEN INTERVAL '%s' PRECEDING AND CURRENT ROW
 	) AS rolling_sum
 	FROM chat_counts
-	`, columnToSelect, p.Grouping)
+	`, p.Column, p.Grouping)
 
 	if p.Span != "" {
 		rollingSumQuery = fmt.Sprintf(`
@@ -83,7 +73,7 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 
 	}
 
-	rollingSumQuery = fmt.Sprintf("%s LIMIT %d", rollingSumQuery, rollingSumValueLimit)
+	rollingSumQuery = fmt.Sprintf("%s ORDER BY rolling_sum %s LIMIT %d", rollingSumQuery, p.Order, rollingSumValueLimit)
 
 	query = fmt.Sprintf(`
 	WITH RollingSums AS (%s),
@@ -112,11 +102,11 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 		ON cc.created_at = (
 			SELECT created_at
 			FROM chat_counts
-			WHERE created_at BETWEEN fi.max_created_at - INTERVAL '%s' AND fi.max_created_at + INTERVAL '1 second'
+			WHERE created_at BETWEEN fi.max_created_at - INTERVAL '25 seconds' AND fi.max_created_at + INTERVAL '1 second'
 			ORDER BY %s %s
 			LIMIT 1
 		);
-	`, rollingSumQuery, p.Order, likelyBitLength, likelyBitLength, p.Grouping, columnToSelect, p.Order)
+	`, rollingSumQuery, p.Order, likelyBitLength, likelyBitLength, p.Column, p.Order)
 
 	var clips []Clip
 	err := db.Raw(query, p.Limit).Scan(&clips).Error
@@ -124,7 +114,6 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 		fmt.Println(err)
 		return &ClipCountsOutput{}, err
 	}
-
 	return &ClipCountsOutput{
 		clips,
 	}, nil

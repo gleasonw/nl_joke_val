@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/rs/cors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -91,8 +92,6 @@ func main() {
 		return
 	}
 
-	fmt.Println(fetchNlEmotesFromBTTV())
-
 	//db.AutoMigrate(&ChatCounts{})
 	//db.AutoMigrate(&RefreshTokenStore{})
 
@@ -110,29 +109,9 @@ func main() {
 
 	router := chi.NewMux()
 
+	router.Use(cors.Default().Handler)
+
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
-
-	api.UseMiddleware(func(ctx huma.Context, next func(huma.Context)) {
-		ctx.SetHeader("Access-Control-Allow-Origin", "*")
-		ctx.SetHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		ctx.SetHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		ctx.SetHeader("Content-Type", "application/json")
-		next(ctx)
-	})
-
-	huma.Register(api, huma.Operation{
-		OperationID: "get-series",
-		Summary:     "Get a time series of emote counts",
-		Method:      http.MethodGet,
-		Path:        "/api/series",
-	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
-		fmt.Println(input.From)
-		fmt.Println(input.To)
-		if input.RollingAverage > 0 {
-			return GetRollingAverageSeries(*input, db)
-		}
-		return GetSeries(*input, db)
-	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-clip-counts",
@@ -141,6 +120,18 @@ func main() {
 		Path:        "/api/clip_counts",
 	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
 		return GetClipCounts(*input, db)
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-series",
+		Summary:     "Get a time series of emote counts",
+		Method:      http.MethodGet,
+		Path:        "/api/series",
+	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
+		if input.RollingAverage > 0 {
+			return GetRollingAverageSeries(*input, db)
+		}
+		return GetSeries(*input, db)
 	})
 
 	huma.Register(api, huma.Operation{
