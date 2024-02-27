@@ -2,95 +2,135 @@ package main
 
 import (
 	"fmt"
-	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
 
 type Clip struct {
-	ClipID string  `json:"clip_id"`
-	Count  int     `json:"count"`
-	Time   float64 `json:"time"`
+	ClipID string    `json:"clip_id"`
+	Count  int       `json:"count"`
+	Time   time.Time `json:"time"`
 }
 
 type ClipCountsInput struct {
-	Column   []string `query:"column" default:"two"`
-	Span     string   `query:"span" default:"9 hours" enum:"9 hours,1 week,1 month,1 year"`
-	Grouping string   `query:"grouping" default:"hour" enum:"second,minute,hour,day,week,month,year"`
-	Order    string   `query:"order" default:"DESC" enum:"ASC,DESC"`
-	Limit    int      `query:"limit" default:"10"`
+	Column   string `query:"column" default:"two"`
+	Span     string `query:"span" default:"9 hours" enum:"30 minutes,9 hours,1 week,1 month,1 year"`
+	Grouping string `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
+	Order    string `query:"order" default:"DESC" enum:"ASC,DESC"`
+	Limit    int    `query:"limit" default:"10"`
 }
 
 type ClipCountsOutput struct {
 	Body []Clip `json:"clips"`
 }
 
+// when calculting the rolling sum, we want to eliminate building values
+// if we don't filter, then clips from the same bit might enter the rankings
+// must be in SQL interval format
+const likelyBitLength = "1 minutes"
+
 func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 	var query string
 
-	for emote := range p.Column {
-		if !validColumnSet[p.Column[emote]] {
-			return &ClipCountsOutput{}, fmt.Errorf("invalid column: %s", p.Column[emote])
-		}
+	if !validColumnSet[p.Column] {
+		return &ClipCountsOutput{}, fmt.Errorf("invalid column: %s", p.Column)
 	}
 
-	timeSpan := "FROM chat_counts"
+	// // we want just the x top bits, but some bit have many clips in the top rankings
+	// // so we limit to a reasonable value.
+	// // maybe there are no perf implications? I should test this
+	rollingSumValueLimit := 100
+
+	switch p.Grouping {
+	case "1 minute":
+		rollingSumValueLimit = 300
+	case "5 minutes":
+		rollingSumValueLimit = 1500
+	case "15 minutes":
+		rollingSumValueLimit = 4500
+	case "1 hour":
+		rollingSumValueLimit = 18000
+	case "1 day":
+		rollingSumValueLimit = 432000
+	}
+
+	rollingSumQuery := fmt.Sprintf(`
+	SELECT created_at, SUM(%s) OVER (                                                   
+		ORDER BY created_at                                                                    
+		RANGE BETWEEN INTERVAL '%s' PRECEDING AND CURRENT ROW
+	) AS rolling_sum
+	FROM chat_counts
+	`, p.Column, p.Grouping)
+
 	if p.Span != "" {
-		timeSpan = fmt.Sprintf(`
-			AND created_at >= (
+		rollingSumQuery = fmt.Sprintf(`
+			%s 
+			WHERE created_at >= (
 				SELECT MAX(created_at) - INTERVAL '%s'
 				FROM chat_counts
-			)`, p.Span)
+			)`, rollingSumQuery, p.Span)
+
 	}
 
-	sumClause := strings.Join(p.Column, " + ")
-
-	notNullClause := make([]string, 0, len(p.Column))
-	for _, column := range p.Column {
-		notNullClause = append(notNullClause, fmt.Sprintf("%s IS NOT NULL", column))
-	}
-	notNullString := strings.Join(notNullClause, " AND ")
+	rollingSumQuery = fmt.Sprintf("%s ORDER BY rolling_sum %s LIMIT %d", rollingSumQuery, p.Order, rollingSumValueLimit)
 
 	query = fmt.Sprintf(`
-		SELECT SUM(sub.count) AS count, EXTRACT(epoch from time) as time, MIN(clip_id) as clip_id
-		FROM (
-			SELECT %s AS count, date_trunc('%s', created_at) as time, clip_id
+	WITH RollingSums AS (%s),
+	RankedIntervals AS (
+		SELECT created_at, rolling_sum, ROW_NUMBER() 
+		OVER (
+			ORDER BY rolling_sum %s, created_at DESC
+		) AS rn
+		FROM RollingSums
+	),
+	FilteredIntervals AS (
+		SELECT r1.created_at AS max_created_at, r1.rolling_sum
+		FROM RankedIntervals r1
+		WHERE NOT EXISTS (
+			SELECT 1
+		    	FROM RankedIntervals r2
+		    		WHERE r2.rn < r1.rn
+		      			AND r2.created_at >= r1.created_at - INTERVAL '%s'
+		      			AND r2.created_at <= r1.created_at + INTERVAL '%s'
+		)
+		LIMIT $1
+	)
+	SELECT fi.rolling_sum as count, cc.created_at AS time, cc.clip_id
+	FROM FilteredIntervals fi
+	JOIN chat_counts cc
+		ON cc.created_at = (
+			SELECT created_at
 			FROM chat_counts
-			WHERE clip_id != ''
-			AND
-			%s
-			%s
-		) sub
-		GROUP BY time
-		ORDER BY count %s
-		LIMIT %d
-	`, sumClause, p.Grouping, notNullString, timeSpan, p.Order, p.Limit)
+			WHERE created_at BETWEEN fi.max_created_at - INTERVAL '25 seconds' AND fi.max_created_at + INTERVAL '1 second'
+			ORDER BY %s %s
+			LIMIT 1
+		);
+	`, rollingSumQuery, p.Order, likelyBitLength, likelyBitLength, p.Column, p.Order)
 
 	var clips []Clip
-	err := db.Raw(query).Scan(&clips).Error
+	err := db.Raw(query, p.Limit).Scan(&clips).Error
 	if err != nil {
 		fmt.Println(err)
 		return &ClipCountsOutput{}, err
 	}
-
 	return &ClipCountsOutput{
 		clips,
 	}, nil
 }
 
 type NearestClipInput struct {
-	Time string
+	Time int `query:"time"`
 }
 
 type NearestClipOutput struct {
-	ClipID string `json:"clip_id"`
-	Time   string `json:"time"`
+	Body Clip
 }
 
 func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error) {
 	var clip Clip
 	dbError := db.Raw(`
-		SELECT clip_id, EXTRACT(epoch from created_at) as time
+		SELECT clip_id, created_at as time
 		FROM chat_counts 
 		WHERE EXTRACT(epoch from created_at) > $1::float + 10
 		AND EXTRACT(epoch from created_at) < $1::float + 20
@@ -101,9 +141,6 @@ func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error)
 		return &NearestClipOutput{}, dbError
 	}
 
-	return &NearestClipOutput{
-		ClipID: clip.ClipID,
-		Time:   fmt.Sprintf("%f", clip.Time),
-	}, nil
+	return &NearestClipOutput{clip}, nil
 
 }

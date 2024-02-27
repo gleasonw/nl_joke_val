@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/rs/cors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -104,28 +105,25 @@ func main() {
 
 	var lionIsLive = false
 
-	getLiveStatus := func() bool {
-		fmt.Println("getting live status: ", lionIsLive)
-		return lionIsLive
-	}
-
-	setLiveStatus := func(isLive bool) {
-		fmt.Println("setting live status: ", isLive)
-		lionIsLive = isLive
-	}
-
-	go connectToTwitchChat(db, getLiveStatus, setLiveStatus)
+	go connectToTwitchChat(
+		db,
+		func() bool { return lionIsLive },
+		func(isLive bool) { lionIsLive = isLive },
+	)
 
 	router := chi.NewMux()
 
+	router.Use(cors.Default().Handler)
+
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
-	api.UseMiddleware(func(ctx huma.Context, next func(huma.Context)) {
-		ctx.SetHeader("Access-Control-Allow-Origin", "*")
-		ctx.SetHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		ctx.SetHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		ctx.SetHeader("Content-Type", "application/json")
-		next(ctx)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-clip-counts",
+		Summary:     "Get clip counts",
+		Method:      http.MethodGet,
+		Path:        "/api/clip_counts",
+	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
+		return GetClipCounts(*input, db)
 	})
 
 	huma.Register(api, huma.Operation{
@@ -141,15 +139,6 @@ func main() {
 	})
 
 	huma.Register(api, huma.Operation{
-		OperationID: "get-clip-counts",
-		Summary:     "Get clip counts",
-		Method:      http.MethodGet,
-		Path:        "/api/clip_counts",
-	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
-		return GetClipCounts(*input, db)
-	})
-
-	huma.Register(api, huma.Operation{
 		OperationID: "get-nearest-clip",
 		Summary:     "Get nearest clip",
 		Method:      http.MethodGet,
@@ -158,8 +147,7 @@ func main() {
 		return GetNearestClip(*input, db)
 	})
 
-	type IsLiveInput struct {
-	}
+	type IsLiveInput struct{}
 
 	type IsLiveOutput struct {
 		Body bool
