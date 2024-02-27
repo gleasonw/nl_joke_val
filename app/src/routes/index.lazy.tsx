@@ -87,7 +87,7 @@ export function TopClips() {
 
   const fetchParams = useDefaultClipParams(maxClipParams);
 
-  const { data: localFetchedClips } = useQuery({
+  const { data: localFetchedClips, isLoading } = useQuery({
     queryFn: () => getClips(fetchParams),
     queryKey: ["clips", maxClipParams],
     refetchInterval: 1000 * 30,
@@ -136,13 +136,17 @@ export function TopClips() {
           </LabeledSelect>
         </SettingsDropLayout>
       </div>
-      <ClipClicker
-        clips={sortedClips ?? []}
-        index={maxClipIndex}
-        setIndex={(index) =>
-          navigate({ search: { ...currentState, maxClipIndex: index } })
-        }
-      />
+      {isLoading ? (
+        <span className="w-full aspect-video bg-gray-200 flex flex-col justify-center items-center animate-pulse" />
+      ) : (
+        <ClipClicker
+          clips={sortedClips ?? []}
+          index={maxClipIndex}
+          setIndex={(index) =>
+            navigate({ search: { ...currentState, maxClipIndex: index } })
+          }
+        />
+      )}
     </Card>
   );
 }
@@ -266,7 +270,7 @@ export interface ClipClickerProps {
 
 export function ClipClicker({ clips, index, setIndex }: ClipClickerProps) {
   if (!clips || clips.length === 0) {
-    return <div className="w-full h-96 bg-gray-100 animate-pulse" />;
+    return <div className="w-full aspect-video bg-gray-100 animate-pulse" />;
   }
 
   const clip = clips[index];
@@ -398,7 +402,7 @@ export function Chart() {
 
   const { grouping, span, rollingAverage, from, to } = chartState;
 
-  const { data: localFetchedSeries } = useQuery({
+  const { data: localFetchedSeries, isLoading } = useQuery({
     queryFn: () => getSeries(chartState),
     queryKey: ["series", chartState],
     refetchInterval: 1000 * 5,
@@ -547,7 +551,11 @@ export function Chart() {
       <span className="text-center">
         Select a point in the graph to pull the nearest clip
       </span>
-      <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
+      {isLoading ? (
+        <div className="text-center w-full h-full">Loading series...</div>
+      ) : (
+        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
+      )}
       <SettingsDropLayout>
         <Button
           onClick={() => handleUpdateChart(lastMinuteRange)}
