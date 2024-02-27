@@ -419,7 +419,9 @@ export function Chart() {
 
   const seriesToDisplay = series?.length ? series : ["two"];
 
-  const emoteSeries: Highcharts.SeriesLineOptions[] =
+  const emoteSeries:
+    | Highcharts.SeriesLineOptions[]
+    | Highcharts.SeriesBarOptions[] =
     seriesToDisplay?.map((key) => ({
       name: key,
       data:
@@ -433,7 +435,7 @@ export function Chart() {
           navigate({ search: { clickedUnixSeconds: e.point.x / 1000 } });
         },
       },
-      type: chartType,
+      type: chartType as "line",
     })) ?? ([] as Highcharts.SeriesOptionsType[]);
 
   const highChartsOptions: Highcharts.Options = {
@@ -459,14 +461,14 @@ export function Chart() {
       },
     },
     chart: {
-      type: chartType,
+      type: chartType as string,
       height: 600,
       zooming: {
         type: "x",
       },
       events: {
         click: function (e) {
-          console.log(e);
+          // @ts-expect-error - this is a valid event
           const xVal = e?.xAxis?.[0]?.value;
           if (xVal) {
             navigate({ search: { clickedUnixSeconds: new Date().getTime() } });

@@ -1,4 +1,5 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
+// @ts-expect-error - this is a valid import
 import React from "react";
 
 export const Route = createLazyFileRoute("/about")({
