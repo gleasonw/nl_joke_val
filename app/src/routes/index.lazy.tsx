@@ -391,7 +391,7 @@ export function Chart() {
 
   const defaultSpan = isNlLive ? "30 minutes" : "9 hours";
   const defaultGrouping = isNlLive ? "second" : "minute";
-  const defaultRollingAverage = isNlLive ? 5 : 0;
+  const defaultRollingAverage = isNlLive ? 0 : 5;
 
   const chartState: typeof seriesParams = {
     ...seriesParams,
@@ -409,15 +409,9 @@ export function Chart() {
     placeholderData: keepPreviousData,
   });
 
-  let chartType = "line";
-
-  // depends on there being fewer datapoints... bar easier to read. More of a client side
-  // concern, but I could see it making sense to set the default higher up
-  if (urlChartType && isNlLive) {
-    chartType = "bar";
-  }
-
   const seriesToDisplay = series?.length ? series : ["two"];
+
+  const chartType = urlChartType ?? "line";
 
   const emoteSeries:
     | Highcharts.SeriesLineOptions[]
