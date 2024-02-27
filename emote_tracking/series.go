@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	_ "github.com/lib/pq"
 	"gorm.io/gorm"
 )
@@ -152,4 +153,48 @@ func runQuery(p SeriesInput, runner queryRunner) queryReturn {
 	} else {
 		return queryReturn{error: fmt.Errorf("invalid input, must provide either from and to or span")}
 	}
+}
+
+func getEmotes() []string {
+	val := reflect.ValueOf(ChatCounts{})
+	typeOfS := val.Type()
+	columnStrings := make([]string, 0, val.NumField())
+	for i := 0; i < val.NumField(); i++ {
+		fieldName := typeOfS.Field(i).Tag.Get("json")
+		if fieldName != "-" && fieldName != "time" {
+			columnStrings = append(columnStrings, fieldName)
+		}
+	}
+	return columnStrings
+}
+
+func buildSumStrings(emotes []string, p SeriesInput) []string {
+	sumStrings := make([]string, 0, len(emotes)+1)
+	for _, emote := range emotes {
+		sumStrings = append(sumStrings, fmt.Sprintf("SUM(%s) as %s", emote, emote))
+	}
+	sumStrings = append(sumStrings, fmt.Sprintf("EXTRACT(epoch from date_trunc(%s, created_at)) as created_epoch", p.Grouping))
+	return sumStrings
+}
+
+func buildStandardSeriesQuery(p SeriesInput) (string, []interface{}) {
+	emotes := getEmotes()
+	sumStrings := buildSumStrings(emotes, p)
+
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	series := psql.Select(sumStrings...).
+		From("chat_counts").
+		Where(sq.LtOrEq{"created_at": p.To}).
+		Where(sq.GtOrEq{"created_at": p.From}).
+		GroupBy("created_epoch").
+		OrderBy("created_epoch")
+
+	sql, args, err := series.ToSql()
+	if err != nil {
+		fmt.Println(err)
+		return "", nil
+	}
+
+	return sql, args
 }
