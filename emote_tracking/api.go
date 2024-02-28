@@ -132,7 +132,6 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
-		fmt.Println(BuildStandardSeriesQuery(*input))
 		if input.RollingAverage > 0 {
 			return GetRollingAverageSeries(*input, db)
 		}
