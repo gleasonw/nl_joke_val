@@ -133,8 +133,6 @@ func rollingAverageSeriesQuery(p SeriesInput) (string, []interface{}) {
 
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	// todo: try subquery instead of cte
-
 	avgSelect := psql.Select(avgStrings...).From("base_sum").Prefix(baseSql)
 
 	sql, args, err := avgSelect.ToSql()
@@ -212,9 +210,18 @@ func baseSeriesSelect(p SeriesInput, sumStrings []string) sq.SelectBuilder {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	series := psql.Select(sumStrings...).
-		From("chat_counts").
-		Where(sq.LtOrEq{"created_at": p.To}).
-		Where(sq.GtOrEq{"created_at": p.From}).
+		From("chat_counts")
+
+	if !p.From.IsZero() && !p.To.IsZero() {
+		series = series.
+			Where(sq.LtOrEq{"created_at": p.To}).
+			Where(sq.GtOrEq{"created_at": p.From})
+
+	} else if p.Span != "" {
+		series = series.Where(psql.Select(fmt.Sprintf("MAX(created_at) - '%s'::interval", p.Span)).From("chat_counts").Prefix("created_at >=(").Suffix(")"))
+	}
+
+	series = series.
 		GroupBy(fmt.Sprintf("date_trunc('%s', created_at)", p.Grouping)).
 		OrderBy(fmt.Sprintf("date_trunc('%s', created_at) asc", p.Grouping))
 
