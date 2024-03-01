@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useNavigate } from "@tanstack/react-router";
-import { getClipAtTime, getClips, getSeries } from "../api";
+import { getClipAtTime, getClips } from "../api";
 import {
   Clip,
   ClipTimeGroupings,
@@ -15,7 +15,7 @@ import {
   DashboardURLState,
   timeGroupings,
 } from "../utils";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   Title,
@@ -29,7 +29,7 @@ import {
 } from "@tremor/react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { useDefaultClipParams } from "../hooks";
+import { useDefaultClipParams, useTimeSeries } from "../hooks";
 import React from "react";
 
 export const Route = createLazyFileRoute("/")({
@@ -37,8 +37,28 @@ export const Route = createLazyFileRoute("/")({
 });
 
 function Index() {
+  const [{ data: localFetchedSeries }] = useTimeSeries();
+  let timeRangeString = "";
+
+  const lowestTime = localFetchedSeries?.[0]?.time;
+  const highestTime = localFetchedSeries?.[localFetchedSeries.length - 1]?.time;
+
+  if (lowestTime && highestTime) {
+    const lowestDate = new Date(lowestTime * 1000);
+    const highestDate = new Date(highestTime * 1000);
+    timeRangeString = `${lowestDate.toLocaleString()} - ${highestDate.toLocaleString()}`;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100 lg:p-8 flex flex-col gap-8">
+    <div className="min-h-screen lg:p-8 flex flex-col gap-8">
+      <h1 className={"text-3xl m-5 font-semibold flex flex-col gap-4"}>
+        <span className="flex justify-between">
+          NL chat emote usage
+          <LiveStatus />
+        </span>
+        <span className="text-gray-600 text-base">{timeRangeString}</span>
+      </h1>
+      <span className="border  w-full" />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Chart />
         <div className={"flex flex-col gap-8"}>
@@ -56,7 +76,7 @@ export interface SettingsDropLayoutProps {
 }
 
 export function SettingsDropLayout({ children }: SettingsDropLayoutProps) {
-  return <div className="flex gap-8 flex-wrap">{children}</div>;
+  return <div className="flex gap-5 flex-wrap">{children}</div>;
 }
 
 type LocalClipState = NonNullable<DashboardURLState["maxClipParams"]>;
@@ -387,27 +407,11 @@ export function Chart() {
       },
     });
   }
-  const { data: isNlLive } = useLiveStatus();
 
-  const defaultSpan = isNlLive ? "30 minutes" : "9 hours";
-  const defaultGrouping = isNlLive ? "second" : "minute";
-  const defaultRollingAverage = isNlLive ? 0 : 5;
-
-  const chartState: typeof seriesParams = {
-    ...seriesParams,
-    span: seriesParams?.span ?? defaultSpan,
-    grouping: seriesParams?.grouping ?? defaultGrouping,
-    rollingAverage: seriesParams?.rollingAverage ?? defaultRollingAverage,
-  };
-
-  const { grouping, span, rollingAverage, from, to } = chartState;
-
-  const { data: localFetchedSeries, isLoading } = useQuery({
-    queryFn: () => getSeries(chartState),
-    queryKey: ["series", chartState],
-    refetchInterval: 1000 * 5,
-    placeholderData: keepPreviousData,
-  });
+  const [
+    { data: localFetchedSeries, isLoading },
+    { grouping, from, to, rollingAverage, span },
+  ] = useTimeSeries();
 
   const seriesToDisplay = series?.length ? series : ["two"];
 
@@ -487,17 +491,6 @@ export function Chart() {
     series: emoteSeries,
   };
 
-  let timeRangeString = "";
-
-  const lowestTime = localFetchedSeries?.[0]?.time;
-  const highestTime = localFetchedSeries?.[localFetchedSeries.length - 1]?.time;
-
-  if (lowestTime && highestTime) {
-    const lowestDate = new Date(lowestTime * 1000);
-    const highestDate = new Date(highestTime * 1000);
-    timeRangeString = `${lowestDate.toLocaleString()} - ${highestDate.toLocaleString()}`;
-  }
-
   function getNewSeriesList(emote: string) {
     if (!series) {
       return [emote];
@@ -516,42 +509,7 @@ export function Chart() {
   } as DateRangePickerValue;
 
   return (
-    <Card className="flex flex-col gap-2">
-      <h1 className={"text-2xl m-5 font-semibold flex flex-col gap-4"}>
-        <span className="flex justify-between">
-          NL chat emote usage
-          <LiveStatus />
-        </span>
-        <span className="text-gray-600 text-base">{timeRangeString}</span>
-      </h1>
-      <div className="flex flex-row flex-wrap gap-3 m-2">
-        {Object.keys(seriesColors).map((key) => (
-          <button
-            className={"w-auto hover:shadow-lg rounded-lg p-3"}
-            style={
-              seriesToDisplay?.includes(key as SeriesKey)
-                ? {
-                    boxShadow: `0 0 0 4px ${seriesColors[key as SeriesKey]}`,
-                  }
-                : {}
-            }
-            key={key}
-            onClick={() => {
-              navigate({ search: { series: getNewSeriesList(key) } });
-            }}
-          >
-            {seriesEmotes[key as SeriesKey]}
-          </button>
-        ))}
-      </div>
-      <span className="text-center">
-        Select a point in the graph to pull the nearest clip
-      </span>
-      {isLoading ? (
-        <div className="text-center w-full h-full">Loading series...</div>
-      ) : (
-        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
-      )}
+    <div className="flex flex-col gap-2">
       <SettingsDropLayout>
         <Button
           onClick={() => handleUpdateChart(lastMinuteRange)}
@@ -619,6 +577,34 @@ export function Chart() {
           </DateRangePickerItem>
         </DateRangePicker>
       </SettingsDropLayout>
+      {isLoading ? (
+        <div className="text-center w-full h-full">Loading series...</div>
+      ) : (
+        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
+      )}
+      <div className="flex flex-row flex-wrap gap-3 m-2">
+        {Object.keys(seriesColors).map((key) => (
+          <button
+            className={"w-auto hover:shadow-lg rounded-lg p-3"}
+            style={
+              seriesToDisplay?.includes(key as SeriesKey)
+                ? {
+                    boxShadow: `0 0 0 4px ${seriesColors[key as SeriesKey]}`,
+                  }
+                : {}
+            }
+            key={key}
+            onClick={() => {
+              navigate({ search: { series: getNewSeriesList(key) } });
+            }}
+          >
+            {seriesEmotes[key as SeriesKey]}
+          </button>
+        ))}
+      </div>
+      <span className="text-center">
+        Select a point in the graph to pull the nearest clip
+      </span>
       <SettingsDropLayout>
         <label>
           Group By
@@ -675,7 +661,7 @@ export function Chart() {
           </Select>
         </label>
       </SettingsDropLayout>
-    </Card>
+    </div>
   );
 }
 
@@ -683,7 +669,7 @@ export function LiveStatus() {
   const { data: nlIsLive } = useLiveStatus();
   if (nlIsLive) {
     return (
-      <span className="flex gap-2 items-center">
+      <span className="flex text-2xl gap-2 items-center">
         <span className="bg-green-500 rounded-full w-4 h-4" />
         <a
           href="https://twitch.tv/northernlion"
@@ -696,7 +682,7 @@ export function LiveStatus() {
       </span>
     );
   }
-  return <span className="text-gray-500">Offline</span>;
+  return <span className="text-gray-500 text-2xl">Offline</span>;
 }
 
 export function ClipAtTime() {
