@@ -70,9 +70,6 @@ type TwitchResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-var val = reflect.ValueOf(ChatCounts{})
-var validColumnSet = make(map[string]bool)
-
 func main() {
 	if client_id == "" {
 		//load .env file
@@ -95,14 +92,6 @@ func main() {
 	db.AutoMigrate(&ChatCounts{})
 	db.AutoMigrate(&RefreshTokenStore{})
 
-	// build validColumnSet
-	for i := 0; i < val.NumField(); i++ {
-		jsonTag := val.Type().Field(i).Tag.Get("json")
-		if jsonTag != "-" && jsonTag != "time" {
-			validColumnSet[jsonTag] = true
-		}
-	}
-
 	var lionIsLive = false
 
 	go connectToTwitchChat(
@@ -117,13 +106,26 @@ func main() {
 
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
+	val := reflect.ValueOf(ChatCounts{})
+
+	validColumnSet := make(map[string]bool, val.NumField())
+	emotes := make([]string, 0, val.NumField())
+
+	for i := 0; i < val.NumField(); i++ {
+		jsonTag := val.Type().Field(i).Tag.Get("json")
+		if jsonTag != "-" && jsonTag != "time" {
+			validColumnSet[jsonTag] = true
+			emotes = append(emotes, jsonTag)
+		}
+	}
+
 	huma.Register(api, huma.Operation{
 		OperationID: "get-clip-counts",
 		Summary:     "Get clip counts",
 		Method:      http.MethodGet,
 		Path:        "/api/clip_counts",
 	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
-		return GetClipCounts(*input, db)
+		return GetClipCounts(*input, db, validColumnSet)
 	})
 
 	huma.Register(api, huma.Operation{
@@ -133,9 +135,9 @@ func main() {
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
 		if input.RollingAverage > 0 {
-			return GetRollingAverageSeries(*input, db)
+			return GetRollingAverageSeries(*input, db, emotes)
 		}
-		return GetSeries(*input, db)
+		return GetSeries(*input, db, emotes)
 	})
 
 	huma.Register(api, huma.Operation{
@@ -191,6 +193,7 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
+
 		refreshTokens := func() bool {
 			tokens, err = refreshTwitchToken(db, tokens.RefreshToken)
 			if err != nil {
@@ -234,16 +237,19 @@ func readChatMessages(conn *websocket.Conn, incomingMessages chan Message, cance
 	for {
 		messageType, messageData, err := conn.ReadMessage()
 		text := string(messageData)
+
 		if strings.Contains(text, "PING") {
 			conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
 			continue
 		}
+
 		if err != nil {
 			fmt.Println(text)
 			fmt.Println("Error reading message:", err)
 			cancel()
 			return
 		}
+
 		incomingMessages <- Message{Type: messageType, Data: messageData}
 	}
 }

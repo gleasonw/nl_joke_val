@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"gorm.io/gorm"
 )
 
@@ -25,34 +26,36 @@ type ClipCountsOutput struct {
 	Body []Clip `json:"clips"`
 }
 
-// when calculting the rolling sum, we want to eliminate building values
-// if we don't filter, then clips from the same bit might enter the rankings
-// must be in SQL interval format
+// when discovering high rolling sum, we want to eliminate building values
+// eg, row@6:45:40: 105, row@6:45:50: 120, row@6:46:00: 110, we only want the max row to avoid overlapping
+// the solution is to filter rows within the likelyBitLength window
 const likelyBitLength = "1 minutes"
 
-func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
+func GetClipCounts(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]bool) (*ClipCountsOutput, error) {
 	var query string
 
 	if !validColumnSet[p.Column] {
 		return &ClipCountsOutput{}, fmt.Errorf("invalid column: %s", p.Column)
 	}
 
-	// // we want just the x top bits, but some bit have many clips in the top rankings
-	// // so we limit to a reasonable value.
-	// // maybe there are no perf implications? I should test this
-	rollingSumValueLimit := 100
+	// we want just the x top bits, but some bit have many clips in the top rankings
+	// so we limit to a reasonable value.
 
-	switch p.Grouping {
-	case "1 minute":
-		rollingSumValueLimit = 300
-	case "5 minutes":
-		rollingSumValueLimit = 1500
-	case "15 minutes":
-		rollingSumValueLimit = 4500
-	case "1 hour":
-		rollingSumValueLimit = 18000
-	case "1 day":
-		rollingSumValueLimit = 432000
+	limitMap := map[string]int{
+		"25 seconds": 100,
+		"1 minute":   300,
+		"5 minutes":  1500,
+		"15 minutes": 4500,
+		"1 hour":     18000,
+		"1 day":      432000,
+	}
+
+	rollingSumValueLimit, ok := limitMap[p.Grouping]
+
+	if !ok {
+		// this should never happen since Huma validates our input against an enum string
+		// but better safe
+		return &ClipCountsOutput{}, fmt.Errorf("invalid grouping: %s", p.Grouping)
 	}
 
 	rollingSumQuery := fmt.Sprintf(`
@@ -90,9 +93,9 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 		WHERE NOT EXISTS (
 			SELECT 1
 		    	FROM RankedIntervals r2
-		    		WHERE r2.rn < r1.rn
-		      			AND r2.created_at >= r1.created_at - INTERVAL '%s'
-		      			AND r2.created_at <= r1.created_at + INTERVAL '%s'
+		    	WHERE r2.rn < r1.rn
+		      	AND r2.created_at >= r1.created_at - INTERVAL '%s'
+		      	AND r2.created_at <= r1.created_at + INTERVAL '%s'
 		)
 		LIMIT $1
 	)
@@ -129,12 +132,21 @@ type NearestClipOutput struct {
 
 func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error) {
 	var clip Clip
-	dbError := db.Raw(`
-		SELECT clip_id, created_at as time
-		FROM chat_counts 
-		WHERE EXTRACT(epoch from created_at) > $1::float + 10
-		AND EXTRACT(epoch from created_at) < $1::float + 20
-		LIMIT 1`, p.Time).Scan(&clip).Error
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	query, args, err := psql.Select("clip_id", "created_at as time").
+		From("chat_counts").
+		Where(sq.GtOrEq{"EXTRACT(epoch from created_at)": p.Time + 10}).
+		Where(sq.LtOrEq{"EXTRACT(epoch from created_at)": p.Time + 20}).
+		Limit(1).
+		ToSql()
+
+	if err != nil {
+		fmt.Println(err)
+		return &NearestClipOutput{}, err
+	}
+
+	dbError := db.Raw(query, args...).Scan(&clip).Error
 
 	if dbError != nil {
 		fmt.Println(dbError)
