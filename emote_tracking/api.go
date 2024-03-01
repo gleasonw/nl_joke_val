@@ -109,11 +109,13 @@ func main() {
 	val := reflect.ValueOf(ChatCounts{})
 
 	validColumnSet := make(map[string]bool, val.NumField())
+	emotes := make([]string, 0, val.NumField())
 
 	for i := 0; i < val.NumField(); i++ {
 		jsonTag := val.Type().Field(i).Tag.Get("json")
 		if jsonTag != "-" && jsonTag != "time" {
 			validColumnSet[jsonTag] = true
+			emotes = append(emotes, jsonTag)
 		}
 	}
 
@@ -133,9 +135,9 @@ func main() {
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
 		if input.RollingAverage > 0 {
-			return GetRollingAverageSeries(*input, db)
+			return GetRollingAverageSeries(*input, db, emotes)
 		}
-		return GetSeries(*input, db)
+		return GetSeries(*input, db, emotes)
 	})
 
 	huma.Register(api, huma.Operation{

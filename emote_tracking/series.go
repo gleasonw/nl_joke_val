@@ -22,9 +22,9 @@ type SeriesOutput struct {
 	Body []ChatCounts
 }
 
-func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
+func GetSeries(p SeriesInput, db *gorm.DB, emotes []string) (*SeriesOutput, error) {
 
-	query, args := seriesQuery(p)
+	query, args := seriesQuery(p, emotes)
 	fmt.Println(query)
 
 	result := []ChatCounts{}
@@ -40,8 +40,7 @@ func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 
 }
 
-func seriesQuery(p SeriesInput) (string, []interface{}) {
-	emotes := getEmotes()
+func seriesQuery(p SeriesInput, emotes []string) (string, []interface{}) {
 	sumStrings := buildSumStrings(
 		emotes,
 		p,
@@ -65,9 +64,9 @@ func tempColumnSumName(fieldName string) string {
 	return fieldName + "_sum"
 }
 
-func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
+func GetRollingAverageSeries(p SeriesInput, db *gorm.DB, emotes []string) (*SeriesOutput, error) {
 
-	query, args := rollingAverageSeriesQuery(p)
+	query, args := rollingAverageSeriesQuery(p, emotes)
 
 	result := []ChatCounts{}
 
@@ -81,8 +80,7 @@ func GetRollingAverageSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) 
 	return &SeriesOutput{result}, nil
 }
 
-func rollingAverageSeriesQuery(p SeriesInput) (string, []interface{}) {
-	emotes := getEmotes()
+func rollingAverageSeriesQuery(p SeriesInput, emotes []string) (string, []interface{}) {
 	sumStrings := buildSumStrings(
 		emotes,
 		p,
@@ -134,19 +132,6 @@ func buildStringForEachColumn(fn func(string) string) []string {
 		fieldName := typeOfS.Field(i).Tag.Get("json")
 		if fieldName != "-" && fieldName != "time" {
 			columnStrings = append(columnStrings, fn(fieldName))
-		}
-	}
-	return columnStrings
-}
-
-func getEmotes() []string {
-	val := reflect.ValueOf(ChatCounts{})
-	typeOfS := val.Type()
-	columnStrings := make([]string, 0, val.NumField())
-	for i := 0; i < val.NumField(); i++ {
-		fieldName := typeOfS.Field(i).Tag.Get("json")
-		if fieldName != "-" && fieldName != "time" {
-			columnStrings = append(columnStrings, fieldName)
 		}
 	}
 	return columnStrings
