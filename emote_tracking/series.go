@@ -22,27 +22,6 @@ type SeriesOutput struct {
 	Body []ChatCounts
 }
 
-var baseFromToQuery = `
-SELECT %s,
-EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-FROM chat_counts 
-WHERE created_at BETWEEN $2 AND $3
-GROUP BY date_trunc($1, created_at) 
-ORDER BY date_trunc($1, created_at) asc
-`
-
-var baseSinceSpanQuery = `
-SELECT %s,
-EXTRACT(epoch from date_trunc($1, created_at)) AS created_epoch
-FROM chat_counts
-WHERE created_at > (
-	SELECT MAX(created_at) - $2::interval 
-	FROM chat_counts
-)
-GROUP BY date_trunc($1, created_at)
-ORDER BY date_trunc($1, created_at) asc
-`
-
 func GetSeries(p SeriesInput, db *gorm.DB) (*SeriesOutput, error) {
 
 	query, args := seriesQuery(p)
@@ -158,26 +137,6 @@ func buildStringForEachColumn(fn func(string) string) []string {
 		}
 	}
 	return columnStrings
-}
-
-type queryReturn struct {
-	result []ChatCounts
-	error  error
-}
-
-type queryRunner struct {
-	getResultsFromTo        func() queryReturn
-	getResultsSpanSinceLive func() queryReturn
-}
-
-func runQuery(p SeriesInput, runner queryRunner) queryReturn {
-	if !p.From.IsZero() && !p.To.IsZero() {
-		return runner.getResultsFromTo()
-	} else if p.Span != "" {
-		return runner.getResultsSpanSinceLive()
-	} else {
-		return queryReturn{error: fmt.Errorf("invalid input, must provide either from and to or span")}
-	}
 }
 
 func getEmotes() []string {

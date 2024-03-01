@@ -70,9 +70,6 @@ type TwitchResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-var val = reflect.ValueOf(ChatCounts{})
-var validColumnSet = make(map[string]bool)
-
 func main() {
 	if client_id == "" {
 		//load .env file
@@ -95,14 +92,6 @@ func main() {
 	// db.AutoMigrate(&ChatCounts{})
 	// db.AutoMigrate(&RefreshTokenStore{})
 
-	// build validColumnSet
-	for i := 0; i < val.NumField(); i++ {
-		jsonTag := val.Type().Field(i).Tag.Get("json")
-		if jsonTag != "-" && jsonTag != "time" {
-			validColumnSet[jsonTag] = true
-		}
-	}
-
 	var lionIsLive = false
 
 	// go connectToTwitchChat(
@@ -117,13 +106,24 @@ func main() {
 
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
+	val := reflect.ValueOf(ChatCounts{})
+
+	validColumnSet := make(map[string]bool, val.NumField())
+
+	for i := 0; i < val.NumField(); i++ {
+		jsonTag := val.Type().Field(i).Tag.Get("json")
+		if jsonTag != "-" && jsonTag != "time" {
+			validColumnSet[jsonTag] = true
+		}
+	}
+
 	huma.Register(api, huma.Operation{
 		OperationID: "get-clip-counts",
 		Summary:     "Get clip counts",
 		Method:      http.MethodGet,
 		Path:        "/api/clip_counts",
 	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
-		return GetClipCounts(*input, db)
+		return GetClipCounts(*input, db, validColumnSet)
 	})
 
 	huma.Register(api, huma.Operation{
