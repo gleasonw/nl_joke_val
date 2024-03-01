@@ -89,16 +89,16 @@ func main() {
 		return
 	}
 
-	// db.AutoMigrate(&ChatCounts{})
-	// db.AutoMigrate(&RefreshTokenStore{})
+	db.AutoMigrate(&ChatCounts{})
+	db.AutoMigrate(&RefreshTokenStore{})
 
 	var lionIsLive = false
 
-	// go connectToTwitchChat(
-	// 	db,
-	// 	func() bool { return lionIsLive },
-	// 	func(isLive bool) { lionIsLive = isLive },
-	// )
+	go connectToTwitchChat(
+		db,
+		func() bool { return lionIsLive },
+		func(isLive bool) { lionIsLive = isLive },
+	)
 
 	router := chi.NewMux()
 
@@ -191,6 +191,7 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
+
 		refreshTokens := func() bool {
 			tokens, err = refreshTwitchToken(db, tokens.RefreshToken)
 			if err != nil {
@@ -234,16 +235,19 @@ func readChatMessages(conn *websocket.Conn, incomingMessages chan Message, cance
 	for {
 		messageType, messageData, err := conn.ReadMessage()
 		text := string(messageData)
+
 		if strings.Contains(text, "PING") {
 			conn.WriteMessage(websocket.TextMessage, []byte("PONG :tmi.twitch.tv"))
 			continue
 		}
+
 		if err != nil {
 			fmt.Println(text)
 			fmt.Println("Error reading message:", err)
 			cancel()
 			return
 		}
+
 		incomingMessages <- Message{Type: messageType, Data: messageData}
 	}
 }
