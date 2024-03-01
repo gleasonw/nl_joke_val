@@ -42,6 +42,7 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]boo
 	// so we limit to a reasonable value.
 
 	limitMap := map[string]int{
+		"25 seconds": 100,
 		"1 minute":   300,
 		"5 minutes":  1500,
 		"15 minutes": 4500,
@@ -136,7 +137,7 @@ func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error)
 	query, args, err := psql.Select("clip_id", "created_at as time").
 		From("chat_counts").
 		Where(sq.GtOrEq{"EXTRACT(epoch from created_at)": p.Time + 10}).
-		Where(sq.LtOrEq{"EXTRACT(epoch fro created_at)": p.Time + 20}).
+		Where(sq.LtOrEq{"EXTRACT(epoch from created_at)": p.Time + 20}).
 		Limit(1).
 		ToSql()
 
