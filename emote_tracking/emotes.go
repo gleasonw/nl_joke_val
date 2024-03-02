@@ -13,7 +13,7 @@ type User struct {
 	ProviderId  string `json:"providerId"`
 }
 
-type Emote struct {
+type BttvEmote struct {
 	ID        string `json:"id"`
 	Code      string `json:"code"`
 	ImageType string `json:"imageType"`

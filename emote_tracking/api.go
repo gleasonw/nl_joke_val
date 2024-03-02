@@ -71,6 +71,13 @@ type TwitchResponse struct {
 }
 
 func main() {
+	// check if we are just running migration -- command line args
+
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		migrate()
+		return
+	}
+
 	if client_id == "" {
 		//load .env file
 		err := godotenv.Load()
@@ -94,11 +101,11 @@ func main() {
 
 	var lionIsLive = false
 
-	go connectToTwitchChat(
-		db,
-		func() bool { return lionIsLive },
-		func(isLive bool) { lionIsLive = isLive },
-	)
+	// go connectToTwitchChat(
+	// 	db,
+	// 	func() bool { return lionIsLive },
+	// 	func(isLive bool) { lionIsLive = isLive },
+	// )
 
 	router := chi.NewMux()
 
@@ -106,18 +113,7 @@ func main() {
 
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
-	val := reflect.ValueOf(ChatCounts{})
-
-	validColumnSet := make(map[string]bool, val.NumField())
-	emotes := make([]string, 0, val.NumField())
-
-	for i := 0; i < val.NumField(); i++ {
-		jsonTag := val.Type().Field(i).Tag.Get("json")
-		if jsonTag != "-" && jsonTag != "time" {
-			validColumnSet[jsonTag] = true
-			emotes = append(emotes, jsonTag)
-		}
-	}
+	validColumnSet, emotes := getEmotes()
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-clip-counts",
@@ -172,6 +168,22 @@ func main() {
 	if listenError != nil {
 		fmt.Println(listenError)
 	}
+}
+
+func getEmotes() (map[string]bool, []string) {
+	val := reflect.ValueOf(ChatCounts{})
+	validColumnSet := make(map[string]bool, val.NumField())
+	emotes := make([]string, 0, val.NumField())
+
+	for i := 0; i < val.NumField(); i++ {
+		jsonTag := val.Type().Field(i).Tag.Get("json")
+		if jsonTag != "-" && jsonTag != "time" {
+			validColumnSet[jsonTag] = true
+			emotes = append(emotes, jsonTag)
+		}
+	}
+
+	return validColumnSet, emotes
 
 }
 
