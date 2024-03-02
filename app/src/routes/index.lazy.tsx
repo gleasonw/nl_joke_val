@@ -602,9 +602,6 @@ export function Chart() {
           </button>
         ))}
       </div>
-      <span className="text-center">
-        Select a point in the graph to pull the nearest clip
-      </span>
       <SettingsDropLayout>
         <label>
           Group By
