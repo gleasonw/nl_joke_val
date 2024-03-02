@@ -1,4 +1,5 @@
-import { createLazyFileRoute } from "@tanstack/react-router";
+import { Link, createLazyFileRoute } from "@tanstack/react-router";
+import { LineChart } from "lucide-react";
 // @ts-expect-error - this is a valid import
 import React from "react";
 
@@ -8,21 +9,29 @@ export const Route = createLazyFileRoute("/about")({
 
 function About() {
   return (
-    <section className="flex flex-col gap-10 p-10">
-      <p>
-        Imagine a world where a Twitch bot sits in NLs chat. The bot counts
-        emotes. Every 10 seconds, the bot posts the tally to a database.
-      </p>
-      <p className="text-balance">
-        This is our world. A database of emote counts since April 2023. What
-        will we do with it? Whatever will we do?
-      </p>
-      <p className="text-balance">
-        So far,{" "}
-        <a href="/" className="underline">
-          this.
-        </a>
-      </p>
-    </section>
+    <>
+      <Link
+        to="/"
+        className="[&.active]:font-bold absolute top-0 left-0 z-10 p-3"
+      >
+        <LineChart />
+      </Link>
+      <section className="flex flex-col gap-10 p-10">
+        <p>
+          Imagine a world where a Twitch bot sits in NLs chat. The bot counts
+          emotes. Every 10 seconds, the bot posts the tally to a database.
+        </p>
+        <p className="text-balance">
+          This is our world. A database of emote counts since April 2023. What
+          will we do with it? Whatever will we do?
+        </p>
+        <p className="text-balance">
+          So far,{" "}
+          <a href="/" className="underline">
+            this.
+          </a>
+        </p>
+      </section>
+    </>
   );
 }

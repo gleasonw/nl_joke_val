@@ -492,8 +492,8 @@ export function Chart() {
   };
 
   function getNewSeriesList(emote: string) {
-    if (!series) {
-      return [emote];
+    if (!series || series?.length === 0) {
+      return [emote, "two"];
     }
 
     if (series?.includes(emote)) {
