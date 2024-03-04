@@ -73,9 +73,15 @@ type TwitchResponse struct {
 func main() {
 	// check if we are just running migration -- command line args
 
-	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		migrate()
-		return
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "migrate":
+			migrate()
+			return
+		case "verify":
+			verify()
+			return
+		}
 	}
 
 	if client_id == "" {
@@ -130,6 +136,7 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
+		fmt.Println(GetTimeSeries(*input, db))
 		if input.RollingAverage > 0 {
 			return GetRollingAverageSeries(*input, db, emotes)
 		}

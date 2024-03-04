@@ -18,13 +18,13 @@ type Emote struct {
 }
 
 type EmoteCount struct {
-	Id        int
+	Id        int `gorm:"primary_key"`
 	Count     int
-	EmoteID   int
+	EmoteID   int `gorm:"index"`
 	Emote     Emote
 	ClipID    *string
 	Clip      FetchedClip
-	CreatedAt time.Time
+	CreatedAt time.Time `gorm:"index"`
 }
 
 type FetchedClip struct {
@@ -33,7 +33,59 @@ type FetchedClip struct {
 	CreatedAt time.Time `gorm:"index"`
 }
 
-// TODO: we're losing some rows, likely due to foreign key rules.
+func verify() error {
+
+	godotenv.Load()
+
+	dbUrl := os.Getenv("DATABASE_URL")
+
+	db, err := gorm.Open(postgres.Open(dbUrl))
+
+	if err != nil {
+		panic("failed to connect database")
+	}
+
+	db.AutoMigrate(&EmoteCount{})
+
+	_, emotes := getEmotes()
+
+	emotesInDb := make([]Emote, 0, len(emotes))
+	db.Find(&emotesInDb)
+
+	emoteIdMap := make(map[string]int)
+
+	for _, emote := range emotesInDb {
+		emoteIdMap[emote.Code] = int(emote.ID)
+	}
+
+	for _, emote := range emotes {
+		var oldCount, newCount int
+
+		query := fmt.Sprintf("SELECT sum(%s) as old_count FROM chat_counts", emote)
+
+		db.Raw(query).Scan(&oldCount)
+
+		emoteId, ok := emoteIdMap[emote]
+
+		if !ok {
+			fmt.Println("Emote not found in database", emote)
+			return nil
+		}
+
+		db.Raw(fmt.Sprintf("SELECT sum(count) as new_count FROM emote_counts where emote_id=%d", emoteId)).Scan(&newCount)
+
+		fmt.Println(emote, "old sum and new sum: ", oldCount, newCount)
+
+		if oldCount != newCount || oldCount == 0 || newCount == 0 {
+			fmt.Println("Broken migration for ", emote, oldCount, newCount)
+			return nil
+		}
+	}
+
+	fmt.Println("Migration verified")
+
+	return nil
+}
 
 func migrate() error {
 
