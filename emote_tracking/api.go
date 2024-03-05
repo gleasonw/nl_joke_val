@@ -119,7 +119,7 @@ func main() {
 
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
-	validColumnSet, emotes := getEmotes()
+	validColumnSet, _ := getEmotes()
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-clip-counts",
@@ -135,12 +135,8 @@ func main() {
 		Summary:     "Get a time series of emote counts",
 		Method:      http.MethodGet,
 		Path:        "/api/series",
-	}, func(ctx context.Context, input *SeriesInput) (*SeriesOutput, error) {
-		fmt.Println(GetTimeSeries(*input, db))
-		if input.RollingAverage > 0 {
-			return GetRollingAverageSeries(*input, db, emotes)
-		}
-		return GetSeries(*input, db, emotes)
+	}, func(ctx context.Context, input *SeriesInput) (*TimeSeriesOutput, error) {
+		return GetTimeSeries(*input, db)
 	})
 
 	huma.Register(api, huma.Operation{

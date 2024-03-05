@@ -430,7 +430,9 @@ export function Chart() {
       color: seriesColors[key as unknown as SeriesKey],
       events: {
         click: function (e) {
-          navigate({ search: { clickedUnixSeconds: e.point.x / 1000 } });
+          navigate({
+            search: { ...currentState, clickedUnixSeconds: e.point.x / 1000 },
+          });
         },
       },
       type: chartType as "line",
@@ -469,7 +471,12 @@ export function Chart() {
           // @ts-expect-error - this is a valid event
           const xVal = e?.xAxis?.[0]?.value;
           if (xVal) {
-            navigate({ search: { clickedUnixSeconds: new Date().getTime() } });
+            navigate({
+              search: {
+                ...currentState,
+                clickedUnixSeconds: new Date().getTime(),
+              },
+            });
           }
         },
       },
@@ -595,7 +602,9 @@ export function Chart() {
             }
             key={key}
             onClick={() => {
-              navigate({ search: { series: getNewSeriesList(key) } });
+              navigate({
+                search: { ...currentState, series: getNewSeriesList(key) },
+              });
             }}
           >
             {seriesEmotes[key as SeriesKey]}

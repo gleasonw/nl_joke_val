@@ -13,20 +13,14 @@ import (
 // which is like count/emote_id/clip_id/created_at
 // versus old model which was emote1_count/emote2_count/emote3_count/created_at
 
-type TimeSeries map[string]float64
+type TimeSeries struct {
+	Time   time.Time          `json:"time"`
+	Series map[string]float64 `json:"series"`
+}
 
 type TimeSeriesOutput struct {
 	Body []TimeSeries
 }
-
-// the simple series query
-
-// select sum(count), date_trunc('hour', created_at) as time, emote_id
-// from emote_counts
-// where created_at > (select max(created_at) - '9 hours'::interval from emote_counts)
-// group by emote_id, date_trunc('hour', created_at);
-
-// now we join that into the emotes table
 
 type TimeSeriesRow struct {
 	Count float64
@@ -45,8 +39,6 @@ func GetTimeSeries(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error) {
 		return &TimeSeriesOutput{}, nil
 	}
 
-	fmt.Println(sql, args)
-
 	result := []TimeSeriesRow{}
 
 	dbError := db.Raw(sql, args...).Scan(&result).Error
@@ -56,7 +48,22 @@ func GetTimeSeries(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error) {
 		return &TimeSeriesOutput{}, dbError
 	}
 
-	return &TimeSeriesOutput{}, nil
+	output := make(map[time.Time]TimeSeries)
+
+	for _, row := range result {
+		if _, ok := output[row.Time]; !ok {
+			output[row.Time] = TimeSeries{Time: row.Time, Series: make(map[string]float64)}
+		}
+		output[row.Time].Series[row.Code] = row.Count
+	}
+
+	seriesOutput := make([]TimeSeries, 0, len(output))
+
+	for _, series := range output {
+		seriesOutput = append(seriesOutput, series)
+	}
+
+	return &TimeSeriesOutput{seriesOutput}, nil
 
 }
 
