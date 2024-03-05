@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -62,6 +63,16 @@ func GetTimeSeries(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error) {
 	for _, series := range output {
 		seriesOutput = append(seriesOutput, series)
 	}
+
+	slices.SortFunc(seriesOutput, func(i TimeSeries, j TimeSeries) int {
+		if i.Time.Before(j.Time) {
+			return -1
+		}
+		if i.Time.After(j.Time) {
+			return 1
+		}
+		return 0
+	})
 
 	return &TimeSeriesOutput{seriesOutput}, nil
 

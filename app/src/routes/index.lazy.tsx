@@ -44,8 +44,8 @@ function Index() {
   const highestTime = localFetchedSeries?.[localFetchedSeries.length - 1]?.time;
 
   if (lowestTime && highestTime) {
-    const lowestDate = new Date(lowestTime * 1000);
-    const highestDate = new Date(highestTime * 1000);
+    const lowestDate = new Date(lowestTime);
+    const highestDate = new Date(highestTime);
     timeRangeString = `${lowestDate.toLocaleString()} - ${highestDate.toLocaleString()}`;
   }
 
@@ -424,8 +424,8 @@ export function Chart() {
       name: key,
       data:
         localFetchedSeries?.map((d) => [
-          d.time * 1000 ?? 0,
-          d[key as unknown as SeriesKey] ?? "",
+          new Date(d.time).getTime(),
+          d.series[key as unknown as SeriesKey] ?? "",
         ]) ?? [],
       color: seriesColors[key as unknown as SeriesKey],
       events: {

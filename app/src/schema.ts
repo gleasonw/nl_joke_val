@@ -20,8 +20,6 @@ export interface paths {
   "/api/series": {
     /** Get a time series of emote counts */
     get: operations["get-series"];
-    /** Get a time series of emote counts */
-    options: operations["get-series"];
   };
 }
 
@@ -29,46 +27,6 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
-    ChatCounts: {
-      /** Format: double */
-      caught: number;
-      /** Format: double */
-      cereal: number;
-      /** Format: double */
-      classic: number;
-      /** Format: double */
-      cocka: number;
-      /** Format: double */
-      copium: number;
-      /** Format: double */
-      huh: number;
-      /** Format: double */
-      joel: number;
-      /** Format: double */
-      life: number;
-      /** Format: double */
-      lol: number;
-      /** Format: double */
-      monka_giga: number;
-      /** Format: double */
-      monkas: number;
-      /** Format: double */
-      no: number;
-      /** Format: double */
-      pog: number;
-      /** Format: double */
-      ratjam: number;
-      /** Format: double */
-      shock: number;
-      /** Format: double */
-      sure: number;
-      /** Format: double */
-      time: number;
-      /** Format: double */
-      two: number;
-      /** Format: double */
-      who_asked: number;
-    };
     Clip: {
       /**
        * Format: uri
@@ -117,6 +75,13 @@ export interface components {
        * @default about:blank
        */
       type?: string;
+    };
+    TimeSeries: {
+      series: {
+        [key: string]: number;
+      };
+      /** Format: date-time */
+      time: string;
     };
   };
   responses: never;
@@ -212,7 +177,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "application/json": components["schemas"]["ChatCounts"][];
+          "application/json": components["schemas"]["TimeSeries"][];
         };
       };
       /** @description Error */
