@@ -657,6 +657,7 @@ export function Chart() {
             onValueChange={(value) =>
               navigate({
                 search: {
+                  ...currentState,
                   chartType: value as "line" | "bar",
                 },
               })
