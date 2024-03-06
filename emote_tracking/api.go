@@ -136,6 +136,9 @@ func main() {
 		Method:      http.MethodGet,
 		Path:        "/api/series",
 	}, func(ctx context.Context, input *SeriesInput) (*TimeSeriesOutput, error) {
+		if input.RollingAverage > 0 {
+			return GetTimeSeriesRollingAverage(*input, db)
+		}
 		return GetTimeSeries(*input, db)
 	})
 
