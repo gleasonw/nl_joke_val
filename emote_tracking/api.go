@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -22,33 +23,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
-	"github.com/go-chi/chi/v5"
 )
-
-type ChatCounts struct {
-	Classic      float64   `json:"classic"`
-	MonkaGiga    float64   `json:"monka_giga"`
-	Two          float64   `json:"two"`
-	Lol          float64   `json:"lol"`
-	Cereal       float64   `json:"cereal"`
-	Monkas       float64   `json:"monkas"`
-	Joel         float64   `json:"joel"`
-	Pog          float64   `json:"pog"`
-	Huh          float64   `json:"huh"`
-	No           float64   `json:"no"`
-	Cocka        float64   `json:"cocka"`
-	WhoAsked     float64   `json:"who_asked"`
-	Shock        float64   `json:"shock"`
-	Copium       float64   `json:"copium"`
-	Ratjam       float64   `json:"ratjam"`
-	Sure         float64   `json:"sure"`
-	CreatedAt    time.Time `gorm:"index" json:"-"`
-	ClipId       string    `json:"-"`
-	Thumbnail    string    `json:"-"`
-	CreatedEpoch float64   `json:"time"`
-	Caught       float64   `json:"caught"`
-	Life         float64   `json:"life"`
-}
 
 type RefreshTokenStore struct {
 	RefreshToken string
@@ -60,19 +35,12 @@ type Message struct {
 	Data []byte
 }
 
-var nickname string = os.Getenv("NICK")
-var db_url string = os.Getenv("DATABASE_URL")
-var client_id string = os.Getenv("CLIENT_ID")
-var client_secret string = os.Getenv("CLIENT_SECRET")
-
 type TwitchResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
 func main() {
-	// check if we are just running migration -- command line args
-
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
@@ -84,19 +52,10 @@ func main() {
 		}
 	}
 
-	if client_id == "" {
-		//load .env file
-		err := godotenv.Load()
-		if err != nil {
-			fmt.Println("Error loading .env file")
-		}
-		client_id = os.Getenv("CLIENT_ID")
-		client_secret = os.Getenv("CLIENT_SECRET")
-		nickname = os.Getenv("NICK")
-		db_url = os.Getenv("DATABASE_URL")
-	}
+	env := getEnv()
+	fmt.Println(fetchNlEmotesFromBTTV())
 
-	db, err := gorm.Open(postgres.Open(db_url))
+	db, err := gorm.Open(postgres.Open(env.DatabaseUrl))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -121,49 +80,23 @@ func main() {
 
 	validColumnSet, _ := getEmotes()
 
-	huma.Register(api, huma.Operation{
-		OperationID: "get-clip-counts",
-		Summary:     "Get clip counts",
-		Method:      http.MethodGet,
-		Path:        "/api/clip_counts",
-	}, func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
+	huma.Get(api, "/api/clip_counts", func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
 		return GetClipCounts(*input, db, validColumnSet)
 	})
 
-	huma.Register(api, huma.Operation{
-		OperationID: "get-series",
-		Summary:     "Get a time series of emote counts",
-		Method:      http.MethodGet,
-		Path:        "/api/series",
-	}, func(ctx context.Context, input *SeriesInput) (*TimeSeriesOutput, error) {
+	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInput) (*TimeSeriesOutput, error) {
 		if input.RollingAverage > 0 {
 			return GetTimeSeriesRollingAverage(*input, db)
 		}
 		return GetTimeSeries(*input, db)
 	})
 
-	huma.Register(api, huma.Operation{
-		OperationID: "get-nearest-clip",
-		Summary:     "Get nearest clip",
-		Method:      http.MethodGet,
-		Path:        "/api/clip",
-	}, func(ctx context.Context, input *NearestClipInput) (*NearestClipOutput, error) {
+	huma.Get(api, "/api/clip", func(ctx context.Context, input *NearestClipInput) (*NearestClipOutput, error) {
 		return GetNearestClip(*input, db)
 	})
 
-	type IsLiveInput struct{}
-
-	type IsLiveOutput struct {
-		Body bool
-	}
-
-	huma.Register(api, huma.Operation{
-		OperationID: "is-nl-live",
-		Summary:     "Is NL live",
-		Method:      http.MethodGet,
-		Path:        "/api/is_live",
-	}, func(ctx context.Context, input *IsLiveInput) (*IsLiveOutput, error) {
-		return &IsLiveOutput{lionIsLive}, nil
+	huma.Get(api, "/api/is_live", func(ctx context.Context, input *struct{}) (*struct{ Body bool }, error) {
+		return &struct{ Body bool }{lionIsLive}, nil
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
@@ -173,6 +106,23 @@ func main() {
 
 	if listenError != nil {
 		fmt.Println(listenError)
+	}
+}
+
+type Env struct {
+	ClientId     string
+	ClientSecret string
+	Nickname     string
+	DatabaseUrl  string
+}
+
+func getEnv() Env {
+	godotenv.Load()
+	return Env{
+		ClientId:     os.Getenv("CLIENT_ID"),
+		ClientSecret: os.Getenv("CLIENT_SECRET"),
+		Nickname:     os.Getenv("NICK"),
+		DatabaseUrl:  os.Getenv("DATABASE_URL"),
 	}
 }
 
@@ -193,11 +143,11 @@ func getEmotes() (map[string]bool, []string) {
 
 }
 
-func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus func(bool)) {
+func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus func(bool), env Env) {
 
-	tokens, err := tryUseLatestRefreshToken(db)
+	tokens, err := tryUseLatestRefreshToken(db, env)
 	if err != nil {
-		tokens, err = getTwitchWithAuthCode(db)
+		tokens, err = getTwitchWithAuthCode(db, env)
 		if err != nil {
 			fmt.Println("Error getting Twitch token:", err)
 			return
@@ -213,7 +163,7 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 		ctx, cancel := context.WithCancel(context.Background())
 
 		refreshTokens := func() bool {
-			tokens, err = refreshTwitchToken(db, tokens.RefreshToken)
+			tokens, err = refreshTwitchToken(db, tokens.RefreshToken, env)
 			if err != nil {
 				fmt.Println("Error refreshing Twitch token:", err)
 				return false
@@ -231,7 +181,7 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 		defer conn.Close()
 
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", tokens.AccessToken)))
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", nickname)))
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", env.Nickname)))
 		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
 
 		incomingMessages := make(chan Message)
@@ -239,7 +189,7 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 		go readChatMessages(conn, incomingMessages, cancel)
 
 		go countEmotes(incomingMessages, *time.NewTicker(10 * time.Second), db, getLiveStatus, func(timestamp time.Time) {
-			createClipAndMaybeRefreshToken(db, timestamp, tokens.AccessToken, setLiveStatus, refreshTokens)
+			createClipAndMaybeRefreshToken(db, timestamp, tokens.AccessToken, setLiveStatus, refreshTokens, env)
 		}, ctx)
 
 		<-ctx.Done()
@@ -272,62 +222,60 @@ func readChatMessages(conn *websocket.Conn, incomingMessages chan Message, cance
 	}
 }
 
-func countEmotes(message chan Message, postInterval time.Ticker, db *gorm.DB, getLiveStatus func() bool, onPost func(time.Time), ctx context.Context) {
-	counter := ChatCounts{}
+func countEmotes(
+	message chan Message,
+	postInterval time.Ticker,
+	db *gorm.DB,
+	getLiveStatus func() bool,
+	onPost func(time.Time),
+	trackingEmoteCodes []string,
+	ctx context.Context) {
+
+	counter := make(map[string]float64)
 	for {
 		select {
 		case msg := <-message:
 			message := string(msg.Data)
 			messageText := splitAndGetLast(message, "#northernlion")
-			emotesAndKeywords := map[string]*float64{
-				"LUL":                 &counter.Lol,
-				"ICANT":               &counter.Lol,
-				"KEKW":                &counter.Lol,
-				"Cereal":              &counter.Cereal,
-				"NOOO":                &counter.No,
-				"COCKA":               &counter.Cocka,
-				"monkaS":              &counter.Monkas,
-				"Joel":                &counter.Joel,
-				"POGCRAZY":            &counter.Pog,
-				"Pog":                 &counter.Pog,
-				"LETSGO":              &counter.Pog,
-				"HUHH":                &counter.Huh,
-				"Copium":              &counter.Copium,
-				"D:":                  &counter.Shock,
-				"WhoAsked":            &counter.WhoAsked,
-				"ratJAM":              &counter.Ratjam,
-				"Sure":                &counter.Sure,
-				"Classic":             &counter.Classic,
-				"monkaGIGAftRyanGary": &counter.MonkaGiga,
-				"CAUGHT":              &counter.Caught,
-				"Life":                &counter.Life,
-			}
 
-			for keyword, count := range emotesAndKeywords {
-				if strings.Contains(messageText, keyword) {
-					(*count)++
+			for _, emoteCode := range trackingEmoteCodes {
+				if strings.Contains(messageText, emoteCode) {
+					if _, ok := counter[emoteCode]; !ok {
+						counter[emoteCode] = 1
+					} else {
+						counter[emoteCode] += 1
+					}
 				}
 			}
 
 			if contains_plus := strings.Contains(messageText, "+"); contains_plus {
-				counter.Two += parseVal(splitAndGetLast(messageText, "+"))
+				counter["two"] += parseVal(splitAndGetLast(messageText, "+"))
 			} else if contains_minus := strings.Contains(messageText, "-"); contains_minus {
-				counter.Two -= parseVal(splitAndGetLast(messageText, "-"))
+				counter["two"] -= parseVal(splitAndGetLast(messageText, "-"))
 			}
 
 		case <-postInterval.C:
 			var timestamp time.Time
 
-			if getLiveStatus() {
-				err := db.Create(&counter).Error
-				if err != nil {
-					fmt.Println("Error inserting into db:", err)
-				}
+			rowsToInsert := make([]TimeSeriesRow, 0, len(counter))
 
-				timestamp = counter.CreatedAt
-				counter = ChatCounts{}
-
+			for emoteCode, count := range counter {
+				rowsToInsert = append(rowsToInsert, EmoteCount{
+					Count: int(count),
+					Emote: emoteCode,
+				})
 			}
+
+			err := db.Create(&rowsToInsert).Error
+
+			if err != nil {
+				fmt.Println("Error inserting into db:", err)
+			}
+
+			// todo: now that we post many rows. how to assign the clip to those rows? save the ids, duh. also, if this is
+			// an essential operation, why is it a callback?
+			// just the annoyance of the refresh tokens, it seems
+
 			onPost(timestamp)
 
 		case <-ctx.Done():
@@ -336,12 +284,19 @@ func countEmotes(message chan Message, postInterval time.Ticker, db *gorm.DB, ge
 	}
 }
 
-func createClipAndMaybeRefreshToken(db *gorm.DB, timestamp time.Time, authToken string, setLiveStatus func(bool), refreshTokens func() bool, retries ...int) {
+func createClipAndMaybeRefreshToken(
+	db *gorm.DB,
+	timestamp time.Time,
+	authToken string,
+	setLiveStatus func(bool),
+	refreshTokens func() bool,
+	env Env,
+	retries ...int) {
 
 	clipResultChannel := make(chan CreateClipResponse)
 
 	go func() {
-		clipResultChannel <- createClipAndInsert(db, timestamp, authToken)
+		clipResultChannel <- createClipAndInsert(db, timestamp, authToken, env)
 	}()
 
 	clipResult := <-clipResultChannel
@@ -350,7 +305,7 @@ func createClipAndMaybeRefreshToken(db *gorm.DB, timestamp time.Time, authToken 
 		fmt.Println("Unauthorized, refreshing token")
 		refreshTokens()
 		if len(retries) == 0 {
-			createClipAndMaybeRefreshToken(db, timestamp, authToken, setLiveStatus, refreshTokens, 1)
+			createClipAndMaybeRefreshToken(db, timestamp, authToken, setLiveStatus, refreshTokens, env, 1)
 		}
 	} else if clipResult.error != "" {
 		fmt.Println("Error creating clip: ", clipResult.error)
@@ -383,7 +338,7 @@ type CreateClipResponse struct {
 	error string
 }
 
-func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string) CreateClipResponse {
+func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string, env Env) CreateClipResponse {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
@@ -405,7 +360,7 @@ func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string
 	bearer := fmt.Sprintf("Bearer %s", auth)
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Client-Id", client_id)
+	req.Header.Set("Client-Id", env.ClientId)
 	req.Header.Set("Authorization", bearer)
 
 	client := &http.Client{}
@@ -445,13 +400,13 @@ func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string
 
 }
 
-func getTwitchWithAuthCode(db *gorm.DB) (TwitchResponse, error) {
+func getTwitchWithAuthCode(db *gorm.DB, env Env) (TwitchResponse, error) {
 
 	fmt.Println("Authorizing Twitch with client code")
 
 	data := url.Values{}
-	data.Set("client_id", client_id)
-	data.Set("client_secret", client_secret)
+	data.Set("client_id", env.ClientId)
+	data.Set("client_secret", env.ClientSecret)
 	data.Set("code", os.Getenv("CLIENT_CODE"))
 	data.Set("redirect_uri", "http://localhost:3000")
 	data.Set("grant_type", "authorization_code")
@@ -459,12 +414,12 @@ func getTwitchWithAuthCode(db *gorm.DB) (TwitchResponse, error) {
 	return getTwitchAuthResponse(data, db)
 }
 
-func refreshTwitchToken(db *gorm.DB, refreshToken string) (TwitchResponse, error) {
+func refreshTwitchToken(db *gorm.DB, refreshToken string, env Env) (TwitchResponse, error) {
 	fmt.Println("Refreshing Twitch auth with refresh token")
 
 	data := url.Values{}
-	data.Set("client_id", client_id)
-	data.Set("client_secret", client_secret)
+	data.Set("client_id", env.ClientId)
+	data.Set("client_secret", env.ClientSecret)
 	data.Set("grant_type", "refresh_token")
 	data.Set("refresh_token", refreshToken)
 
@@ -505,12 +460,12 @@ func getTwitchAuthResponse(data url.Values, db *gorm.DB) (TwitchResponse, error)
 	return twitchResponse, nil
 }
 
-func tryUseLatestRefreshToken(db *gorm.DB) (TwitchResponse, error) {
+func tryUseLatestRefreshToken(db *gorm.DB, env Env) (TwitchResponse, error) {
 	var refreshTokenStore RefreshTokenStore
 	db.Order("created_at desc").First(&refreshTokenStore)
 
 	if refreshTokenStore.RefreshToken != "" {
-		return refreshTwitchToken(db, refreshTokenStore.RefreshToken)
+		return refreshTwitchToken(db, refreshTokenStore.RefreshToken, env)
 	}
 
 	return TwitchResponse{}, fmt.Errorf("no refresh token found")

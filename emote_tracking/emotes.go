@@ -28,11 +28,11 @@ type BTTVResponse struct {
 	Bots          []interface{} `json:"bots"`
 	Avatar        string        `json:"avatar"`
 	ChannelEmotes []interface{} `json:"channelEmotes"`
-	SharedEmotes  []Emote       `json:"sharedEmotes"`
+	SharedEmotes  []BttvEmote   `json:"sharedEmotes"`
 }
 
 type EmoteSet struct {
-	Emotes []Emote `json:"emotes"`
+	Emotes []BttvEmote `json:"emotes"`
 }
 
 // fetch northernlion's emotes from bttv
