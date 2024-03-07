@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
@@ -40,6 +41,10 @@ type TwitchResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type LiveStatus struct {
+	IsLive bool
+}
+
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -64,13 +69,13 @@ func main() {
 	db.AutoMigrate(&ChatCounts{})
 	db.AutoMigrate(&RefreshTokenStore{})
 
-	var lionIsLive = false
+	liveStatus := &LiveStatus{IsLive: false}
 
-	// go connectToTwitchChat(
-	// 	db,
-	// 	func() bool { return lionIsLive },
-	// 	func(isLive bool) { lionIsLive = isLive },
-	// )
+	go connectToTwitchChat(
+		db,
+		liveStatus,
+		env,
+	)
 
 	router := chi.NewMux()
 
@@ -96,7 +101,7 @@ func main() {
 	})
 
 	huma.Get(api, "/api/is_live", func(ctx context.Context, input *struct{}) (*struct{ Body bool }, error) {
-		return &struct{ Body bool }{lionIsLive}, nil
+		return &struct{ Body bool }{liveStatus.IsLive}, nil
 	})
 
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
@@ -143,9 +148,10 @@ func getEmotes() (map[string]bool, []string) {
 
 }
 
-func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus func(bool), env Env) {
+func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus, env Env) {
 
 	tokens, err := tryUseLatestRefreshToken(db, env)
+
 	if err != nil {
 		tokens, err = getTwitchWithAuthCode(db, env)
 		if err != nil {
@@ -188,9 +194,18 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 
 		go readChatMessages(conn, incomingMessages, cancel)
 
-		go countEmotes(incomingMessages, *time.NewTicker(10 * time.Second), db, getLiveStatus, func(timestamp time.Time) {
-			createClipAndMaybeRefreshToken(db, timestamp, tokens.AccessToken, setLiveStatus, refreshTokens, env)
-		}, ctx)
+		initialEmotes, err := getTrackingEmotes(db)
+
+		if err != nil {
+			fmt.Println("Error getting initial emotes:", err)
+			return
+		}
+
+		latestEmotes := make(chan []Emote)
+
+		go syncTrackingEmotes(db, latestEmotes, ctx)
+
+		go countEmotes(incomingMessages, db, initialEmotes, ctx, env, refreshTokens, tokens, liveStatus, latestEmotes)
 
 		<-ctx.Done()
 		cancel()
@@ -199,6 +214,35 @@ func connectToTwitchChat(db *gorm.DB, getLiveStatus func() bool, setLiveStatus f
 		fmt.Println("Reconnecting to Twitch chat")
 
 	}
+}
+
+func getTrackingEmotes(db *gorm.DB) ([]Emote, error) {
+	var emotes []Emote
+	err := db.Find(&emotes).Error
+	return emotes, err
+}
+
+func syncTrackingEmotes(db *gorm.DB, trackingEmotesOut chan<- []Emote, ctx context.Context) {
+	refreshTimer := time.NewTicker(20 * time.Second)
+	defer refreshTimer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			close(trackingEmotesOut)
+			return
+		case <-refreshTimer.C:
+			emotes, err := getTrackingEmotes(db)
+
+			if err != nil {
+				fmt.Println("Error getting latest emotes:", err)
+				continue
+			}
+
+			trackingEmotesOut <- emotes
+		}
+	}
+
 }
 
 func readChatMessages(conn *websocket.Conn, incomingMessages chan Message, cancel context.CancelFunc) {
@@ -224,59 +268,93 @@ func readChatMessages(conn *websocket.Conn, incomingMessages chan Message, cance
 
 func countEmotes(
 	message chan Message,
-	postInterval time.Ticker,
 	db *gorm.DB,
-	getLiveStatus func() bool,
-	onPost func(time.Time),
-	trackingEmoteCodes []string,
-	ctx context.Context) {
+	trackingEmotes []Emote,
+	ctx context.Context,
+	env Env,
+	refreshTokens func() bool,
+	tokens TwitchResponse,
+	liveStatus *LiveStatus,
+	emoteUpdates <-chan []Emote,
+) {
+	postInterval := time.NewTicker(10 * time.Second)
+	defer postInterval.Stop()
 
-	counter := make(map[string]float64)
+	counter := make(map[int]float64)
+
+	for _, emote := range trackingEmotes {
+		counter[int(emote.ID)] = 0
+	}
+
 	for {
 		select {
 		case msg := <-message:
 			message := string(msg.Data)
 			messageText := splitAndGetLast(message, "#northernlion")
 
-			for _, emoteCode := range trackingEmoteCodes {
+			for _, emote := range trackingEmotes {
+				emoteCode := emote.Code
+				emoteID := int(emote.ID)
+
 				if strings.Contains(messageText, emoteCode) {
-					if _, ok := counter[emoteCode]; !ok {
-						counter[emoteCode] = 1
+					if _, ok := counter[emoteID]; !ok {
+						counter[emoteID] = 1
 					} else {
-						counter[emoteCode] += 1
+						counter[emoteID] += 1
 					}
 				}
 			}
 
+			twoEmoteId := -1
+
+			for _, emote := range trackingEmotes {
+				if emote.Code == "two" {
+					twoEmoteId = int(emote.ID)
+					break
+				}
+			}
+
+			if twoEmoteId == -1 {
+				panic("two code not found in trackingEmotes. Need to make this more generic at some point.")
+			}
+
+			_, ok := counter[twoEmoteId]
+			if !ok {
+				panic("two code not found in counter; it should have been initialized. ")
+			}
+
 			if contains_plus := strings.Contains(messageText, "+"); contains_plus {
-				counter["two"] += parseVal(splitAndGetLast(messageText, "+"))
+				counter[twoEmoteId] += parseVal(splitAndGetLast(messageText, "+"))
 			} else if contains_minus := strings.Contains(messageText, "-"); contains_minus {
-				counter["two"] -= parseVal(splitAndGetLast(messageText, "-"))
+				counter[twoEmoteId] -= parseVal(splitAndGetLast(messageText, "-"))
 			}
 
 		case <-postInterval.C:
-			var timestamp time.Time
-
-			rowsToInsert := make([]TimeSeriesRow, 0, len(counter))
+			rowsToInsert := make([]EmoteCount, 0, len(counter))
 
 			for emoteCode, count := range counter {
 				rowsToInsert = append(rowsToInsert, EmoteCount{
-					Count: int(count),
-					Emote: emoteCode,
+					Count:   int(count),
+					EmoteID: emoteCode,
 				})
 			}
 
 			err := db.Create(&rowsToInsert).Error
 
+			insertedRowIds := make([]int, 0, len(rowsToInsert))
+
+			for _, row := range rowsToInsert {
+				insertedRowIds = append(insertedRowIds, row.Id)
+			}
+
 			if err != nil {
 				fmt.Println("Error inserting into db:", err)
 			}
 
-			// todo: now that we post many rows. how to assign the clip to those rows? save the ids, duh. also, if this is
-			// an essential operation, why is it a callback?
-			// just the annoyance of the refresh tokens, it seems
+			createClipAndMaybeRefreshToken(db, insertedRowIds, tokens.AccessToken, liveStatus, refreshTokens, env)
 
-			onPost(timestamp)
+		case refreshedEmotes := <-emoteUpdates:
+			trackingEmotes = refreshedEmotes
 
 		case <-ctx.Done():
 			return
@@ -286,9 +364,9 @@ func countEmotes(
 
 func createClipAndMaybeRefreshToken(
 	db *gorm.DB,
-	timestamp time.Time,
+	rowsToAssignClipId []int,
 	authToken string,
-	setLiveStatus func(bool),
+	liveStatus *LiveStatus,
 	refreshTokens func() bool,
 	env Env,
 	retries ...int) {
@@ -296,7 +374,7 @@ func createClipAndMaybeRefreshToken(
 	clipResultChannel := make(chan CreateClipResponse)
 
 	go func() {
-		clipResultChannel <- createClipAndInsert(db, timestamp, authToken, env)
+		clipResultChannel <- createClipAndInsert(db, rowsToAssignClipId, authToken, env)
 	}()
 
 	clipResult := <-clipResultChannel
@@ -305,13 +383,12 @@ func createClipAndMaybeRefreshToken(
 		fmt.Println("Unauthorized, refreshing token")
 		refreshTokens()
 		if len(retries) == 0 {
-			createClipAndMaybeRefreshToken(db, timestamp, authToken, setLiveStatus, refreshTokens, env, 1)
+			createClipAndMaybeRefreshToken(db, rowsToAssignClipId, authToken, liveStatus, refreshTokens, env, 1)
 		}
 	} else if clipResult.error != "" {
 		fmt.Println("Error creating clip: ", clipResult.error)
-		setLiveStatus(false)
 	} else {
-		setLiveStatus(true)
+		liveStatus.IsLive = true
 	}
 }
 
@@ -338,7 +415,7 @@ type CreateClipResponse struct {
 	error string
 }
 
-func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string, env Env) CreateClipResponse {
+func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string, env Env) CreateClipResponse {
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
@@ -390,9 +467,29 @@ func createClipAndInsert(db *gorm.DB, unix_timestamp time.Time, authToken string
 	}
 
 	if len(responseObject.Data) > 0 {
-		clip_id := responseObject.Data[0].Id
-		fmt.Println("Clip ID:", clip_id)
-		db.Exec("UPDATE chat_counts SET clip_id = $1 WHERE created_at = $2", clip_id, unix_timestamp)
+		clipId := responseObject.Data[0].Id
+		fmt.Println("Clip ID:", clipId)
+
+		sq := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+
+		// Building the query
+		query, args, err := sq.Update("emote_counts").
+			Set("clip_id", clipId).
+			Where(squirrel.Eq{"id": rowsToAssignClipId}).
+			ToSql()
+
+		if err != nil {
+			// handle error
+			fmt.Println("Error building query:", err)
+		}
+
+		err = db.Raw(query, args...).Error
+
+		if err != nil {
+			// handle error
+			fmt.Println("Error updating emote_counts:", err)
+		}
+
 		return CreateClipResponse{}
 	}
 
