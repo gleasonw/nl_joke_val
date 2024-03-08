@@ -16,7 +16,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/rs/cors"
 	"gorm.io/driver/postgres"
@@ -57,8 +56,9 @@ func main() {
 		}
 	}
 
-	env := getEnv()
 	fmt.Println(fetchNlEmotesFromBTTV())
+
+	env := GetConfig()
 
 	db, err := gorm.Open(postgres.Open(env.DatabaseUrl))
 	if err != nil {
@@ -74,7 +74,6 @@ func main() {
 	go connectToTwitchChat(
 		db,
 		liveStatus,
-		env,
 	)
 
 	router := chi.NewMux()
@@ -114,23 +113,6 @@ func main() {
 	}
 }
 
-type Env struct {
-	ClientId     string
-	ClientSecret string
-	Nickname     string
-	DatabaseUrl  string
-}
-
-func getEnv() Env {
-	godotenv.Load()
-	return Env{
-		ClientId:     os.Getenv("CLIENT_ID"),
-		ClientSecret: os.Getenv("CLIENT_SECRET"),
-		Nickname:     os.Getenv("NICK"),
-		DatabaseUrl:  os.Getenv("DATABASE_URL"),
-	}
-}
-
 func getEmotes() (map[string]bool, []string) {
 	val := reflect.ValueOf(ChatCounts{})
 	validColumnSet := make(map[string]bool, val.NumField())
@@ -148,12 +130,13 @@ func getEmotes() (map[string]bool, []string) {
 
 }
 
-func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus, env Env) {
+func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
+	env := GetConfig()
 
-	tokens, err := tryUseLatestRefreshToken(db, env)
+	tokens, err := tryUseLatestRefreshToken(db)
 
 	if err != nil {
-		tokens, err = getTwitchWithAuthCode(db, env)
+		tokens, err = getTwitchWithAuthCode(db)
 		if err != nil {
 			fmt.Println("Error getting Twitch token:", err)
 			return
@@ -169,7 +152,7 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus, env Env) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		refreshTokens := func() bool {
-			tokens, err = refreshTwitchToken(db, tokens.RefreshToken, env)
+			tokens, err = refreshTwitchToken(db, tokens.RefreshToken)
 			if err != nil {
 				fmt.Println("Error refreshing Twitch token:", err)
 				return false
@@ -205,7 +188,7 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus, env Env) {
 
 		go syncTrackingEmotes(db, latestEmotes, ctx)
 
-		go countEmotes(incomingMessages, db, initialEmotes, ctx, env, refreshTokens, tokens, liveStatus, latestEmotes)
+		go countEmotes(incomingMessages, db, initialEmotes, ctx, refreshTokens, tokens, liveStatus, latestEmotes)
 
 		<-ctx.Done()
 		cancel()
@@ -271,7 +254,6 @@ func countEmotes(
 	db *gorm.DB,
 	trackingEmotes []Emote,
 	ctx context.Context,
-	env Env,
 	refreshTokens func() bool,
 	tokens TwitchResponse,
 	liveStatus *LiveStatus,
@@ -351,7 +333,7 @@ func countEmotes(
 				fmt.Println("Error inserting into db:", err)
 			}
 
-			createClipAndMaybeRefreshToken(db, insertedRowIds, tokens.AccessToken, liveStatus, refreshTokens, env)
+			createClipAndMaybeRefreshToken(db, insertedRowIds, tokens.AccessToken, liveStatus, refreshTokens)
 
 		case refreshedEmotes := <-emoteUpdates:
 			trackingEmotes = refreshedEmotes
@@ -368,13 +350,12 @@ func createClipAndMaybeRefreshToken(
 	authToken string,
 	liveStatus *LiveStatus,
 	refreshTokens func() bool,
-	env Env,
 	retries ...int) {
 
 	clipResultChannel := make(chan CreateClipResponse)
 
 	go func() {
-		clipResultChannel <- createClipAndInsert(db, rowsToAssignClipId, authToken, env)
+		clipResultChannel <- createClipAndInsert(db, rowsToAssignClipId, authToken)
 	}()
 
 	clipResult := <-clipResultChannel
@@ -383,7 +364,7 @@ func createClipAndMaybeRefreshToken(
 		fmt.Println("Unauthorized, refreshing token")
 		refreshTokens()
 		if len(retries) == 0 {
-			createClipAndMaybeRefreshToken(db, rowsToAssignClipId, authToken, liveStatus, refreshTokens, env, 1)
+			createClipAndMaybeRefreshToken(db, rowsToAssignClipId, authToken, liveStatus, refreshTokens, 1)
 		}
 	} else if clipResult.error != "" {
 		fmt.Println("Error creating clip: ", clipResult.error)
@@ -415,7 +396,8 @@ type CreateClipResponse struct {
 	error string
 }
 
-func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string, env Env) CreateClipResponse {
+func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string) CreateClipResponse {
+	env := GetConfig()
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
 		"has_delay":      "false",
@@ -472,22 +454,21 @@ func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string
 
 		sq := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
-		// Building the query
 		query, args, err := sq.Update("emote_counts").
 			Set("clip_id", clipId).
 			Where(squirrel.Eq{"id": rowsToAssignClipId}).
 			ToSql()
 
 		if err != nil {
-			// handle error
 			fmt.Println("Error building query:", err)
+			return CreateClipResponse{error: "error building query"}
 		}
 
 		err = db.Raw(query, args...).Error
 
 		if err != nil {
-			// handle error
 			fmt.Println("Error updating emote_counts:", err)
+			return CreateClipResponse{error: "error updating emote_counts"}
 		}
 
 		return CreateClipResponse{}
@@ -497,7 +478,8 @@ func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string
 
 }
 
-func getTwitchWithAuthCode(db *gorm.DB, env Env) (TwitchResponse, error) {
+func getTwitchWithAuthCode(db *gorm.DB) (TwitchResponse, error) {
+	env := GetConfig()
 
 	fmt.Println("Authorizing Twitch with client code")
 
@@ -511,7 +493,8 @@ func getTwitchWithAuthCode(db *gorm.DB, env Env) (TwitchResponse, error) {
 	return getTwitchAuthResponse(data, db)
 }
 
-func refreshTwitchToken(db *gorm.DB, refreshToken string, env Env) (TwitchResponse, error) {
+func refreshTwitchToken(db *gorm.DB, refreshToken string) (TwitchResponse, error) {
+	env := GetConfig()
 	fmt.Println("Refreshing Twitch auth with refresh token")
 
 	data := url.Values{}
@@ -557,12 +540,12 @@ func getTwitchAuthResponse(data url.Values, db *gorm.DB) (TwitchResponse, error)
 	return twitchResponse, nil
 }
 
-func tryUseLatestRefreshToken(db *gorm.DB, env Env) (TwitchResponse, error) {
+func tryUseLatestRefreshToken(db *gorm.DB) (TwitchResponse, error) {
 	var refreshTokenStore RefreshTokenStore
 	db.Order("created_at desc").First(&refreshTokenStore)
 
 	if refreshTokenStore.RefreshToken != "" {
-		return refreshTwitchToken(db, refreshTokenStore.RefreshToken, env)
+		return refreshTwitchToken(db, refreshTokenStore.RefreshToken)
 	}
 
 	return TwitchResponse{}, fmt.Errorf("no refresh token found")
