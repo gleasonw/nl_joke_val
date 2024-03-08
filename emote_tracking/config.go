@@ -32,5 +32,8 @@ func LoadConfig() {
 }
 
 func GetConfig() *AppConfig {
+	if instance == nil {
+		LoadConfig()
+	}
 	return instance
 }

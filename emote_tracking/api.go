@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
@@ -55,8 +56,6 @@ func main() {
 			return
 		}
 	}
-
-	fmt.Println(fetchNlEmotesFromBTTV())
 
 	env := GetConfig()
 
@@ -184,7 +183,7 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
 			return
 		}
 
-		latestEmotes := make(chan []Emote)
+		latestEmotes := make(chan map[string]Emote)
 
 		go syncTrackingEmotes(db, latestEmotes, ctx)
 
@@ -199,13 +198,19 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
 	}
 }
 
-func getTrackingEmotes(db *gorm.DB) ([]Emote, error) {
+func getTrackingEmotes(db *gorm.DB) (map[string]Emote, error) {
 	var emotes []Emote
 	err := db.Find(&emotes).Error
-	return emotes, err
+
+	codeToEmote := make(map[string]Emote)
+	for _, emote := range emotes {
+		codeToEmote[emote.Code] = emote
+	}
+
+	return codeToEmote, err
 }
 
-func syncTrackingEmotes(db *gorm.DB, trackingEmotesOut chan<- []Emote, ctx context.Context) {
+func syncTrackingEmotes(db *gorm.DB, trackingEmotesOut chan<- map[string]Emote, ctx context.Context) {
 	refreshTimer := time.NewTicker(20 * time.Second)
 	defer refreshTimer.Stop()
 
@@ -252,38 +257,45 @@ func readChatMessages(conn *websocket.Conn, incomingMessages chan Message, cance
 func countEmotes(
 	message chan Message,
 	db *gorm.DB,
-	trackingEmotes []Emote,
+	trackingEmotes map[string]Emote,
 	ctx context.Context,
 	refreshTokens func() bool,
 	tokens TwitchResponse,
 	liveStatus *LiveStatus,
-	emoteUpdates <-chan []Emote,
+	emoteUpdates <-chan map[string]Emote,
 ) {
 	postInterval := time.NewTicker(10 * time.Second)
 	defer postInterval.Stop()
 
-	counter := make(map[int]float64)
+	var counter map[int]float64
 
-	for _, emote := range trackingEmotes {
-		counter[int(emote.ID)] = 0
+	resetCounter := func() {
+		counter = make(map[int]float64)
+		for _, emote := range trackingEmotes {
+			counter[int(emote.ID)] = 0
+		}
 	}
+
+	resetCounter()
 
 	for {
 		select {
 		case msg := <-message:
 			message := string(msg.Data)
 			messageText := splitAndGetLast(message, "#northernlion")
+			messageWords := strings.Fields(messageText)
 
-			for _, emote := range trackingEmotes {
-				emoteCode := emote.Code
-				emoteID := int(emote.ID)
+			for _, word := range messageWords {
+				cleanWord := strings.TrimFunc(word, func(r rune) bool {
+					return unicode.IsPunct(r)
+				})
 
-				if strings.Contains(messageText, emoteCode) {
-					if _, ok := counter[emoteID]; !ok {
-						counter[emoteID] = 1
-					} else {
-						counter[emoteID] += 1
-					}
+				if cleanWord == "two" {
+					continue
+				}
+
+				if emote, ok := trackingEmotes[cleanWord]; ok {
+					counter[int(emote.ID)] += 1
 				}
 			}
 
@@ -301,6 +313,7 @@ func countEmotes(
 			}
 
 			_, ok := counter[twoEmoteId]
+
 			if !ok {
 				panic("two code not found in counter; it should have been initialized. ")
 			}
@@ -332,6 +345,8 @@ func countEmotes(
 			if err != nil {
 				fmt.Println("Error inserting into db:", err)
 			}
+
+			resetCounter()
 
 			createClipAndMaybeRefreshToken(db, insertedRowIds, tokens.AccessToken, liveStatus, refreshTokens)
 
@@ -413,7 +428,6 @@ func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string
 	if err != nil {
 		return CreateClipResponse{error: "error creating request"}
 	}
-	fmt.Println(authToken)
 
 	auth := splitAndGetLast(authToken, ":")
 	bearer := fmt.Sprintf("Bearer %s", auth)
@@ -450,7 +464,6 @@ func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string
 
 	if len(responseObject.Data) > 0 {
 		clipId := responseObject.Data[0].Id
-		fmt.Println("Clip ID:", clipId)
 
 		sq := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -56,9 +57,11 @@ func getLegacyEmoteCodes() map[string]string {
 		"monkaGIGAftRyanGary": "monka_giga",
 		"CAUGHT":              "caught",
 		"Life":                "life",
+		"two":                 "two",
 	}
 }
 
+// todo: make sure we check all the ChatCounts columns
 func verify() error {
 
 	godotenv.Load()
@@ -82,7 +85,6 @@ func verify() error {
 	}
 
 	newEmoteCodes := make([]string, 0, len(bttvEmotes.Emotes))
-	_, legacyColumns := getEmotes()
 
 	for _, emote := range bttvEmotes.Emotes {
 		if _, ok := currentColumnSet[emote.Code]; !ok {
@@ -92,10 +94,16 @@ func verify() error {
 		newEmoteCodes = append(newEmoteCodes, emote.Code)
 	}
 
-	if len(newEmoteCodes) != len(legacyColumns) {
-		fmt.Println("We have a mismatch between the number of emotes we are tracking and the number of old columns in the database")
-		return nil
+	// add the non-bttv emotes
+
+	for emoteCode := range currentColumnSet {
+		if slices.Contains(newEmoteCodes, emoteCode) {
+			continue
+		}
+		fmt.Println("adding non-bttv emote", emoteCode)
+		newEmoteCodes = append(newEmoteCodes, emoteCode)
 	}
+	fmt.Println("new emotes", newEmoteCodes)
 
 	emotesInDb := make([]Emote, 0, len(newEmoteCodes))
 	db.Find(&emotesInDb)
@@ -162,6 +170,7 @@ type ChatCounts struct {
 	Life         float64   `json:"life"`
 }
 
+// todo: migrate non-bttv emotes as well
 func migrate() error {
 
 	godotenv.Load()
@@ -186,19 +195,37 @@ func migrate() error {
 		return err
 	}
 
-	bttvEmoteCodeToColumnMap := getLegacyEmoteCodes()
+	codeToColumnMap := getLegacyEmoteCodes()
 
 	emotes := make([]string, 0, len(bttvEmotes.Emotes))
 
 	validEmoteSet := make(map[string]bool, len(bttvEmotes.Emotes))
 
 	for _, emote := range bttvEmotes.Emotes {
-		if _, ok := bttvEmoteCodeToColumnMap[emote.Code]; !ok {
+		if _, ok := codeToColumnMap[emote.Code]; !ok {
 			fmt.Println("We aren't tracking this emote yet", emote.Code)
 			continue
 		}
 		emotes = append(emotes, emote.Code)
 		validEmoteSet[emote.Code] = true
+	}
+
+	_, oldChatCountColumns := getEmotes()
+
+	if len(emotes) != len(oldChatCountColumns) {
+		fmt.Println("We have a mismatch between the number of emotes we are tracking and the number of old columns in the database")
+		fmt.Printf("We have %d emotes, but we have %d columns", len(emotes), len(codeToColumnMap))
+		return nil
+	}
+
+	// add the non-bttv emotes
+
+	for emoteCode := range codeToColumnMap {
+		if _, ok := validEmoteSet[emoteCode]; !ok {
+			fmt.Println("adding non-bttv emote", emoteCode)
+			validEmoteSet[emoteCode] = true
+			emotes = append(emotes, emoteCode)
+		}
 	}
 
 	db.Find(&oldChatCounts)
@@ -247,7 +274,7 @@ func migrate() error {
 			}
 
 			for _, emote := range emotes {
-				columnName := bttvEmoteCodeToColumnMap[emote]
+				columnName := codeToColumnMap[emote]
 				emoteFromDb, ok := emoteToIDMap[emote]
 
 				if !ok {
@@ -277,7 +304,6 @@ func migrate() error {
 
 			}
 		}
-		// wait for confirmation from user before inserting
 		fmt.Println("Inserting clips")
 
 		tx.CreateInBatches(clipsToInsert, 1000)
