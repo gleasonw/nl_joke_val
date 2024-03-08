@@ -85,7 +85,7 @@ func main() {
 	validColumnSet, _ := getEmotes()
 
 	huma.Get(api, "/api/clip_counts", func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
-		return GetClipCounts(*input, db, validColumnSet)
+		return GetClipCountsNewModel(*input, db, validColumnSet)
 	})
 
 	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInput) (*TimeSeriesOutput, error) {

@@ -15,7 +15,7 @@ type Clip struct {
 }
 
 type ClipCountsInput struct {
-	Column   string `query:"column" default:"two"`
+	EmoteID  int    `query:"emote_id" default:"2"`
 	Span     string `query:"span" default:"9 hours" enum:"30 minutes,9 hours,1 week,1 month,1 year"`
 	Grouping string `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
 	Order    string `query:"order" default:"DESC" enum:"ASC,DESC"`
@@ -31,52 +31,30 @@ type ClipCountsOutput struct {
 // the solution is to filter rows within the likelyBitLength window
 const likelyBitLength = "1 minutes"
 
-func GetClipCounts(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]bool) (*ClipCountsOutput, error) {
+func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]bool) (*ClipCountsOutput, error) {
+
 	var query string
 
-	if !validColumnSet[p.Column] {
-		return &ClipCountsOutput{}, fmt.Errorf("invalid column: %s", p.Column)
-	}
-
-	// we want just the x top bits, but some bit have many clips in the top rankings
-	// so we limit to a reasonable value.
-
-	limitMap := map[string]int{
-		"25 seconds": 100,
-		"1 minute":   300,
-		"5 minutes":  1500,
-		"15 minutes": 4500,
-		"1 hour":     18000,
-		"1 day":      432000,
-	}
-
-	rollingSumValueLimit, ok := limitMap[p.Grouping]
-
-	if !ok {
-		// this should never happen since Huma validates our input against an enum string
-		// but better safe
-		return &ClipCountsOutput{}, fmt.Errorf("invalid grouping: %s", p.Grouping)
-	}
-
 	rollingSumQuery := fmt.Sprintf(`
-	SELECT created_at, SUM(%s) OVER (                                                   
+	SELECT created_at, SUM(count) OVER (                                                   
 		ORDER BY created_at                                                                    
 		RANGE BETWEEN INTERVAL '%s' PRECEDING AND CURRENT ROW
 	) AS rolling_sum
-	FROM chat_counts
-	`, p.Column, p.Grouping)
+	FROM emote_counts
+	WHERE emote_id = $2
+	`, p.Grouping)
 
 	if p.Span != "" {
 		rollingSumQuery = fmt.Sprintf(`
 			%s 
-			WHERE created_at >= (
+			AND created_at >= (
 				SELECT MAX(created_at) - INTERVAL '%s'
-				FROM chat_counts
+				FROM emote_counts
 			)`, rollingSumQuery, p.Span)
 
 	}
 
-	rollingSumQuery = fmt.Sprintf("%s ORDER BY rolling_sum %s LIMIT %d", rollingSumQuery, p.Order, rollingSumValueLimit)
+	rollingSumQuery = fmt.Sprintf("%s ORDER BY rolling_sum %s LIMIT %d", rollingSumQuery, p.Order, p.Limit)
 
 	query = fmt.Sprintf(`
 	WITH RollingSums AS (%s),
@@ -101,18 +79,21 @@ func GetClipCounts(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]boo
 	)
 	SELECT fi.rolling_sum as count, cc.created_at AS time, cc.clip_id
 	FROM FilteredIntervals fi
-	JOIN chat_counts cc
+	JOIN emote_counts cc
 		ON cc.created_at = (
 			SELECT created_at
-			FROM chat_counts
+			FROM emote_counts
 			WHERE created_at BETWEEN fi.max_created_at - INTERVAL '25 seconds' AND fi.max_created_at + INTERVAL '1 second'
-			ORDER BY %s %s
+			AND cc.emote_id = $2
+			ORDER BY count %s
 			LIMIT 1
 		);
-	`, rollingSumQuery, p.Order, likelyBitLength, likelyBitLength, p.Column, p.Order)
+	`, rollingSumQuery, p.Order, likelyBitLength, likelyBitLength, p.Order)
+
+	fmt.Println(query)
 
 	var clips []Clip
-	err := db.Raw(query, p.Limit).Scan(&clips).Error
+	err := db.Raw(query, p.Limit, p.EmoteID).Scan(&clips).Error
 	if err != nil {
 		fmt.Println(err)
 		return &ClipCountsOutput{}, err
