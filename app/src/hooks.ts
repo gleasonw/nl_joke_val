@@ -1,9 +1,10 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Route } from "./routes/index.lazy";
 import { ClipParams } from "./types";
-import { getSeries } from "./api";
-import { useMemo } from "react";
-import { apiURL } from "./utils";
+import { getEmotes, getSeries } from "./api";
+import { DashboardURLState, apiURL } from "./utils";
+import { useNavigate } from "@tanstack/react-router";
+import { useCallback } from "react";
 
 export function useLiveStatus() {
   return useQuery({
@@ -13,6 +14,51 @@ export function useLiveStatus() {
     },
     queryKey: ["liveStatus"],
   });
+}
+
+export function useEmotes() {
+  return useQuery({
+    queryFn: getEmotes,
+    queryKey: ["emotes"],
+  });
+}
+
+export function useSeriesState() {
+  const currentSeries = Route.useSearch().series;
+  const [, handleUpdateUrl] = useDashboardState();
+
+  const handleUpdateSeries = useCallback((newSeries: string) => {
+    let updatedSeries = [];
+
+    if (!currentSeries) {
+      updatedSeries = [newSeries];
+    } else if (currentSeries?.includes(newSeries)) {
+      updatedSeries = currentSeries.filter((series) => series !== newSeries);
+    } else {
+      updatedSeries = [...currentSeries, newSeries];
+    }
+
+    handleUpdateUrl({
+      series: updatedSeries,
+    });
+  }, []);
+
+  return [currentSeries, handleUpdateSeries] as const;
+}
+
+export function useDashboardState() {
+  const currentState = Route.useSearch();
+  const navigate = useNavigate();
+  const handleUpdateUrl = useCallback((newParams: DashboardURLState) => {
+    navigate({
+      search: {
+        ...currentState,
+        ...newParams,
+      },
+    });
+  }, []);
+
+  return [currentState, handleUpdateUrl] as const;
 }
 
 export function useDefaultClipParams(
@@ -57,13 +103,5 @@ export function useTimeSeries() {
     placeholderData: keepPreviousData,
   });
 
-  const trackedEmoteIds = useMemo(() => {
-    if (!seriesData.data?.[0]?.series) {
-      return [];
-    }
-
-    return Object.keys(seriesData.data?.[0]?.series);
-  }, [seriesData.data]);
-
-  return [seriesData, chartState, trackedEmoteIds] as const;
+  return [seriesData, chartState] as const;
 }

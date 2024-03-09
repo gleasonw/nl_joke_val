@@ -16,6 +16,7 @@ type Emote struct {
 	gorm.Model
 	ChannelId string
 	Code      string `gorm:"unique"`
+	BttvId    int64
 }
 
 func (e *Emote) String() string {

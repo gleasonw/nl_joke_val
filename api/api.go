@@ -103,6 +103,37 @@ func main() {
 		return &struct{ Body bool }{liveStatus.IsLive}, nil
 	})
 
+	huma.Get(api, "/api/emote_average_performance", func(ctx context.Context, input *SeriesInput) (*TopPerformingEmotesOutput, error) {
+		GetTopPerformingEmotes(*input, db)
+		return &TopPerformingEmotesOutput{}, nil
+	})
+
+	// huma.Get(api, "/api/emote_density", func(ctx context.Context, input *struct{}) (*TopDensityEmotesOutput, error) {
+	// 	return GetTopDensityEmotes(db)
+	// })
+
+	type EmoteOutput struct {
+		Body []Emote
+	}
+
+	huma.Get(api, "/api/emotes", func(ctx context.Context, input *struct{}) (*EmoteOutput, error) {
+		trackedEmotes, err := getEmotesInDB(db)
+
+		emotes := make([]Emote, 0, len(trackedEmotes))
+
+		for _, emote := range trackedEmotes {
+			emotes = append(emotes, emote)
+		}
+
+		if err != nil {
+			fmt.Println("Error getting emotes:", err)
+			return nil, err
+		}
+
+		return &EmoteOutput{Body: emotes}, nil
+
+	})
+
 	port := fmt.Sprintf(":%s", os.Getenv("PORT"))
 	fmt.Println("Listening on port", port)
 

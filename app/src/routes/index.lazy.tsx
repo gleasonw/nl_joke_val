@@ -4,7 +4,8 @@ import React from "react";
 import { Chart } from "../components/Chart";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { EmoteInput } from "../components/EmoteInput";
+import { TopPerformingEmotes } from "@/components/TopPerformingEmotes";
 
 export const Route = createLazyFileRoute("/")({
   component: Index,
@@ -24,46 +25,13 @@ function Index() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto my-8 p-4 bg-white shadow-lg rounded-lg">
-      <div className="flex justify-between items-center border-b pb-4">
-        <h1 className="text-3xl font-semibold">Emote Usage Dashboard</h1>
-        <div className="flex space-x-2">
-          <Button variant="outline">Follow</Button>
-          <Button variant="outline">Share</Button>
-        </div>
+    <div className="max-w-7xl mx-auto my-2 p-4 bg-white shadow-lg rounded-lg">
+      <div className="flex items-center gap-8 border-b pb-4">
+        <h1 className="text-3xl font-semibold">The NL chat dashboard</h1>
+        <EmoteInput />
+        <TopPerformingEmotes />
       </div>
-      <div className="flex flex-wrap gap-4 my-4">
-        <Badge variant="secondary">1D</Badge>
-        <Badge>5D</Badge>
-        <Badge>1M</Badge>
-        <Badge>6M</Badge>
-        <Badge>YTD</Badge>
-        <Badge>1Y</Badge>
-        <Badge>5Y</Badge>
-        <Badge>MAX</Badge>
-        <Button variant="secondary">Key events</Button>
-      </div>
-      <div className="flex gap-4 my-4">
-        <Input
-          className="rounded-full w-full max-w-xs"
-          placeholder="Search for base emote"
-          type="search"
-        />
-        <div className="flex gap-2">
-          <div className="flex items-center bg-green-500 text-white rounded-full px-2 py-1">
-            <span>HappyEmote</span>
-            <span className="ml-1">14,500 uses</span>
-          </div>
-          <div className="flex items-center bg-red-500 text-white rounded-full px-2 py-1">
-            <span>SadEmote</span>
-            <span className="ml-1">11,200 uses</span>
-          </div>
-          <div className="flex items-center bg-blue-500 text-white rounded-full px-2 py-1">
-            <span>WowEmote</span>
-            <span className="ml-1">9,850 uses</span>
-          </div>
-        </div>
-      </div>
+      <div className="flex gap-4 my-4"></div>
       <Chart />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
         <div>

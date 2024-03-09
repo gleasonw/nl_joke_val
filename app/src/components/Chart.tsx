@@ -1,20 +1,20 @@
 import { useNavigate } from "@tanstack/react-router";
 import { TimeGroupings } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
-import {
-  Select,
-  SelectItem,
-  Button,
-  DateRangePickerValue,
-  DateRangePicker,
-  DateRangePickerItem,
-} from "@tremor/react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import { useTimeSeries } from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
 import { SettingsDropLayout } from "./SettingsDropLayout";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 const last9HoursRange = {
   from: undefined,
@@ -48,10 +48,8 @@ export function Chart() {
     });
   }
 
-  const [
-    { data: localFetchedSeries, isLoading },
-    { grouping, from, to, rollingAverage, span },
-  ] = useTimeSeries();
+  const [{ data: localFetchedSeries, isLoading }, { grouping, span }] =
+    useTimeSeries();
 
   const seriesToDisplay = series?.length ? series : ["two"];
 
@@ -137,31 +135,24 @@ export function Chart() {
     series: emoteSeries,
   };
 
-  const fromTo = {
-    from: from ? new Date(from) : undefined,
-    to: to ? new Date(to) : undefined,
-  } as DateRangePickerValue;
-
   return (
     <div className="flex flex-col gap-2">
       <SettingsDropLayout>
         <Button
           onClick={() => handleUpdateChart(lastMinuteRange)}
-          variant={span === "1 minute" ? "primary" : "secondary"}
+          variant={span === "1 minute" ? "default" : "outline"}
         >
           Last minute of stream
         </Button>
         <Button
           onClick={() => handleUpdateChart(lastHourRange)}
-          variant={span === "1 hour" ? "primary" : "secondary"}
+          variant={span === "1 hour" ? "default" : "outline"}
         >
           Last hour of stream
         </Button>
         <Button
           onClick={() => handleUpdateChart(last9HoursRange)}
-          variant={
-            span === "9 hours" || span === null ? "primary" : "secondary"
-          }
+          variant={span === "9 hours" || span === null ? "default" : "outline"}
         >
           Last 9 hours of stream
         </Button>
@@ -171,52 +162,50 @@ export function Chart() {
       ) : (
         <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
       )}
-      <span className="text-center">
-        Select a point in the graph to pull the nearest clip
-      </span>
       <SettingsDropLayout>
         <label>
           Group By
           <Select
-            id="groupBySelect"
-            value={grouping}
-            placeholder={"Group by"}
             onValueChange={(value) =>
               handleUpdateChart({
                 grouping: value as TimeGroupings,
               })
             }
           >
-            {timeGroupings.map((grouping) => (
-              <SelectItem value={grouping} key={grouping} />
-            ))}
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Theme" />
+            </SelectTrigger>
+            <SelectContent>
+              {timeGroupings.map((grouping) => (
+                <SelectItem value={grouping} key={grouping} />
+              ))}
+            </SelectContent>
           </Select>
         </label>
         <label>
           Smoothing
           <Select
-            id="smoothing"
-            value={rollingAverage?.toString()}
-            placeholder={"Smoothing"}
             onValueChange={(value) =>
               handleUpdateChart({
                 rollingAverage: parseInt(value),
               })
             }
           >
-            {[0, 5, 10, 15, 30, 60].map((smoothing) => (
-              <SelectItem value={smoothing.toString()} key={smoothing}>
-                {smoothing === 0 ? "None" : smoothing}
-              </SelectItem>
-            ))}
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Smoothing" />
+            </SelectTrigger>
+            <SelectContent>
+              {[0, 5, 10, 15, 30, 60].map((smoothing) => (
+                <SelectItem value={smoothing.toString()} key={smoothing}>
+                  {smoothing === 0 ? "None" : smoothing}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </label>
         <label>
           Chart Type
           <Select
-            id="chartTypeSelect"
-            value={chartType}
-            placeholder={"Chart type"}
             onValueChange={(value) =>
               navigate({
                 search: {
@@ -225,8 +214,13 @@ export function Chart() {
               })
             }
           >
-            <SelectItem value="line">Line</SelectItem>
-            <SelectItem value="bar">Bar</SelectItem>
+            <SelectTrigger>
+              <SelectValue placeholder="Chart type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="line">Line</SelectItem>
+              <SelectItem value="bar">Bar</SelectItem>
+            </SelectContent>
           </Select>
         </label>
       </SettingsDropLayout>

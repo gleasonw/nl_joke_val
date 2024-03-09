@@ -4,7 +4,7 @@ import { Clip, ClipTimeGroupings, ClipTimeSpans } from "../types";
 import { DashboardURLState, clipTimeSpans } from "../utils";
 import { useQuery } from "@tanstack/react-query";
 import { Card, Title, SelectItem } from "@tremor/react";
-import { useDefaultClipParams, useTimeSeries } from "../hooks";
+import { useDefaultClipParams, useEmotes, useTimeSeries } from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
 import { ClipClicker } from "./ClipClicker";
@@ -45,7 +45,9 @@ export function TopClips() {
     refetchInterval: 1000 * 30,
   });
 
-  const [, , emoteIds] = useTimeSeries();
+  const { data } = useEmotes();
+
+  const emoteIds = data?.map((emote) => emote.Code);
 
   const sortedClips = localFetchedClips
     ?.sort((a, b) => b.count - a.count)

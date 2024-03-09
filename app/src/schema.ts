@@ -11,6 +11,9 @@ export interface paths {
   "/api/clip_counts": {
     get: operations["list-api-clip-counts"];
   };
+  "/api/emotes": {
+    get: operations["list-api-emotes"];
+  };
   "/api/is_live": {
     get: operations["get-api-is-live"];
   };
@@ -34,6 +37,24 @@ export interface components {
       count: number;
       /** Format: date-time */
       time: string;
+    };
+    DeletedAt: {
+      /** Format: date-time */
+      Time: string;
+      Valid: boolean;
+    };
+    Emote: {
+      /** Format: int64 */
+      BttvId: number;
+      ChannelId: string;
+      Code: string;
+      /** Format: date-time */
+      CreatedAt: string;
+      DeletedAt: components["schemas"]["DeletedAt"];
+      /** Format: int64 */
+      ID: number;
+      /** Format: date-time */
+      UpdatedAt: string;
     };
     ErrorDetail: {
       /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
@@ -129,6 +150,22 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["Clip"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  "list-api-emotes": {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["Emote"][];
         };
       };
       /** @description Error */

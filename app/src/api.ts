@@ -53,3 +53,13 @@ export async function getClipAtTime(params: { time?: number }) {
 
   return result.data;
 }
+
+export async function getEmotes() {
+  const result = await GET("/api/emotes");
+
+  if (result.error) {
+    throw new Error("Failed to fetch emotes");
+  }
+
+  return result.data;
+}
