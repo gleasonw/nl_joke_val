@@ -1,8 +1,19 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Route, useLiveStatus } from "./routes/index.lazy";
+import { Route } from "./routes/index.lazy";
 import { ClipParams } from "./types";
 import { getSeries } from "./api";
 import { useMemo } from "react";
+import { apiURL } from "./utils";
+
+export function useLiveStatus() {
+  return useQuery({
+    queryFn: async () => {
+      const response = await fetch(`${apiURL}/api/is_live`);
+      return response.json();
+    },
+    queryKey: ["liveStatus"],
+  });
+}
 
 export function useDefaultClipParams(
   params?: ClipParams

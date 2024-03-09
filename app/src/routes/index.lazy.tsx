@@ -1,35 +1,10 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useNavigate } from "@tanstack/react-router";
-import { getClipAtTime, getClips } from "../api";
-import {
-  Clip,
-  ClipTimeGroupings,
-  ClipTimeSpans,
-  TimeGroupings,
-} from "../types";
-import {
-  apiURL,
-  clipTimeGroupings,
-  clipTimeSpans,
-  DashboardURLState,
-  timeGroupings,
-} from "../utils";
-import { useQuery } from "@tanstack/react-query";
-import {
-  Card,
-  Title,
-  Select,
-  SelectItem,
-  Button,
-  SelectProps,
-  DateRangePickerValue,
-  DateRangePicker,
-  DateRangePickerItem,
-} from "@tremor/react";
-import Highcharts from "highcharts";
-import HighchartsReact from "highcharts-react-official";
-import { useDefaultClipParams, useTimeSeries } from "../hooks";
+import { useLiveStatus, useTimeSeries } from "../hooks";
 import React from "react";
+import { Chart } from "../components/Chart";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 export const Route = createLazyFileRoute("/")({
   component: Index,
@@ -49,574 +24,104 @@ function Index() {
   }
 
   return (
-    <div className="min-h-screen lg:p-8 flex flex-col gap-8">
-      <h1 className={"text-3xl m-5 font-semibold flex flex-col gap-4"}>
-        <span className="flex justify-between">
-          NL chat emote usage
-          <LiveStatus />
-        </span>
-        <span className="text-gray-600 text-base">{timeRangeString}</span>
-      </h1>
-      <span className="border  w-full" />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Chart />
-        <div className={"flex flex-col gap-8"}>
-          <ClipAtTime />
-          <TopClips />
-          <MinClips />
+    <div className="max-w-7xl mx-auto my-8 p-4 bg-white shadow-lg rounded-lg">
+      <div className="flex justify-between items-center border-b pb-4">
+        <h1 className="text-3xl font-semibold">Emote Usage Dashboard</h1>
+        <div className="flex space-x-2">
+          <Button variant="outline">Follow</Button>
+          <Button variant="outline">Share</Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-export interface SettingsDropLayoutProps {
-  children?: React.ReactNode;
-}
-
-export function SettingsDropLayout({ children }: SettingsDropLayoutProps) {
-  return <div className="flex gap-5 flex-wrap">{children}</div>;
-}
-
-type LocalClipState = NonNullable<DashboardURLState["maxClipParams"]>;
-
-export interface TopClipsProps {
-  clips: Clip[];
-  params: LocalClipState;
-}
-
-export function TopClips() {
-  const currentState = Route.useSearch();
-
-  const { maxClipParams, maxClipIndex } = currentState;
-
-  const navigate = useNavigate();
-
-  function handleTopClipNavigate(newParams: LocalClipState) {
-    navigate({
-      search: {
-        ...currentState,
-        maxClipParams: {
-          ...maxClipParams,
-          ...newParams,
-        },
-      },
-    });
-  }
-
-  const fetchParams = useDefaultClipParams(maxClipParams);
-
-  const { data: localFetchedClips, isLoading } = useQuery({
-    queryFn: () => getClips(fetchParams),
-    queryKey: ["clips", maxClipParams],
-    refetchInterval: 1000 * 30,
-  });
-
-  const [, , emoteIds] = useTimeSeries();
-
-  const sortedClips = localFetchedClips
-    ?.sort((a, b) => b.count - a.count)
-    .filter((clip) => !!clip.clip_id);
-
-  const { emote_id, grouping, span } = fetchParams;
-
-  return (
-    <Card className="flex flex-col gap-5">
-      <div className={"flex flex-col gap-3"}>
-        <Title>Clips from Top Windows</Title>
-        <SettingsDropLayout>
-          <LabeledSelect
-            label="Emote"
-            value={emote_id?.toString()}
-            onValueChange={(value) =>
-              handleTopClipNavigate({ emote_id: parseInt(value) })
-            }
-          >
-            {emoteIds?.map((emote) => (
-              <SelectItem value={emote} key={emote}>
-                {emote}
-              </SelectItem>
-            ))}
-          </LabeledSelect>
-          <ClipBinSizeSelect
-            value={grouping}
-            onValueChange={(value) =>
-              handleTopClipNavigate({ grouping: value as ClipTimeGroupings })
-            }
-          />
-          <LabeledSelect
-            label="Over the past"
-            value={span}
-            onValueChange={(value) =>
-              handleTopClipNavigate({ span: value as ClipTimeSpans })
-            }
-          >
-            {clipTimeSpans.map((span) => (
-              <SelectItem value={span} key={span}>
-                {span}
-              </SelectItem>
-            ))}
-          </LabeledSelect>
-        </SettingsDropLayout>
+      <div className="flex flex-wrap gap-4 my-4">
+        <Badge variant="secondary">1D</Badge>
+        <Badge>5D</Badge>
+        <Badge>1M</Badge>
+        <Badge>6M</Badge>
+        <Badge>YTD</Badge>
+        <Badge>1Y</Badge>
+        <Badge>5Y</Badge>
+        <Badge>MAX</Badge>
+        <Button variant="secondary">Key events</Button>
       </div>
-      {isLoading ? (
-        <span className="w-full aspect-video bg-gray-200 flex flex-col justify-center items-center animate-pulse" />
-      ) : (
-        <ClipClicker
-          clips={sortedClips ?? []}
-          index={maxClipIndex}
-          setIndex={(index) =>
-            navigate({ search: { ...currentState, maxClipIndex: index } })
-          }
+      <div className="flex gap-4 my-4">
+        <Input
+          className="rounded-full w-full max-w-xs"
+          placeholder="Search for base emote"
+          type="search"
         />
-      )}
-    </Card>
-  );
-}
-
-export type LocalMinClipState = NonNullable<DashboardURLState["minClipParams"]>;
-
-export function MinClips() {
-  const navigate = useNavigate();
-
-  const currentState = Route.useSearch();
-
-  const { minClipParams, minClipIndex } = currentState;
-
-  function handleMinClipNavigate(newParams: LocalMinClipState) {
-    navigate({
-      search: {
-        ...currentState,
-        minClipParams: {
-          ...minClipParams,
-          ...newParams,
-        },
-      },
-    });
-  }
-
-  const fetchParams = useDefaultClipParams(minClipParams);
-
-  const { data: localFetchedClips } = useQuery({
-    queryFn: () =>
-      getClips({
-        ...fetchParams,
-        order: "ASC",
-      }),
-    queryKey: ["clips", fetchParams],
-    refetchInterval: 1000 * 30,
-  });
-
-  const { grouping, span } = fetchParams;
-
-  const sortedClips = localFetchedClips?.sort((a, b) => a.count - b.count);
-
-  return (
-    <Card className="flex gap-5 flex-col">
-      <div className={"flex flex-col gap-5"}>
-        <Title>Lowest 2 count</Title>
-        <SettingsDropLayout>
-          <ClipBinSizeSelect
-            value={grouping}
-            onValueChange={(value) =>
-              handleMinClipNavigate({ grouping: value as ClipTimeGroupings })
-            }
-          />
-          <LabeledSelect
-            value={span}
-            onValueChange={(value) =>
-              handleMinClipNavigate({ span: value as ClipTimeSpans })
-            }
-            label="Over the past"
-          >
-            {clipTimeSpans.map((span) => (
-              <SelectItem value={span} key={span}>
-                {span}
-              </SelectItem>
-            ))}
-          </LabeledSelect>
-        </SettingsDropLayout>
+        <div className="flex gap-2">
+          <div className="flex items-center bg-green-500 text-white rounded-full px-2 py-1">
+            <span>HappyEmote</span>
+            <span className="ml-1">14,500 uses</span>
+          </div>
+          <div className="flex items-center bg-red-500 text-white rounded-full px-2 py-1">
+            <span>SadEmote</span>
+            <span className="ml-1">11,200 uses</span>
+          </div>
+          <div className="flex items-center bg-blue-500 text-white rounded-full px-2 py-1">
+            <span>WowEmote</span>
+            <span className="ml-1">9,850 uses</span>
+          </div>
+        </div>
       </div>
-      <ClipClicker
-        clips={sortedClips ?? []}
-        index={minClipIndex}
-        setIndex={(index) =>
-          navigate({ search: { ...currentState, minClipIndex: index } })
-        }
-      />
-    </Card>
-  );
-}
-
-export interface LabeledSelectProps extends SelectProps {
-  children: React.ReactNode;
-  label: string;
-}
-
-export function LabeledSelect({
-  children,
-  label,
-  ...props
-}: LabeledSelectProps) {
-  return (
-    <label>
-      {label}
-      <Select {...props}>{children}</Select>
-    </label>
-  );
-}
-
-function ClipBinSizeSelect({
-  onValueChange,
-  value,
-}: {
-  onValueChange: (value: string) => void;
-  value: ClipTimeGroupings;
-}) {
-  return (
-    <LabeledSelect label="Bin size" value={value} onValueChange={onValueChange}>
-      {clipTimeGroupings.map((grouping) => (
-        <SelectItem value={grouping} key={grouping}>
-          {grouping}
-        </SelectItem>
-      ))}
-    </LabeledSelect>
-  );
-}
-
-export interface ClipClickerProps {
-  children?: React.ReactNode;
-  clips: Clip[];
-  index: number;
-  setIndex: (index: number) => void;
-}
-
-export function ClipClicker({ clips, index, setIndex }: ClipClickerProps) {
-  if (!clips || clips.length === 0) {
-    return <div className="w-full aspect-video bg-gray-100 animate-pulse" />;
-  }
-
-  const clip = clips[index];
-  if (!clip) {
-    return <div>No clip found</div>;
-  }
-  const totalClipCount = clips.length;
-
-  return (
-    <div className={`flex flex-col gap-5 `}>
-      <div>
-        <span className={"text-3xl"}>#{index + 1}</span>
-        <span className="pl-2 text-xl">({clip.count})</span>
-        <TwitchClip clip_id={clip.clip_id!} time={clip.time} />
+      <Chart />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Top Emotes</h2>
+          <div className="flex flex-col space-y-2">
+            <div className="flex justify-between items-center">
+              <span>HappyEmote</span>
+              <span>14,500 uses</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>SadEmote</span>
+              <span>11,200 uses</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>WowEmote</span>
+              <span>9,850 uses</span>
+            </div>
+            <Button variant="outline">Add comparison</Button>
+          </div>
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Emote Details</h2>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span>Previous Peak</span>
+              <span>15,300 uses</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Lowest Point</span>
+              <span>3,100 uses</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Average Per Stream</span>
+              <span>7,500 uses</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="flex gap-2">
-        <Button onClick={() => setIndex(index - 1)} disabled={index === 0}>
-          Previous
-        </Button>
-        <Button
-          onClick={() => setIndex(index + 1)}
-          disabled={index === totalClipCount - 1}
-        >
-          Next
-        </Button>
+      <div className="my-4">
+        <h2 className="text-xl font-semibold mb-2">Financials</h2>
+        <div className="flex justify-between items-center mb-2">
+          <Badge variant="secondary">Quarterly</Badge>
+          <Badge>Annual</Badge>
+        </div>
+        <div className="w-full h-[300px]">Bar chart</div>
       </div>
-    </div>
-  );
-}
-
-export function TwitchClip({
-  clip_id,
-  time,
-}: {
-  clip_id: string;
-  time?: string;
-}) {
-  const formattedTime = time ? new Date(time).toLocaleString() : "";
-
-  return (
-    <span>
-      {time && (
-        <span className={"m-5 text-center text-gray-500"}>{formattedTime}</span>
-      )}
-      <iframe
-        src={`https://clips.twitch.tv/embed?clip=${clip_id}&parent=${window.location.hostname}`}
-        width="100%"
-        className="aspect-video"
-        allowFullScreen={true}
-      />
-    </span>
-  );
-}
-
-const last9HoursRange = {
-  from: undefined,
-  to: undefined,
-  span: "9 hours",
-} as const;
-
-const lastHourRange = {
-  from: undefined,
-  to: undefined,
-  span: "1 hour",
-} as const;
-
-const lastMinuteRange = {
-  from: undefined,
-  to: undefined,
-  span: "1 minute",
-} as const;
-
-export function useLiveStatus() {
-  return useQuery({
-    queryFn: async () => {
-      const response = await fetch(`${apiURL}/api/is_live`);
-      return response.json();
-    },
-    queryKey: ["liveStatus"],
-  });
-}
-
-export function Chart() {
-  const navigate = useNavigate();
-  const currentState = Route.useSearch();
-  const { seriesParams, chartType: urlChartType, series } = currentState;
-
-  function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
-    navigate({
-      search: {
-        ...currentState,
-        seriesParams: { ...seriesParams, ...newParams },
-      },
-    });
-  }
-
-  const [
-    { data: localFetchedSeries, isLoading },
-    { grouping, from, to, rollingAverage, span },
-  ] = useTimeSeries();
-
-  const seriesToDisplay = series?.length ? series : ["two"];
-
-  const chartType = urlChartType ?? "line";
-
-  const emoteSeries:
-    | Highcharts.SeriesLineOptions[]
-    | Highcharts.SeriesBarOptions[] =
-    seriesToDisplay?.map((key) => ({
-      name: key,
-      data:
-        localFetchedSeries?.map((d) => [
-          new Date(d.time).getTime(),
-          d.series[key] ?? "",
-        ]) ?? [],
-      events: {
-        click: function (e) {
-          navigate({
-            search: { ...currentState, clickedUnixSeconds: e.point.x / 1000 },
-          });
-        },
-      },
-      type: chartType as "line",
-    })) ?? ([] as Highcharts.SeriesOptionsType[]);
-
-  const highChartsOptions: Highcharts.Options = {
-    time: {
-      getTimezoneOffset: function (timestamp: number) {
-        if (grouping === "day") {
-          // using an offset would throw off the day grouping
-          return 0;
-        }
-        return new Date(timestamp).getTimezoneOffset();
-      },
-    },
-    plotOptions: {
-      series: {
-        marker: {
-          enabled: false,
-        },
-        cursor: "pointer",
-      },
-      line: {
-        linecap: "round",
-        lineWidth: 2,
-      },
-    },
-    chart: {
-      type: chartType as string,
-      height: 600,
-      zooming: {
-        type: "x",
-      },
-      events: {
-        click: function (e) {
-          // @ts-expect-error - this is a valid event
-          const xVal = e?.xAxis?.[0]?.value;
-          if (xVal) {
-            navigate({
-              search: {
-                ...currentState,
-                clickedUnixSeconds: new Date().getTime(),
-              },
-            });
-          }
-        },
-      },
-    },
-    title: {
-      text: "",
-    },
-    xAxis: {
-      type: "datetime",
-      title: {
-        text: "Time",
-      },
-    },
-    yAxis: {
-      title: {
-        text: "Count",
-      },
-    },
-    series: emoteSeries,
-  };
-
-  const fromTo = {
-    from: from ? new Date(from) : undefined,
-    to: to ? new Date(to) : undefined,
-  } as DateRangePickerValue;
-
-  return (
-    <div className="flex flex-col gap-2">
-      <SettingsDropLayout>
-        <Button
-          onClick={() => handleUpdateChart(lastMinuteRange)}
-          variant={span === "1 minute" ? "primary" : "secondary"}
-        >
-          Last minute of stream
-        </Button>
-        <Button
-          onClick={() => handleUpdateChart(lastHourRange)}
-          variant={span === "1 hour" ? "primary" : "secondary"}
-        >
-          Last hour of stream
-        </Button>
-        <Button
-          onClick={() => handleUpdateChart(last9HoursRange)}
-          variant={
-            span === "9 hours" || span === null ? "primary" : "secondary"
-          }
-        >
-          Last 9 hours of stream
-        </Button>
-        <DateRangePicker
-          value={fromTo}
-          onValueChange={(value: DateRangePickerValue) =>
-            handleUpdateChart({
-              from: value.from?.toISOString(),
-              to: value.to?.toISOString(),
-              span: "custom",
-            })
-          }
-          selectPlaceholder="Select a range"
-        >
-          <DateRangePickerItem
-            key="day"
-            value="day"
-            from={new Date(new Date().getTime() - 24 * 60 * 60 * 1000)}
-            to={new Date()}
-          >
-            Past day
-          </DateRangePickerItem>
-          <DateRangePickerItem
-            key="week"
-            value="week"
-            from={new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000)}
-            to={new Date()}
-          >
-            Past week
-          </DateRangePickerItem>
-          <DateRangePickerItem
-            key="half"
-            value="half"
-            from={new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000)}
-            to={new Date()}
-          >
-            Past 30 days
-          </DateRangePickerItem>
-
-          <DateRangePickerItem
-            key="ytd"
-            value="ytd"
-            from={new Date(2023, 3, 18)}
-            to={new Date()}
-          >
-            To date
-          </DateRangePickerItem>
-        </DateRangePicker>
-      </SettingsDropLayout>
-      {isLoading ? (
-        <div className="text-center w-full h-full">Loading series...</div>
-      ) : (
-        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
-      )}
-      <span className="text-center">
-        Select a point in the graph to pull the nearest clip
-      </span>
-      <SettingsDropLayout>
-        <label>
-          Group By
-          <Select
-            id="groupBySelect"
-            value={grouping}
-            placeholder={"Group by"}
-            onValueChange={(value) =>
-              handleUpdateChart({
-                grouping: value as TimeGroupings,
-              })
-            }
-          >
-            {timeGroupings.map((grouping) => (
-              <SelectItem value={grouping} key={grouping} />
-            ))}
-          </Select>
-        </label>
-        <label>
-          Smoothing
-          <Select
-            id="smoothing"
-            value={rollingAverage?.toString()}
-            placeholder={"Smoothing"}
-            onValueChange={(value) =>
-              handleUpdateChart({
-                rollingAverage: parseInt(value),
-              })
-            }
-          >
-            {[0, 5, 10, 15, 30, 60].map((smoothing) => (
-              <SelectItem value={smoothing.toString()} key={smoothing}>
-                {smoothing === 0 ? "None" : smoothing}
-              </SelectItem>
-            ))}
-          </Select>
-        </label>
-        <label>
-          Chart Type
-          <Select
-            id="chartTypeSelect"
-            value={chartType}
-            placeholder={"Chart type"}
-            onValueChange={(value) =>
-              navigate({
-                search: {
-                  chartType: value as "line" | "bar",
-                },
-              })
-            }
-          >
-            <SelectItem value="line">Line</SelectItem>
-            <SelectItem value="bar">Bar</SelectItem>
-          </Select>
-        </label>
-      </SettingsDropLayout>
+      <div className="my-4">
+        <h2 className="text-xl font-semibold mb-2">About</h2>
+        <p>
+          This dashboard provides insights into the usage of emotes during live
+          streams. It helps to track the popularity and engagement of specific
+          emotes over time.
+        </p>
+      </div>
+      <div className="my-4">
+        <h2 className="text-xl font-semibold mb-2">Stream Video</h2>
+        <div className="aspect-[16/9] bg-gray-200 rounded-lg" />
+      </div>
     </div>
   );
 }
@@ -639,33 +144,4 @@ export function LiveStatus() {
     );
   }
   return <span className="text-gray-500 text-2xl">Offline</span>;
-}
-
-export function ClipAtTime() {
-  const { clickedUnixSeconds } = Route.useSearch();
-
-  const { data: clip } = useQuery({
-    queryFn: () => getClipAtTime({ time: clickedUnixSeconds }),
-    queryKey: ["clip", clickedUnixSeconds],
-    refetchInterval: 1000 * 30,
-  });
-
-  if (!clickedUnixSeconds) {
-    return <div>Click on the chart to pull the nearest clip</div>;
-  }
-
-  if (!clip) {
-    return <div>No clip found</div>;
-  }
-
-  return (
-    <TwitchClip
-      clip_id={clip.clip_id}
-      time={new Date(clickedUnixSeconds * 1000).toLocaleString()}
-    />
-  );
-}
-
-export function Emote({ src }: { src: string }) {
-  return <img src={`/${src}`} alt={src} width={32} height={32} />;
 }
