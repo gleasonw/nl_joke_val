@@ -5,7 +5,6 @@ import {
   Clip,
   ClipTimeGroupings,
   ClipTimeSpans,
-  SeriesKey,
   TimeGroupings,
 } from "../types";
 import {
@@ -113,11 +112,13 @@ export function TopClips() {
     refetchInterval: 1000 * 30,
   });
 
+  const [, , emoteIds] = useTimeSeries();
+
   const sortedClips = localFetchedClips
     ?.sort((a, b) => b.count - a.count)
     .filter((clip) => !!clip.clip_id);
 
-  const { column, grouping, span } = fetchParams;
+  const { emote_id, grouping, span } = fetchParams;
 
   return (
     <Card className="flex flex-col gap-5">
@@ -126,10 +127,12 @@ export function TopClips() {
         <SettingsDropLayout>
           <LabeledSelect
             label="Emote"
-            value={column?.[0]}
-            onValueChange={(value) => handleTopClipNavigate({ column: value })}
+            value={emote_id?.toString()}
+            onValueChange={(value) =>
+              handleTopClipNavigate({ emote_id: parseInt(value) })
+            }
           >
-            {Object.keys(seriesEmotes).map((emote) => (
+            {emoteIds?.map((emote) => (
               <SelectItem value={emote} key={emote}>
                 {emote}
               </SelectItem>
@@ -345,27 +348,6 @@ export function TwitchClip({
   );
 }
 
-const seriesColors: Record<SeriesKey, string> = {
-  two: "#7cb5ec",
-  lol: "#434348",
-  cereal: "#90ed7d",
-  monkas: "#f7a35c",
-  joel: "#8085e9",
-  pog: "#f15c80",
-  huh: "#e4d354",
-  no: "#2b908f",
-  cocka: "#f45b5b",
-  shock: "#8d4654",
-  who_asked: "#91e8e1",
-  copium: "#696969",
-  ratjam: "#000000",
-  sure: "#000000",
-  classic: "#ffff00",
-  monka_giga: "#808080",
-  caught: "#0000ff",
-  life: "#ff0000",
-} as const;
-
 const last9HoursRange = {
   from: undefined,
   to: undefined,
@@ -425,9 +407,8 @@ export function Chart() {
       data:
         localFetchedSeries?.map((d) => [
           new Date(d.time).getTime(),
-          d.series[key as unknown as SeriesKey] ?? "",
+          d.series[key] ?? "",
         ]) ?? [],
-      color: seriesColors[key as unknown as SeriesKey],
       events: {
         click: function (e) {
           navigate({
@@ -497,18 +478,6 @@ export function Chart() {
     },
     series: emoteSeries,
   };
-
-  function getNewSeriesList(emote: string) {
-    if (!series) {
-      return [emote];
-    }
-
-    if (series?.includes(emote)) {
-      return series.filter((item) => item !== emote);
-    }
-
-    return [...series, emote];
-  }
 
   const fromTo = {
     from: from ? new Date(from) : undefined,
@@ -589,28 +558,6 @@ export function Chart() {
       ) : (
         <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
       )}
-      <div className="flex flex-row flex-wrap gap-3 m-2">
-        {Object.keys(seriesColors).map((key) => (
-          <button
-            className={"w-auto hover:shadow-lg rounded-lg p-3"}
-            style={
-              seriesToDisplay?.includes(key as SeriesKey)
-                ? {
-                    boxShadow: `0 0 0 4px ${seriesColors[key as SeriesKey]}`,
-                  }
-                : {}
-            }
-            key={key}
-            onClick={() => {
-              navigate({
-                search: { ...currentState, series: getNewSeriesList(key) },
-              });
-            }}
-          >
-            {seriesEmotes[key as SeriesKey]}
-          </button>
-        ))}
-      </div>
       <span className="text-center">
         Select a point in the graph to pull the nearest clip
       </span>
@@ -718,27 +665,6 @@ export function ClipAtTime() {
     />
   );
 }
-
-export const seriesEmotes: Record<SeriesKey, React.ReactNode> = {
-  two: <div className={"text-xl "}>∑ ± 2</div>,
-  lol: <Emote src={"lul.jpg"} />,
-  cereal: <Emote src={"cereal.webp"} />,
-  monkas: <Emote src={"monkaS.webp"} />,
-  joel: <Emote src={"Joel.webp"} />,
-  pog: <Emote src={"Pog.webp"} />,
-  huh: <Emote src={"huhh.webp"} />,
-  no: <Emote src={"nooo.webp"} />,
-  cocka: <Emote src={"cocka.webp"} />,
-  shock: <Emote src={"shockface.png"} />,
-  who_asked: <Emote src={"whoasked.webp"} />,
-  copium: <Emote src={"copium.webp"} />,
-  ratjam: <Emote src={"ratJAM.webp"} />,
-  sure: <Emote src={"sure.webp"} />,
-  classic: <Emote src={"classic.webp"} />,
-  monka_giga: <Emote src={"monkaGiga.webp"} />,
-  caught: <Emote src={"caught.webp"} />,
-  life: <Emote src={"life.webp"} />,
-} as const;
 
 export function Emote({ src }: { src: string }) {
   return <img src={`/${src}`} alt={src} width={32} height={32} />;

@@ -6,20 +6,16 @@
 
 export interface paths {
   "/api/clip": {
-    /** Get nearest clip */
-    get: operations["get-nearest-clip"];
+    get: operations["get-api-clip"];
   };
   "/api/clip_counts": {
-    /** Get clip counts */
-    get: operations["get-clip-counts"];
+    get: operations["list-api-clip-counts"];
   };
   "/api/is_live": {
-    /** Is NL live */
-    get: operations["is-nl-live"];
+    get: operations["get-api-is-live"];
   };
   "/api/series": {
-    /** Get a time series of emote counts */
-    get: operations["get-series"];
+    get: operations["list-api-series"];
   };
 }
 
@@ -97,8 +93,7 @@ export type external = Record<string, never>;
 
 export interface operations {
 
-  /** Get nearest clip */
-  "get-nearest-clip": {
+  "get-api-clip": {
     parameters: {
       query?: {
         time?: number;
@@ -119,11 +114,10 @@ export interface operations {
       };
     };
   };
-  /** Get clip counts */
-  "get-clip-counts": {
+  "list-api-clip-counts": {
     parameters: {
       query?: {
-        column?: string;
+        emote_id?: number;
         span?: "30 minutes" | "9 hours" | "1 week" | "1 month" | "1 year";
         grouping?: "25 seconds" | "1 minute" | "5 minutes" | "15 minutes" | "1 hour" | "1 day";
         order?: "ASC" | "DESC";
@@ -145,8 +139,7 @@ export interface operations {
       };
     };
   };
-  /** Is NL live */
-  "is-nl-live": {
+  "get-api-is-live": {
     responses: {
       /** @description OK */
       200: {
@@ -162,8 +155,7 @@ export interface operations {
       };
     };
   };
-  /** Get a time series of emote counts */
-  "get-series": {
+  "list-api-series": {
     parameters: {
       query?: {
         span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";

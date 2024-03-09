@@ -1,8 +1,5 @@
 import { components, paths } from "./schema";
 
-export type FullChatCountStruct = components["schemas"]["ChatCounts"];
-export type ChatCounts = Omit<FullChatCountStruct, "time">;
-
 export type TimeSpans = NonNullable<
   paths["/api/series"]["get"]["parameters"]["query"]
 >["span"];
@@ -19,9 +16,6 @@ export type ClipTimeSpans = NonNullable<
 >["span"];
 
 export type Clip = components["schemas"]["Clip"];
-
-export type SeriesKey = keyof ChatCounts;
-export type SeriesData = ChatCounts;
 
 export type ClipParams =
   paths["/api/clip_counts"]["get"]["parameters"]["query"];
