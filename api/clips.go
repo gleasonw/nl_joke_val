@@ -77,17 +77,19 @@ func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[st
 		)
 		LIMIT $1
 	)
-	SELECT fi.rolling_sum as count, cc.created_at AS time, cc.clip_id
+	SELECT fi.rolling_sum as count, ec.created_at AS time, ec.clip_id
 	FROM FilteredIntervals fi
-	JOIN emote_counts cc
-		ON cc.created_at = (
-			SELECT created_at
-			FROM emote_counts
-			WHERE created_at BETWEEN fi.max_created_at - INTERVAL '25 seconds' AND fi.max_created_at + INTERVAL '1 second'
-			AND cc.emote_id = $2
-			ORDER BY count %s
-			LIMIT 1
-		);
+	CROSS JOIN LATERAL (
+		SELECT 
+		    ec.created_at, 
+		    ec.clip_id, 
+		    ec.count
+		FROM emote_counts ec
+		WHERE ec.created_at BETWEEN fi.max_created_at - INTERVAL '25 seconds' AND fi.max_created_at + INTERVAL '1 second'
+		AND ec.emote_id = $2
+		ORDER BY ec.count %s
+		LIMIT 1
+	) ec;
 	`, rollingSumQuery, p.Order, likelyBitLength, likelyBitLength, p.Order)
 
 	fmt.Println(query)
