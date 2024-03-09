@@ -35,6 +35,17 @@ func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[st
 
 	var query string
 
+	// we want just the x top bits, but some bit have many clips in the top rankings
+	// so we limit to a reasonable value.
+	limitMap := map[string]int{
+		"25 seconds": 100,
+		"1 minute":   300,
+		"5 minutes":  1500,
+		"15 minutes": 4500,
+		"1 hour":     18000,
+		"1 day":      432000,
+	}
+
 	rollingSumQuery := fmt.Sprintf(`
 	SELECT created_at, SUM(count) OVER (                                                   
 		ORDER BY created_at                                                                    
@@ -54,7 +65,7 @@ func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[st
 
 	}
 
-	rollingSumQuery = fmt.Sprintf("%s ORDER BY rolling_sum %s LIMIT %d", rollingSumQuery, p.Order, p.Limit)
+	rollingSumQuery = fmt.Sprintf("%s ORDER BY rolling_sum %s LIMIT %d", rollingSumQuery, p.Order, limitMap[p.Grouping])
 
 	query = fmt.Sprintf(`
 	WITH RollingSums AS (%s),
