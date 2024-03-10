@@ -19,7 +19,20 @@ export interface TopClipsProps {
   params: LocalClipState;
 }
 export function TopClips() {
-  return <TopClipsByDensity />;
+  const [clipView, setClipView] = React.useState<"density" | "relative">(
+    "density"
+  );
+  return (
+    <div>
+      <button onClick={() => setClipView("density")}>Density</button>
+      <button onClick={() => setClipView("relative")}>Relative</button>
+      {clipView === "density" ? (
+        <TopClipsByDensity />
+      ) : (
+        <TopClipsByRelativePerformance />
+      )}
+    </div>
+  );
 }
 
 function TopClipsByRelativePerformance() {
@@ -55,7 +68,7 @@ function TopClipsByDensity() {
     span,
   });
 
-  const topEmoteCodes = topPerformingEmotes?.Emotes?.slice(0, 10).map((e) => ({
+  const topEmoteCodes = topPerformingEmotes?.Emotes?.slice(0, 5).map((e) => ({
     id: e.EmoteID,
     code: e.Code,
     percentOfTotal: e.Percent,

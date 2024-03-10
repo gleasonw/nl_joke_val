@@ -6,6 +6,7 @@ import { TopPerformingEmotes } from "@/components/TopPerformingEmotes";
 import { ClipAtTime } from "@/components/ClipAtTime";
 import { TopClips } from "@/components/TopClips";
 import { MinClips } from "@/components/MinClips";
+import { DatePicker } from "@/components/DatePicker";
 
 export const Route = createLazyFileRoute("/")({
   component: Index,
@@ -37,6 +38,7 @@ function Index() {
             <span className="text-xs">{timeRangeString}</span>
           </div>
         )}
+        <DatePicker />
         <Chart />
         <ClipAtTime />
       </div>
