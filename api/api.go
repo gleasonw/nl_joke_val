@@ -103,9 +103,8 @@ func main() {
 		return &struct{ Body bool }{liveStatus.IsLive}, nil
 	})
 
-	huma.Get(api, "/api/emote_average_performance", func(ctx context.Context, input *SeriesInput) (*TopPerformingEmotesOutput, error) {
-		GetTopPerformingEmotes(*input, db)
-		return &TopPerformingEmotesOutput{}, nil
+	huma.Get(api, "/api/emote_average_performance", func(ctx context.Context, input *EmotePerformanceInput) (*TopPerformingEmotesOutput, error) {
+		return GetTopPerformingEmotes(*input, db)
 	})
 
 	// huma.Get(api, "/api/emote_density", func(ctx context.Context, input *struct{}) (*TopDensityEmotesOutput, error) {
@@ -395,39 +394,39 @@ func countEmotes(
 			}
 
 		case <-postInterval.C:
-			rowsToInsert := make([]EmoteCount, 0, len(counter))
+			// rowsToInsert := make([]EmoteCount, 0, len(counter))
 
-			for emoteId, count := range counter {
-				emote := trackingEmotes[emoteId]
-				rowsToInsert = append(rowsToInsert, EmoteCount{
-					Count: int(count),
-					Emote: emote,
-				})
-			}
+			// for emoteId, count := range counter {
+			// 	emote := trackingEmotes[emoteId]
+			// 	rowsToInsert = append(rowsToInsert, EmoteCount{
+			// 		Count: int(count),
+			// 		Emote: emote,
+			// 	})
+			// }
 
-			err := db.Create(&rowsToInsert).Error
+			// err := db.Create(&rowsToInsert).Error
 
-			if env.Debug {
-				for _, row := range rowsToInsert {
-					if row.Count != 0 {
-						fmt.Println("inserting", row.Emote.Code, row.Count)
-					}
-				}
-			}
+			// if env.Debug {
+			// 	for _, row := range rowsToInsert {
+			// 		if row.Count != 0 {
+			// 			fmt.Println("inserting", row.Emote.Code, row.Count)
+			// 		}
+			// 	}
+			// }
 
-			insertedRowIds := make([]int, 0, len(rowsToInsert))
+			// insertedRowIds := make([]int, 0, len(rowsToInsert))
 
-			for _, row := range rowsToInsert {
-				insertedRowIds = append(insertedRowIds, int(row.Id))
-			}
+			// for _, row := range rowsToInsert {
+			// 	insertedRowIds = append(insertedRowIds, int(row.Id))
+			// }
 
-			if err != nil {
-				fmt.Println("Error inserting into db:", err)
-			}
+			// if err != nil {
+			// 	fmt.Println("Error inserting into db:", err)
+			// }
 
 			resetCounter()
 
-			createClipAndMaybeRefreshToken(db, insertedRowIds, tokens.AccessToken, liveStatus, refreshTokens)
+			// createClipAndMaybeRefreshToken(db, insertedRowIds, tokens.AccessToken, liveStatus, refreshTokens)
 
 		case refreshedEmotes := <-emoteUpdates:
 			for _, emote := range refreshedEmotes {

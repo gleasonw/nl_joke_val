@@ -71,67 +71,34 @@ func fetchNlEmotesFromBTTV() (EmoteSet, error) {
 
 }
 
-type EmoteAverageRow struct {
-	Code        string
-	EmoteID     int
-	PastAverage float64
-	CurrentSum  float64
+type EmotePerformanceInput struct {
+	Grouping string    `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
+	From     time.Time `query:"from"`
+	To       time.Time `query:"to"`
 }
 
-// at some point i should learn how gorm could pull the emote struct for me
-type EmotePerformance struct {
-	Emote       Emote
-	PastAverage float64
-	CurrentSum  float64
+type EmoteFullRow struct {
+	EmoteID           int
+	Code              string
+	CurrentSum        float64
+	PastAverage       float64
+	Difference        float64
+	PercentDifference float64
 }
 
 type EmoteReport struct {
-	Emotes   []EmoteAverageRow
-	From     time.Time
-	To       time.Time
-	Grouping string
+	Emotes []EmoteFullRow
+	Input  EmotePerformanceInput
 }
 
 type TopPerformingEmotesOutput struct {
-	Body []EmoteAverageRow
+	Body EmoteReport
 }
 
-func GetTopPerformingEmotes(p SeriesInput, db *gorm.DB) {
-
+func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	series := psql.Select("sum(count) as count, date_trunc('"+p.Grouping+"', emote_counts.created_at) as time, emote_id").
-		From("emote_counts").
-		GroupBy("emote_id", "time").
-		OrderBy("time")
-
-	seriesJoin := psql.
-		Select("count", "time", "code", "series.emote_id as emote_id").
-		FromSelect(series, "series").
-		Join("emotes on emotes.id = series.emote_id")
-
-	averageQuery, args, err := psql.Select("sum_series.code as code, avg(sum_series.count), sum_series.emote_id as emote_id").
-		FromSelect(seriesJoin, "sum_series").
-		GroupBy("sum_series.code", "sum_series.emote_id").
-		ToSql()
-
-	fmt.Println(averageQuery)
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	averages := []EmoteAverageRow{}
-
-	err = db.Raw(averageQuery, args...).Scan(&averages).Error
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	currentSumQuery, args, err := psql.
+	currentSumQuery := psql.
 		Select("count", "code", "emote_id").
 		FromSelect(
 			psql.Select("sum(count) as count, emote_id").
@@ -142,24 +109,41 @@ func GetTopPerformingEmotes(p SeriesInput, db *gorm.DB) {
 					Suffix(")")).
 				GroupBy("emote_id"),
 			"series").
+		Join("emotes on emotes.id = series.emote_id")
+
+	averageQuery := psql.Select("sum(count) as count, date_trunc('"+p.Grouping+"', emote_counts.created_at) as time, emote_id").
+		From("emote_counts").
+		GroupBy("emote_id", "time").
+		OrderBy("time")
+
+	joinEmotes := psql.
+		Select("avg(count) as past_average", "code", "series.emote_id as emote_id").
+		FromSelect(averageQuery, "series").
 		Join("emotes on emotes.id = series.emote_id").
+		GroupBy("code", "series.emote_id")
+
+	fullQuery, args, err := psql.Select("avg_series.code, past_average, avg_series.emote_id, current_sum.count as current_sum, current_sum.count - past_average as difference, (current_sum.count - past_average) / past_average as percent_difference").
+		FromSelect(joinEmotes, "avg_series").
+		JoinClause(currentSumQuery.Prefix("JOIN (").Suffix(") current_sum ON current_sum.emote_id = avg_series.emote_id")).
 		ToSql()
 
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	fmt.Println(currentSumQuery)
-
-	currentSums := []TimeSeriesRow{}
-
-	err = db.Raw(currentSumQuery, args...).Scan(&currentSums).Error
+	fmt.Println(fullQuery)
 
 	if err != nil {
 		fmt.Println(err)
-		return
+		return &TopPerformingEmotesOutput{}, err
 	}
+
+	averages := []EmoteFullRow{}
+
+	err = db.Raw(fullQuery, args...).Scan(&averages).Error
+
+	if err != nil {
+		fmt.Println(err)
+		return &TopPerformingEmotesOutput{}, err
+	}
+
+	return &TopPerformingEmotesOutput{EmoteReport{Emotes: averages, Input: p}}, nil
 
 }
 
