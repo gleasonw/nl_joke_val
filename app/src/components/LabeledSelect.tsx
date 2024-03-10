@@ -1,4 +1,5 @@
-import { Select, SelectProps } from "@tremor/react";
+import { Select, SelectContent, SelectValue } from "@/components/ui/select";
+import { SelectProps, SelectTrigger } from "@radix-ui/react-select";
 import React from "react";
 
 export interface LabeledSelectProps extends SelectProps {
@@ -14,7 +15,12 @@ export function LabeledSelect({
   return (
     <label>
       {label}
-      <Select {...props}>{children}</Select>
+      <Select {...props}>
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Theme" />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
     </label>
   );
 }

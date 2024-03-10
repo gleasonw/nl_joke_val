@@ -3,7 +3,7 @@ import { TimeGroupings } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { useTimeSeries } from "../hooks";
+import { useDefaultSeries, useLiveStatus, useTimeSeries } from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
 import { SettingsDropLayout } from "./SettingsDropLayout";
@@ -35,6 +35,12 @@ const lastMinuteRange = {
 } as const;
 
 export function Chart() {
+  const { data: isNlLive } = useLiveStatus();
+
+  if (isNlLive) {
+    return <LiveChart />;
+  }
+
   const navigate = useNavigate();
   const currentState = Route.useSearch();
   const { seriesParams, chartType: urlChartType, series } = currentState;
@@ -48,10 +54,15 @@ export function Chart() {
     });
   }
 
-  const [{ data: localFetchedSeries, isLoading }, { grouping, span }] =
-    useTimeSeries();
+  const [
+    { data: localFetchedSeries, isLoading },
+    { grouping, span, rollingAverage },
+  ] = useTimeSeries();
 
-  const seriesToDisplay = series?.length ? series : ["two"];
+  const defaultSeries = useDefaultSeries();
+  const seriesToDisplay = series?.length
+    ? [...series, ...defaultSeries]
+    : defaultSeries;
 
   const chartType = urlChartType ?? "line";
 
@@ -72,7 +83,7 @@ export function Chart() {
           });
         },
       },
-      type: chartType as "line",
+      type: "line",
     })) ?? ([] as Highcharts.SeriesOptionsType[]);
 
   const highChartsOptions: Highcharts.Options = {
@@ -171,13 +182,16 @@ export function Chart() {
                 grouping: value as TimeGroupings,
               })
             }
+            value={grouping}
           >
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Theme" />
+              <SelectValue placeholder="Time" />
             </SelectTrigger>
             <SelectContent>
               {timeGroupings.map((grouping) => (
-                <SelectItem value={grouping} key={grouping} />
+                <SelectItem value={grouping} key={grouping}>
+                  {grouping}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -190,6 +204,7 @@ export function Chart() {
                 rollingAverage: parseInt(value),
               })
             }
+            value={rollingAverage}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Smoothing" />
@@ -203,27 +218,11 @@ export function Chart() {
             </SelectContent>
           </Select>
         </label>
-        <label>
-          Chart Type
-          <Select
-            onValueChange={(value) =>
-              navigate({
-                search: {
-                  chartType: value as "line" | "bar",
-                },
-              })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Chart type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="line">Line</SelectItem>
-              <SelectItem value="bar">Bar</SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
       </SettingsDropLayout>
     </div>
   );
+}
+
+export function LiveChart() {
+  return <div>hello</div>;
 }

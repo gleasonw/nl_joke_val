@@ -1,8 +1,8 @@
 import { ClipTimeGroupings } from "../types";
 import { clipTimeGroupings } from "../utils";
-import { SelectItem } from "@tremor/react";
 import React from "react";
 import { LabeledSelect } from "./LabeledSelect";
+import { SelectItem } from "@/components/ui/select";
 
 export function ClipBinSizeSelect({
   onValueChange,

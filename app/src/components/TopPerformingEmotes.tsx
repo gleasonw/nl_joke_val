@@ -1,3 +1,5 @@
+import { useEmoteAveragePerformance, usePerformanceGrouping } from "@/hooks";
+import { EmotePerformance } from "@/types";
 import clsx from "clsx";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import React from "react";
@@ -8,59 +10,34 @@ export interface TopPerformingEmotesProps {
 }
 
 export function TopPerformingEmotes() {
+  const grouping = usePerformanceGrouping();
+  const { data: emotePerformance } = useEmoteAveragePerformance({
+    grouping,
+  });
   return (
-    <div className="flex gap-2 overflow-x-auto items-center">
-      <EmotePerformanceCard
-        emotePerformance={{
-          emote: { Code: "test" },
-          pastAverageUsage: 100,
-          currentUsage: 101,
-          pastPercentUsage: 0.5,
-        }}
-      />
-      <EmotePerformanceCard
-        emotePerformance={{
-          emote: { Code: "test" },
-          pastAverageUsage: 100,
-          currentUsage: 89,
-          pastPercentUsage: 0.5,
-        }}
-      />
-      <EmotePerformanceCard
-        emotePerformance={{
-          emote: { Code: "test" },
-          pastAverageUsage: 100,
-          currentUsage: 101,
-          pastPercentUsage: 0.5,
-        }}
-      />
-    </div>
+    <section>
+      <div className="flex gap-2">
+        {emotePerformance?.Emotes?.slice(0, 5).map((e) => (
+          <EmotePerformanceCard emotePerformance={e} key={e.Code} />
+        ))}
+      </div>
+      <span className="text-xs">current / grouping (avg)</span>
+    </section>
   );
 }
 
 interface EmotePerformanceCardProps {
-  emotePerformance: {
-    emote: {
-      Code: string;
-    };
-    pastAverageUsage: number;
-    currentUsage: number;
-    pastPercentUsage: number;
-  };
+  emotePerformance: EmotePerformance;
 }
 
 function EmotePerformanceCard({ emotePerformance }: EmotePerformanceCardProps) {
-  const {
-    emote,
-    pastAverageUsage: averageUsage,
-    currentUsage,
-    pastPercentUsage: percentUsage,
-  } = emotePerformance;
-  const trend = currentUsage > averageUsage ? "up" : "down";
+  const grouping = usePerformanceGrouping();
+  const { Code, CurrentSum, PercentDifference, PastAverage } = emotePerformance;
+  const trend = PercentDifference > 0 ? "up" : "down";
   const ArrowIcon = trend === "up" ? ArrowUp : ArrowDown;
 
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-white text-xs">
+    <div className="flex items-center gap-2 rounded-lg bg-white text-xs">
       <ArrowIcon
         className={clsx("h-8 w-8 p-2 rounded", {
           "text-green-500": trend === "up",
@@ -69,13 +46,19 @@ function EmotePerformanceCard({ emotePerformance }: EmotePerformanceCardProps) {
           "bg-red-100": trend === "down",
         })}
       />
-      <span className="flex flex-col">
-        <span className="font-bold">{emote.Code}</span>
-        <span>{averageUsage}</span>
-      </span>
-      <span className="flex flex-col">
-        <span>{percentUsage}</span>
-        <span>{currentUsage}</span>
+      <span className="flex flex-col gap-1">
+        <span className="flex gap-1">
+          <span className="font-bold">{Code}</span>
+          <span
+            data-trend={trend}
+            className="data-[trend=up]:text-green-600 data-[trend=down]:text-red-600"
+          >
+            {Math.round(PercentDifference * 100)}%
+          </span>
+        </span>
+        <span>
+          {CurrentSum} {grouping} ({Math.round(PastAverage)})
+        </span>
       </span>
     </div>
   );

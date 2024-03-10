@@ -1,7 +1,7 @@
-import { Button } from "@tremor/react";
 import React from "react";
 import { TwitchClip } from "./TwitchClip";
 import { Clip } from "../types";
+import { Button } from "@/components/ui/button";
 
 export interface ClipClickerProps {
   children?: React.ReactNode;

@@ -107,9 +107,9 @@ func main() {
 		return GetTopPerformingEmotes(*input, db)
 	})
 
-	// huma.Get(api, "/api/emote_density", func(ctx context.Context, input *struct{}) (*TopDensityEmotesOutput, error) {
-	// 	return GetTopDensityEmotes(db)
-	// })
+	huma.Get(api, "/api/emote_density", func(ctx context.Context, input *EmoteDensityInput) (*TopDensityEmotesOutput, error) {
+		return GetTopDensityEmotes(db, *input)
+	})
 
 	type EmoteOutput struct {
 		Body []Emote

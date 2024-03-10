@@ -1,7 +1,16 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Route } from "./routes/index.lazy";
-import { ClipParams } from "./types";
-import { getEmotes, getSeries } from "./api";
+import {
+  ClipParams,
+  EmoteDensityParams,
+  EmotePerformanceParams,
+} from "./types";
+import {
+  getEmoteAveragePerformance,
+  getEmoteDensity,
+  getEmotes,
+  getSeries,
+} from "./api";
 import { DashboardURLState, apiURL } from "./utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
@@ -20,6 +29,47 @@ export function useEmotes() {
   return useQuery({
     queryFn: getEmotes,
     queryKey: ["emotes"],
+  });
+}
+
+export function usePerformanceGrouping() {
+  const { data: isNlLive } = useLiveStatus();
+  return isNlLive ? "hour" : "day";
+}
+
+export function useDefaultSeries(): string[] {
+  const grouping = usePerformanceGrouping();
+
+  const { data: emotePerformance } = useEmoteAveragePerformance({
+    grouping,
+  });
+
+  const topEmoteCodes = emotePerformance?.Emotes?.slice(0, 5).map(
+    (e) => e.Code
+  );
+
+  if (!topEmoteCodes) {
+    return ["two"];
+  }
+
+  return ["two", ...topEmoteCodes];
+}
+
+export function useEmoteDensity(p: EmoteDensityParams) {
+  return useQuery({
+    queryFn: () => getEmoteDensity(p),
+    queryKey: ["emoteDensity", p],
+    refetchInterval: 1000 * 5,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useEmoteAveragePerformance(p: EmotePerformanceParams) {
+  return useQuery({
+    queryFn: () => getEmoteAveragePerformance(p),
+    queryKey: ["emoteAveragePerformance", p],
+    refetchInterval: 1000 * 5,
+    placeholderData: keepPreviousData,
   });
 }
 

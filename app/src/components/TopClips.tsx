@@ -1,16 +1,16 @@
-import { useNavigate } from "@tanstack/react-router";
 import { getClips } from "../api";
-import { Clip, ClipTimeGroupings, ClipTimeSpans } from "../types";
-import { DashboardURLState, clipTimeSpans } from "../utils";
+import { Clip } from "../types";
+import { DashboardURLState } from "../utils";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Title, SelectItem } from "@tremor/react";
-import { useDefaultClipParams, useEmotes, useTimeSeries } from "../hooks";
+import {
+  useEmoteAveragePerformance,
+  useEmoteDensity,
+  useLiveStatus,
+  usePerformanceGrouping,
+} from "../hooks";
 import React from "react";
-import { Route } from "../routes/index.lazy";
 import { ClipClicker } from "./ClipClicker";
-import { ClipBinSizeSelect } from "./ClipBinSizeSelect";
-import { LabeledSelect } from "./LabeledSelect";
-import { SettingsDropLayout } from "./SettingsDropLayout";
+import { Card, CardTitle } from "@/components/ui/card";
 
 type LocalClipState = NonNullable<DashboardURLState["maxClipParams"]>;
 
@@ -19,92 +19,100 @@ export interface TopClipsProps {
   params: LocalClipState;
 }
 export function TopClips() {
-  const currentState = Route.useSearch();
+  return <TopClipsByDensity />;
+}
 
-  const { maxClipParams, maxClipIndex } = currentState;
+function TopClipsByRelativePerformance() {
+  const grouping = usePerformanceGrouping();
 
-  const navigate = useNavigate();
-
-  function handleTopClipNavigate(newParams: LocalClipState) {
-    navigate({
-      search: {
-        ...currentState,
-        maxClipParams: {
-          ...maxClipParams,
-          ...newParams,
-        },
-      },
-    });
-  }
-
-  const fetchParams = useDefaultClipParams(maxClipParams);
-
-  const { data: localFetchedClips, isLoading } = useQuery({
-    queryFn: () => getClips(fetchParams),
-    queryKey: ["clips", maxClipParams],
-    refetchInterval: 1000 * 30,
+  const { data: topPerformingEmotes } = useEmoteAveragePerformance({
+    grouping,
   });
 
-  const { data } = useEmotes();
-
-  const emoteIds = data?.map((emote) => emote.Code);
-
-  const sortedClips = localFetchedClips
-    ?.sort((a, b) => b.count - a.count)
-    .filter((clip) => !!clip.clip_id);
-
-  const { emote_id, grouping, span } = fetchParams;
+  const topEmoteCodes = topPerformingEmotes?.Emotes?.slice()
+    .sort((a, b) => b.PercentDifference - a.PercentDifference)
+    .slice(0, 5)
+    .map((e) => ({
+      id: e.EmoteID,
+      code: e.Code,
+    }));
 
   return (
     <Card className="flex flex-col gap-5">
-      <div className={"flex flex-col gap-3"}>
-        <Title>Clips from Top Windows</Title>
-        <SettingsDropLayout>
-          <LabeledSelect
-            label="Emote"
-            value={emote_id?.toString()}
-            onValueChange={(value) =>
-              handleTopClipNavigate({ emote_id: parseInt(value) })
-            }
-          >
-            {emoteIds?.map((emote) => (
-              <SelectItem value={emote} key={emote}>
-                {emote}
-              </SelectItem>
-            ))}
-          </LabeledSelect>
-          <ClipBinSizeSelect
-            value={grouping}
-            onValueChange={(value) =>
-              handleTopClipNavigate({ grouping: value as ClipTimeGroupings })
-            }
-          />
-          <LabeledSelect
-            label="Over the past"
-            value={span}
-            onValueChange={(value) =>
-              handleTopClipNavigate({ span: value as ClipTimeSpans })
-            }
-          >
-            {clipTimeSpans.map((span) => (
-              <SelectItem value={span} key={span}>
-                {span}
-              </SelectItem>
-            ))}
-          </LabeledSelect>
-        </SettingsDropLayout>
-      </div>
-      {isLoading ? (
-        <span className="w-full aspect-video bg-gray-200 flex flex-col justify-center items-center animate-pulse" />
-      ) : (
-        <ClipClicker
-          clips={sortedClips ?? []}
-          index={maxClipIndex}
-          setIndex={(index) =>
-            navigate({ search: { ...currentState, maxClipIndex: index } })
-          }
-        />
-      )}
+      <CardTitle>Clips from Top Windows</CardTitle>
+      {topEmoteCodes?.map((e) => (
+        <TopClip emoteId={e.id} key={e.id} emoteCode={e.code} />
+      ))}
     </Card>
+  );
+}
+
+function TopClipsByDensity() {
+  const { data: isNlLive } = useLiveStatus();
+  const span = isNlLive ? "30 minutes" : "9 hours";
+
+  const { data: topPerformingEmotes } = useEmoteDensity({
+    span,
+  });
+
+  const topEmoteCodes = topPerformingEmotes?.Emotes?.slice(0, 10).map((e) => ({
+    id: e.EmoteID,
+    code: e.Code,
+    percentOfTotal: e.Percent,
+  }));
+
+  return (
+    <Card className="flex flex-col gap-5">
+      <CardTitle>Clips from Top Windows</CardTitle>
+      {topEmoteCodes?.map((e) => (
+        <TopClip emoteId={e.id} key={e.id} emoteCode={e.code}>
+          {Math.round(e.percentOfTotal * 100)}% of tracked emotes
+        </TopClip>
+      ))}
+    </Card>
+  );
+}
+
+export interface TopClipProps {
+  emoteId: number;
+  emoteCode: string;
+  children?: React.ReactNode;
+}
+
+export function TopClip({ emoteId, emoteCode, children }: TopClipProps) {
+  const { data: isNlLive } = useLiveStatus();
+
+  const [index, setIndex] = React.useState(0);
+
+  const params = {
+    span: isNlLive ? "30 minutes" : "9 hours",
+    grouping: "25 seconds",
+    limit: 10,
+    emote_id: emoteId,
+  } as const;
+
+  const { data: fetchedClips, isLoading } = useQuery({
+    queryFn: () => getClips(params),
+    queryKey: ["clips", params],
+    refetchInterval: 1000 * 30,
+  });
+
+  if (isLoading) {
+    return (
+      <span className="w-full aspect-video bg-gray-200 flex flex-col justify-center items-center animate-pulse" />
+    );
+  }
+
+  return (
+    <div>
+      {emoteCode}
+      {children}
+
+      <ClipClicker
+        clips={fetchedClips ?? []}
+        index={index}
+        setIndex={(index) => setIndex(index)}
+      />
+    </div>
   );
 }

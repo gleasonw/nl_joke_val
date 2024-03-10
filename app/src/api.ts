@@ -1,4 +1,9 @@
-import { ClipParams, SeriesParams } from "./types";
+import {
+  ClipParams,
+  EmoteDensityParams,
+  EmotePerformanceParams,
+  SeriesParams,
+} from "./types";
 import { GET } from "./utils";
 
 export async function getLiveStatus() {
@@ -10,6 +15,34 @@ export async function getLiveStatus() {
   }
 
   return response.data;
+}
+
+export async function getEmoteDensity(p: EmoteDensityParams) {
+  const result = await GET("/api/emote_density", {
+    params: {
+      query: p,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch emote density");
+  }
+
+  return result.data;
+}
+
+export async function getEmoteAveragePerformance(p: EmotePerformanceParams) {
+  const result = await GET("/api/emote_average_performance", {
+    params: {
+      query: p,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch emote average performance");
+  }
+
+  return result.data;
 }
 
 export async function getSeries(params: SeriesParams) {

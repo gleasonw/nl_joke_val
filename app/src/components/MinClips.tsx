@@ -3,7 +3,6 @@ import { getClips } from "../api";
 import { ClipTimeGroupings, ClipTimeSpans } from "../types";
 import { DashboardURLState, clipTimeSpans } from "../utils";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Title, SelectItem } from "@tremor/react";
 import { useDefaultClipParams } from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
@@ -11,6 +10,8 @@ import { ClipClicker } from "./ClipClicker";
 import { ClipBinSizeSelect } from "./ClipBinSizeSelect";
 import { LabeledSelect } from "./LabeledSelect";
 import { SettingsDropLayout } from "./SettingsDropLayout";
+import { Card, CardTitle } from "@/components/ui/card";
+import { SelectItem } from "@/components/ui/select";
 
 export type LocalMinClipState = NonNullable<DashboardURLState["minClipParams"]>;
 
@@ -52,7 +53,7 @@ export function MinClips() {
   return (
     <Card className="flex gap-5 flex-col">
       <div className={"flex flex-col gap-5"}>
-        <Title>Lowest 2 count</Title>
+        <CardTitle>Lowest 2 count</CardTitle>
         <SettingsDropLayout>
           <ClipBinSizeSelect
             value={grouping}

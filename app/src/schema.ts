@@ -11,6 +11,12 @@ export interface paths {
   "/api/clip_counts": {
     get: operations["list-api-clip-counts"];
   };
+  "/api/emote_average_performance": {
+    get: operations["get-api-emote-average-performance"];
+  };
+  "/api/emote_density": {
+    get: operations["get-api-emote-density"];
+  };
   "/api/emotes": {
     get: operations["list-api-emotes"];
   };
@@ -55,6 +61,65 @@ export interface components {
       ID: number;
       /** Format: date-time */
       UpdatedAt: string;
+    };
+    EmoteDensity: {
+      Code: string;
+      /** Format: int64 */
+      Count: number;
+      /** Format: int64 */
+      EmoteID: number;
+      /** Format: double */
+      Percent: number;
+    };
+    EmoteDensityInput: {
+      /**
+       * Format: int64
+       * @default 10
+       */
+      Limit: number;
+      /**
+       * @default 9 hours
+       * @enum {string}
+       */
+      Span: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+    };
+    EmoteDensityReport: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       */
+      $schema?: string;
+      Emotes: components["schemas"]["EmoteDensity"][];
+      Input: components["schemas"]["EmoteDensityInput"];
+    };
+    EmoteFullRow: {
+      Code: string;
+      /** Format: double */
+      CurrentSum: number;
+      /** Format: double */
+      Difference: number;
+      /** Format: int64 */
+      EmoteID: number;
+      /** Format: double */
+      PastAverage: number;
+      /** Format: double */
+      PercentDifference: number;
+    };
+    EmotePerformanceInput: {
+      /**
+       * @default minute
+       * @enum {string}
+       */
+      Grouping: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+    };
+    EmoteReport: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       */
+      $schema?: string;
+      Emotes: components["schemas"]["EmoteFullRow"][];
+      Input: components["schemas"]["EmotePerformanceInput"];
     };
     ErrorDetail: {
       /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
@@ -150,6 +215,49 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["Clip"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  "get-api-emote-average-performance": {
+    parameters: {
+      query?: {
+        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EmoteReport"];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  "get-api-emote-density": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+        limit?: number;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EmoteDensityReport"];
         };
       };
       /** @description Error */
