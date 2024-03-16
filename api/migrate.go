@@ -43,7 +43,34 @@ type FetchedClip struct {
 	CreatedAt time.Time `gorm:"index"`
 }
 
-func getLegacyEmoteCodes() map[string]string {
+func legacyCodes() []string {
+	return []string{
+		"LUL",
+		"ICANT",
+		"KEKW",
+		"Cereal",
+		"NOOO",
+		"COCKA",
+		"monkaS",
+		"Joel",
+		"POGCRAZY",
+		"Pog",
+		"LETSGO",
+		"HUHH",
+		"Copium",
+		"D:",
+		"WhoAsked",
+		"ratJAM",
+		"Sure",
+		"Classic",
+		"monkaGIGAftRyanGary",
+		"CAUGHT",
+		"Life",
+		"two",
+	}
+}
+
+func legacyCodeToColumnMap() map[string]string {
 	return map[string]string{
 		"LUL":                 "lol",
 		"ICANT":               "lol",
@@ -70,81 +97,50 @@ func getLegacyEmoteCodes() map[string]string {
 	}
 }
 
-func verify() error {
+const pog_pogcrazy_letsgo = "pog_pogcrazy_letsgo"
+const lul_kekw_icant = "lul_kekw_icant"
 
-	godotenv.Load()
+func verify(db *gorm.DB) error {
+	legacyCodes := legacyCodes()
+	codeToLegacyColumnMap := legacyCodeToColumnMap()
 
-	dbUrl := os.Getenv("DATABASE_URL")
-
-	db, err := gorm.Open(postgres.Open(dbUrl))
-
-	if err != nil {
-		panic("failed to connect database")
-	}
-
-	db.AutoMigrate(&EmoteCount{})
-
-	bttvEmotes, err := fetchNlEmotesFromBTTV()
-
-	currentColumnSet := getLegacyEmoteCodes()
-
-	if err != nil {
-		return err
-	}
-
-	newEmoteCodes := make([]string, 0, len(bttvEmotes.Emotes))
-
-	for _, emote := range bttvEmotes.Emotes {
-		if _, ok := currentColumnSet[emote.Code]; !ok {
-			fmt.Println("We aren't tracking this emote yet", emote.Code)
-			continue
+	// remove the special cases from legacyCodes
+	legacyCodes = slices.DeleteFunc(legacyCodes, func(code string) bool {
+		switch code {
+		case "LUL", "ICANT", "KEKW", "POGCRAZY", "LETSGO", "Pog":
+			return true
+		default:
+			return false
 		}
-		newEmoteCodes = append(newEmoteCodes, emote.Code)
-	}
+	})
 
-	// add the non-bttv emotes
+	codeToLegacyColumnMap[lul_kekw_icant] = "lol"
+	codeToLegacyColumnMap[pog_pogcrazy_letsgo] = "pog"
 
-	for emoteCode := range currentColumnSet {
-		if slices.Contains(newEmoteCodes, emoteCode) {
-			continue
-		}
-		fmt.Println("adding non-bttv emote", emoteCode)
-		newEmoteCodes = append(newEmoteCodes, emoteCode)
-	}
-	fmt.Println("new emotes", newEmoteCodes)
-
-	emotesInDb := make([]Emote, 0, len(newEmoteCodes))
-	db.Find(&emotesInDb)
-
-	emoteIdMap := make(map[string]int)
-
-	for _, emote := range emotesInDb {
-		emoteIdMap[emote.Code] = int(emote.ID)
-	}
-
-	for _, emote := range newEmoteCodes {
+	// a bit slow, could do this in one sql query.
+	for _, newEmote := range legacyCodes {
 		var oldCount, newCount int
 
-		legacyColumnName := currentColumnSet[emote]
+		oldEmote, ok := codeToLegacyColumnMap[newEmote]
 
-		query := fmt.Sprintf("SELECT sum(%s) as old_count FROM chat_counts", legacyColumnName)
+		if !ok {
+			return fmt.Errorf("unexpected emote while trying to map to old columns: %s", newEmote)
+		}
+
+		query := fmt.Sprintf("SELECT sum(%s) as old_count FROM chat_counts", oldEmote)
 
 		db.Raw(query).Scan(&oldCount)
 
-		emoteId, ok := emoteIdMap[emote]
+		emoteFromCode := Emote{}
 
-		if !ok {
-			fmt.Println("Emote not found in database", emote)
-			return nil
-		}
+		db.Find(&emoteFromCode, "code = ?", newEmote)
 
-		db.Raw(fmt.Sprintf("SELECT sum(count) as new_count FROM emote_counts where emote_id=%d", emoteId)).Scan(&newCount)
+		db.Raw(fmt.Sprintf("SELECT sum(count) as new_count FROM emote_counts where emote_id=%d", emoteFromCode.ID)).Scan(&newCount)
 
-		fmt.Println(emote, "old sum and new sum: ", oldCount, newCount)
+		fmt.Println(newEmote, "old sum and new sum: ", oldCount, newCount)
 
 		if oldCount != newCount || oldCount == 0 || newCount == 0 {
-			fmt.Println("Broken migration for ", emote, oldCount, newCount)
-			return nil
+			return fmt.Errorf("broken migration for %s, old sum and new sum: %d %d", newEmote, oldCount, newCount)
 		}
 	}
 
@@ -178,8 +174,7 @@ type ChatCounts struct {
 	Life         float64   `json:"life"`
 }
 
-// todo: migrate non-bttv emotes as well
-func migrate() error {
+func migrateAndVerify() error {
 
 	godotenv.Load()
 
@@ -203,11 +198,11 @@ func migrate() error {
 		return err
 	}
 
-	codeToColumnMap := getLegacyEmoteCodes()
+	codeToColumnMap := legacyCodeToColumnMap()
 
 	emotes := make([]string, 0, len(bttvEmotes.Emotes))
 
-	validEmoteSet := make(map[string]bool, len(bttvEmotes.Emotes))
+	validEmoteSet := make(map[string]struct{}, len(bttvEmotes.Emotes))
 
 	for _, emote := range bttvEmotes.Emotes {
 		if _, ok := codeToColumnMap[emote.Code]; !ok {
@@ -215,23 +210,24 @@ func migrate() error {
 			continue
 		}
 		emotes = append(emotes, emote.Code)
-		validEmoteSet[emote.Code] = true
+		validEmoteSet[emote.Code] = struct{}{}
 	}
 
-	_, oldChatCountColumns := getEmotes()
+	// add our special cases for combined columns
 
-	if len(emotes) != len(oldChatCountColumns) {
-		fmt.Println("We have a mismatch between the number of emotes we are tracking and the number of old columns in the database")
-		fmt.Printf("We have %d emotes, but we have %d columns", len(emotes), len(codeToColumnMap))
-		return nil
-	}
+	emotes = append(emotes, lul_kekw_icant)
+	emotes = append(emotes, pog_pogcrazy_letsgo)
+	codeToColumnMap[lul_kekw_icant] = "lol"
+	codeToColumnMap[pog_pogcrazy_letsgo] = "pog"
+	validEmoteSet[lul_kekw_icant] = struct{}{}
+	validEmoteSet[pog_pogcrazy_letsgo] = struct{}{}
 
 	// add the non-bttv emotes
 
 	for emoteCode := range codeToColumnMap {
 		if _, ok := validEmoteSet[emoteCode]; !ok {
 			fmt.Println("adding non-bttv emote", emoteCode)
-			validEmoteSet[emoteCode] = true
+			validEmoteSet[emoteCode] = struct{}{}
 			emotes = append(emotes, emoteCode)
 		}
 	}
@@ -285,6 +281,12 @@ func migrate() error {
 				columnName := codeToColumnMap[emote]
 				emoteFromDb, ok := emoteToIDMap[emote]
 
+				switch emoteFromDb.Code {
+				case "KEKW", "ICANT", "LUL", "POGCRAZY", "LETSGO", "Pog":
+					// these were tracked in combined columns, so we don't want to insert values for the individual columns.
+					continue
+				}
+
 				if !ok {
 					fmt.Println("Emote not found in database", emote)
 					return nil
@@ -323,7 +325,7 @@ func migrate() error {
 		return nil
 	})
 
-	return nil
+	return verify(db)
 
 }
 

@@ -48,10 +48,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			migrate()
-			return
-		case "verify":
-			verify()
+			migrateAndVerify()
 			return
 		}
 	}
@@ -207,7 +204,7 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
 
 		go readChatMessages(conn, incomingMessages, cancel)
 
-		initialEmotes, err := getEmotesInDB(db)
+		initEmotesToTrack, err := getTrackingEmotes(db)
 
 		if err != nil {
 			fmt.Println("Error getting initial emotes:", err)
@@ -218,7 +215,7 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
 
 		go syncTrackingEmotes(db, latestEmotes, ctx)
 
-		go countEmotes(incomingMessages, db, initialEmotes, ctx, refreshTokens, tokens, liveStatus, latestEmotes)
+		go countEmotes(incomingMessages, db, initEmotesToTrack, ctx, refreshTokens, tokens, liveStatus, latestEmotes)
 
 		<-ctx.Done()
 		cancel()
@@ -227,6 +224,23 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
 		fmt.Println("Reconnecting to Twitch chat")
 
 	}
+}
+
+func getTrackingEmotes(db *gorm.DB) (map[int]Emote, error) {
+	emotes, err := getEmotesInDB(db)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// delete the combined columns
+	for id, emote := range emotes {
+		if emote.Code == lul_kekw_icant || emote.Code == pog_pogcrazy_letsgo {
+			delete(emotes, id)
+		}
+	}
+
+	return emotes, nil
 }
 
 func getEmotesInDB(db *gorm.DB) (map[int]Emote, error) {
@@ -258,7 +272,7 @@ func syncTrackingEmotes(db *gorm.DB, trackingEmotesOut chan<- map[int]Emote, ctx
 				continue
 			}
 
-			emotes, err := getEmotesInDB(db)
+			emotes, err := getTrackingEmotes(db)
 
 			if err != nil {
 				fmt.Println("Error getting current emotes in db:", err)
@@ -287,7 +301,7 @@ func syncTrackingEmotes(db *gorm.DB, trackingEmotesOut chan<- map[int]Emote, ctx
 				}
 			}
 
-			updatedEmotes, err := getEmotesInDB(db)
+			updatedEmotes, err := getTrackingEmotes(db)
 
 			if err != nil {
 				fmt.Println("Error getting updated db emotes:", err)
