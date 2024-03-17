@@ -26,44 +26,20 @@ function Index() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto my-2 p-4 bg-white shadow-lg rounded-lg grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="flex flex-col">
-        <h1 className="text-3xl font-semibold">The NL chat dashboard</h1>
-        <div className="flex gap-4">
-          <LiveStatus />
-          <TopPerformingEmotes />
-        </div>
-        {timeRangeString && (
-          <div className="flex gap-4 my-4">
+    <div>
+      <div className=" mx-auto p-4 bg-white shadow-lg rounded-lg grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-4 my-4 items-center">
             <span className="text-xs">{timeRangeString}</span>
+            <DatePicker />
           </div>
-        )}
-        <DatePicker />
-        <Chart />
-        <ClipAtTime />
+          <TopPerformingEmotes />
+          <Chart />
+          <ClipAtTime />
+        </div>
+        <TopClips />
+        <MinClips />
       </div>
-      <TopClips />
-      <MinClips />
     </div>
   );
-}
-
-export function LiveStatus() {
-  const { data: nlIsLive } = useLiveStatus();
-  if (nlIsLive) {
-    return (
-      <span className="flex text-2xl gap-2 items-center">
-        <span className="bg-green-500 rounded-full w-4 h-4" />
-        <a
-          href="https://twitch.tv/northernlion"
-          target="_blank"
-          className="underline"
-          rel="noreferrer"
-        >
-          Live
-        </a>
-      </span>
-    );
-  }
-  return <span className="text-gray-500 text-2xl">Offline</span>;
 }

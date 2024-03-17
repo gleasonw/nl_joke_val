@@ -10,9 +10,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useDashboardState } from "@/hooks";
 
 export function DatePicker() {
-  const [date, setDate] = React.useState<Date>();
+  const [{ from }, handleUpdateURL] = useDashboardState();
+
+  const date = from ? new Date(from) : undefined;
 
   return (
     <Popover>
@@ -21,7 +24,7 @@ export function DatePicker() {
           variant={"outline"}
           className={cn(
             "w-[280px] justify-start text-left font-normal",
-            !date && "text-muted-foreground"
+            !from && "text-muted-foreground"
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
@@ -32,7 +35,7 @@ export function DatePicker() {
         <Calendar
           mode="single"
           selected={date}
-          onSelect={setDate}
+          onSelect={(date) => handleUpdateURL({ from: date?.toISOString() })}
           initialFocus
         />
       </PopoverContent>

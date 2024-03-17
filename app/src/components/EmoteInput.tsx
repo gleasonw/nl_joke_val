@@ -40,7 +40,7 @@ export function EmoteInput() {
           placeholder="Search emote..."
           className="w-full"
           value={searchTerm}
-          onInput={(e) => setSearchTerm(e.target.value)}
+          onInput={(e) => setSearchTerm((e.target as HTMLInputElement).value)}
         />
         <div className="flex flex-col max-h-60 overflow-y-auto">
           {filteredEmotes?.map((e) => (

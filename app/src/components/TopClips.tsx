@@ -11,6 +11,8 @@ import {
 import React from "react";
 import { ClipClicker } from "./ClipClicker";
 import { Card, CardTitle } from "@/components/ui/card";
+import { Route } from "@/routes/index.lazy";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type LocalClipState = NonNullable<DashboardURLState["maxClipParams"]>;
 
@@ -19,18 +21,21 @@ export interface TopClipsProps {
   params: LocalClipState;
 }
 export function TopClips() {
-  const [clipView, setClipView] = React.useState<"density" | "relative">(
-    "density"
-  );
   return (
     <div>
-      <button onClick={() => setClipView("density")}>Density</button>
-      <button onClick={() => setClipView("relative")}>Relative</button>
-      {clipView === "density" ? (
-        <TopClipsByDensity />
-      ) : (
-        <TopClipsByRelativePerformance />
-      )}
+      <CardTitle>Clips from Top Windows</CardTitle>
+      <Tabs defaultValue="relative">
+        <TabsList>
+          <TabsTrigger value="relative">Relative perf</TabsTrigger>
+          <TabsTrigger value="density">Share of tracked emotes</TabsTrigger>
+        </TabsList>
+        <TabsContent value="relative">
+          <TopClipsByRelativePerformance />
+        </TabsContent>
+        <TabsContent value="density">
+          <TopClipsByDensity />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -51,12 +56,11 @@ function TopClipsByRelativePerformance() {
     }));
 
   return (
-    <Card className="flex flex-col gap-5">
-      <CardTitle>Clips from Top Windows</CardTitle>
+    <div className="flex flex-col gap-5">
       {topEmoteCodes?.map((e) => (
         <TopClip emoteId={e.id} key={e.id} emoteCode={e.code} />
       ))}
-    </Card>
+    </div>
   );
 }
 
@@ -75,14 +79,13 @@ function TopClipsByDensity() {
   }));
 
   return (
-    <Card className="flex flex-col gap-5">
-      <CardTitle>Clips from Top Windows</CardTitle>
+    <div className="flex flex-col gap-5">
       {topEmoteCodes?.map((e) => (
         <TopClip emoteId={e.id} key={e.id} emoteCode={e.code}>
           {Math.round(e.percentOfTotal * 100)}% of tracked emotes
         </TopClip>
       ))}
-    </Card>
+    </div>
   );
 }
 
@@ -96,6 +99,7 @@ export function TopClip({ emoteId, emoteCode, children }: TopClipProps) {
   const { data: isNlLive } = useLiveStatus();
 
   const [index, setIndex] = React.useState(0);
+  const { from } = Route.useSearch();
 
   const params = {
     span: isNlLive ? "30 minutes" : "9 hours",
@@ -104,9 +108,10 @@ export function TopClip({ emoteId, emoteCode, children }: TopClipProps) {
     emote_id: emoteId,
   } as const;
 
+  // todo: this is a bad waterfall, we should go parallel on server
   const { data: fetchedClips, isLoading } = useQuery({
-    queryFn: () => getClips(params),
-    queryKey: ["clips", params],
+    queryFn: () => getClips({ ...params, from }),
+    queryKey: ["clips", params, from],
     refetchInterval: 1000 * 30,
   });
 

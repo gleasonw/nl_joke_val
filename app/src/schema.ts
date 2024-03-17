@@ -72,6 +72,8 @@ export interface components {
       Percent: number;
     };
     EmoteDensityInput: {
+      /** Format: date-time */
+      From: string;
       /**
        * Format: int64
        * @default 10
@@ -106,6 +108,8 @@ export interface components {
       PercentDifference: number;
     };
     EmotePerformanceInput: {
+      /** Format: date-time */
+      From: string;
       /**
        * @default minute
        * @enum {string}
@@ -208,6 +212,7 @@ export interface operations {
         grouping?: "25 seconds" | "1 minute" | "5 minutes" | "15 minutes" | "1 hour" | "1 day";
         order?: "ASC" | "DESC";
         limit?: number;
+        from?: string;
       };
     };
     responses: {
@@ -229,6 +234,7 @@ export interface operations {
     parameters: {
       query?: {
         grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        from?: string;
       };
     };
     responses: {
@@ -251,6 +257,7 @@ export interface operations {
       query?: {
         span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
         limit?: number;
+        from?: string;
       };
     };
     responses: {

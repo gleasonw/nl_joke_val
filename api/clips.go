@@ -15,11 +15,12 @@ type Clip struct {
 }
 
 type ClipCountsInput struct {
-	EmoteID  int    `query:"emote_id" default:"2"`
-	Span     string `query:"span" default:"9 hours" enum:"30 minutes,9 hours,1 week,1 month,1 year"`
-	Grouping string `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
-	Order    string `query:"order" default:"DESC" enum:"ASC,DESC"`
-	Limit    int    `query:"limit" default:"10"`
+	EmoteID  int       `query:"emote_id" default:"2"`
+	Span     string    `query:"span" default:"9 hours" enum:"30 minutes,9 hours,1 week,1 month,1 year"`
+	Grouping string    `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
+	Order    string    `query:"order" default:"DESC" enum:"ASC,DESC"`
+	Limit    int       `query:"limit" default:"10"`
+	From     time.Time `query:"from"`
 }
 
 type ClipCountsOutput struct {
@@ -55,7 +56,12 @@ func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[st
 	WHERE emote_id = $2
 	`, p.Grouping)
 
-	if p.Span != "" {
+	if !p.From.IsZero() {
+		rollingSumQuery = fmt.Sprintf(`
+			%s
+			AND DATE(emote_counts.created_at) = '%s'
+			`, rollingSumQuery, p.From.Format("2006-01-02"))
+	} else if p.Span != "" {
 		rollingSumQuery = fmt.Sprintf(`
 			%s 
 			AND created_at >= (

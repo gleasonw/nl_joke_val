@@ -101,6 +101,9 @@ func main() {
 	})
 
 	huma.Get(api, "/api/emote_average_performance", func(ctx context.Context, input *EmotePerformanceInput) (*TopPerformingEmotesOutput, error) {
+		if !input.From.IsZero() {
+			return GetTopPerformingEmotesOnDate(input.From, db)
+		}
 		return GetTopPerformingEmotes(*input, db)
 	})
 

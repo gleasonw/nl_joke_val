@@ -17,9 +17,11 @@ export function TopPerformingEmotes() {
   return (
     <section>
       <div className="flex gap-2">
-        {emotePerformance?.Emotes?.slice(0, 5).map((e) => (
-          <EmotePerformanceCard emotePerformance={e} key={e.Code} />
-        ))}
+        {emotePerformance?.Emotes?.filter((e) => e.CurrentSum > 0)
+          .slice(0, 5)
+          .map((e) => (
+            <EmotePerformanceCard emotePerformance={e} key={e.Code} />
+          ))}
       </div>
       <span className="text-xs">current / grouping (avg)</span>
     </section>
@@ -37,7 +39,7 @@ function EmotePerformanceCard({ emotePerformance }: EmotePerformanceCardProps) {
   const ArrowIcon = trend === "up" ? ArrowUp : ArrowDown;
 
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-white text-xs">
+    <div className="flex items-center gap-2 rounded-lg bg-white text-xs flex-col sm:flex-row">
       <ArrowIcon
         className={clsx("h-8 w-8 p-2 rounded", {
           "text-green-500": trend === "up",
@@ -47,7 +49,7 @@ function EmotePerformanceCard({ emotePerformance }: EmotePerformanceCardProps) {
         })}
       />
       <span className="flex flex-col gap-1">
-        <span className="flex gap-1">
+        <span className="flex gap-1 flex-col sm:flex-row">
           <span className="font-bold">{Code}</span>
           <span
             data-trend={trend}

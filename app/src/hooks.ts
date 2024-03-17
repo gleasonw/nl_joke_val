@@ -44,7 +44,7 @@ export function useDefaultSeries(): string[] {
     grouping,
   });
 
-  const topEmoteCodes = emotePerformance?.Emotes?.slice(0, 5).map(
+  const topEmoteCodes = emotePerformance?.Emotes?.slice(0, 2).map(
     (e) => e.Code
   );
 
@@ -56,19 +56,21 @@ export function useDefaultSeries(): string[] {
 }
 
 export function useEmoteDensity(p: EmoteDensityParams) {
+  const { from } = Route.useSearch();
   return useQuery({
-    queryFn: () => getEmoteDensity(p),
-    queryKey: ["emoteDensity", p],
-    refetchInterval: 1000 * 5,
+    queryFn: () => getEmoteDensity({ ...p, from }),
+    queryKey: ["emoteDensity", p, from],
+    refetchInterval: 1000 * 10,
     placeholderData: keepPreviousData,
   });
 }
 
 export function useEmoteAveragePerformance(p: EmotePerformanceParams) {
+  const { from } = Route.useSearch();
   return useQuery({
-    queryFn: () => getEmoteAveragePerformance(p),
-    queryKey: ["emoteAveragePerformance", p],
-    refetchInterval: 1000 * 5,
+    queryFn: () => getEmoteAveragePerformance({ ...p, from }),
+    queryKey: ["emoteAveragePerformance", p, from],
+    refetchInterval: 1000 * 10,
     placeholderData: keepPreviousData,
   });
 }
@@ -133,11 +135,11 @@ export function useDefaultClipParams(
 export function useTimeSeries() {
   const { data: isNlLive } = useLiveStatus();
   const currentState = Route.useSearch();
-  const { seriesParams } = currentState;
+  const { seriesParams, from } = currentState;
 
   const defaultSpan = isNlLive ? "30 minutes" : "9 hours";
   const defaultGrouping = isNlLive ? "second" : "minute";
-  const defaultRollingAverage = isNlLive ? 0 : 5;
+  const defaultRollingAverage = isNlLive ? 0 : 15;
 
   const chartState: typeof seriesParams = {
     ...seriesParams,
@@ -147,8 +149,8 @@ export function useTimeSeries() {
   };
 
   const seriesData = useQuery({
-    queryFn: () => getSeries(chartState),
-    queryKey: ["series", chartState],
+    queryFn: () => getSeries({ ...chartState, from }),
+    queryKey: ["series", chartState, from],
     refetchInterval: 1000 * 5,
     placeholderData: keepPreviousData,
   });

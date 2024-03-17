@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"gorm.io/gorm"
@@ -71,7 +72,8 @@ func fetchNlEmotesFromBTTV() (EmoteSet, error) {
 }
 
 type EmotePerformanceInput struct {
-	Grouping string `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
+	Grouping string    `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
+	From     time.Time `query:"from"`
 }
 
 type EmoteFullRow struct {
@@ -90,6 +92,28 @@ type EmoteReport struct {
 
 type TopPerformingEmotesOutput struct {
 	Body EmoteReport
+}
+
+func GetTopPerformingEmotesOnDate(from time.Time, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
+	fmt.Println("getting top performing emotes on date", from)
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	currentSumQuery := psql.
+		Select("count", "code", "emote_id").
+		FromSelect(
+			psql.Select("sum(count) as count, emote_id").
+				From("emote_counts").
+				Where(sq.Eq{"DATE(emote_counts.created_at)": from.Format("2006-01-02")}).
+				GroupBy("emote_id"),
+			"series").
+		Join("emotes on emotes.id = series.emote_id")
+
+	averageQuery := psql.Select("sum(count) as count, emote_id, DATE(emote_counts.created_at) as date").
+		From("emote_counts").
+		GroupBy("emote_id, date")
+
+	return getEmotePerformanceStats(averageQuery, currentSumQuery, db)
+
 }
 
 func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
@@ -113,24 +137,30 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 		GroupBy("emote_id", "time").
 		OrderBy("time")
 
-	joinEmotes := psql.
+	return getEmotePerformanceStats(averageQuery, currentSumQuery, db)
+
+}
+
+func getEmotePerformanceStats(averageQuery sq.SelectBuilder, currentSumQuery sq.SelectBuilder, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	joinedEmotes := psql.
 		Select("avg(count) as past_average", "code", "series.emote_id as emote_id").
 		FromSelect(averageQuery, "series").
 		Join("emotes on emotes.id = series.emote_id").
 		GroupBy("code", "series.emote_id")
 
-	fullQuery, args, err := psql.Select("avg_series.code, past_average, avg_series.emote_id, current_sum.count as current_sum, current_sum.count - past_average as difference, (current_sum.count - past_average) / past_average as percent_difference").
-		FromSelect(joinEmotes, "avg_series").
+	fullQuery, args, err := psql.Select("avg_series.code, past_average, avg_series.emote_id, current_sum.count as current_sum, current_sum.count - past_average as difference, COALESCE((current_sum.count - past_average) / NULLIF(past_average, 0), 0) as percent_difference").
+		FromSelect(joinedEmotes, "avg_series").
 		JoinClause(currentSumQuery.Prefix("JOIN (").Suffix(") current_sum ON current_sum.emote_id = avg_series.emote_id")).
-		OrderBy("abs(current_sum.count - past_average) / past_average DESC").
-		ToSql()
-
-	fmt.Println(fullQuery)
+		OrderBy("COALESCE((current_sum.count - past_average) / NULLIF(past_average, 0), 0) DESC").ToSql()
 
 	if err != nil {
 		fmt.Println(err)
 		return &TopPerformingEmotesOutput{}, err
 	}
+
+	fmt.Println(fullQuery)
 
 	averages := []EmoteFullRow{}
 
@@ -141,13 +171,13 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 		return &TopPerformingEmotesOutput{}, err
 	}
 
-	return &TopPerformingEmotesOutput{EmoteReport{Emotes: averages, Input: p}}, nil
-
+	return &TopPerformingEmotesOutput{EmoteReport{Emotes: averages}}, nil
 }
 
 type EmoteDensityInput struct {
-	Span  string `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours,custom" default:"9 hours"`
-	Limit int    `query:"limit" default:"10"`
+	Span  string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours,custom" default:"9 hours"`
+	Limit int       `query:"limit" default:"10"`
+	From  time.Time `query:"from"`
 }
 
 type EmoteDensity struct {
@@ -172,12 +202,19 @@ func GetTopDensityEmotes(db *gorm.DB, p EmoteDensityInput) (*TopDensityEmotesOut
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	filterRows := func(query *sq.SelectBuilder) sq.SelectBuilder {
-		return query.
-			Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id != (").Suffix(")")).
-			Where(psql.Select(fmt.Sprintf("MAX(created_at) - INTERVAL '%s'", p.Span)).
+		base := query.
+			Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id != (").Suffix(")"))
+
+		if !p.From.IsZero() {
+			base = base.Where(sq.Eq{"DATE(emote_counts.created_at)": p.From})
+		} else {
+			base = base.Where(psql.Select(fmt.Sprintf("MAX(created_at) - INTERVAL '%s'", p.Span)).
 				From("emote_counts").
 				Prefix("emote_counts.created_at >=(").
 				Suffix(")"))
+		}
+
+		return base
 	}
 
 	totalBuilder := psql.Select("sum(count) as total_count").

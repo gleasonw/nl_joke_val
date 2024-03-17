@@ -3,7 +3,12 @@ import { TimeGroupings } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { useDefaultSeries, useLiveStatus, useTimeSeries } from "../hooks";
+import {
+  useDashboardState,
+  useDefaultSeries,
+  useLiveStatus,
+  useTimeSeries,
+} from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
 import { SettingsDropLayout } from "./SettingsDropLayout";
@@ -56,7 +61,7 @@ export function Chart() {
 
   const [
     { data: localFetchedSeries, isLoading },
-    { grouping, span, rollingAverage },
+    { grouping, rollingAverage },
   ] = useTimeSeries();
 
   const defaultSeries = useDefaultSeries();
@@ -148,26 +153,7 @@ export function Chart() {
 
   return (
     <div className="flex flex-col gap-2">
-      <SettingsDropLayout>
-        <Button
-          onClick={() => handleUpdateChart(lastMinuteRange)}
-          variant={span === "1 minute" ? "default" : "outline"}
-        >
-          Last minute of stream
-        </Button>
-        <Button
-          onClick={() => handleUpdateChart(lastHourRange)}
-          variant={span === "1 hour" ? "default" : "outline"}
-        >
-          Last hour of stream
-        </Button>
-        <Button
-          onClick={() => handleUpdateChart(last9HoursRange)}
-          variant={span === "9 hours" || span === null ? "default" : "outline"}
-        >
-          Last 9 hours of stream
-        </Button>
-      </SettingsDropLayout>
+      <ChartSpanOptions />
       {isLoading ? (
         <div className="text-center w-full h-full">Loading series...</div>
       ) : (
@@ -204,7 +190,7 @@ export function Chart() {
                 rollingAverage: parseInt(value),
               })
             }
-            value={rollingAverage}
+            value={(rollingAverage ?? 0).toString()}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Smoothing" />
@@ -220,6 +206,41 @@ export function Chart() {
         </label>
       </SettingsDropLayout>
     </div>
+  );
+}
+
+export function ChartSpanOptions() {
+  const [{ from }, handleUpdateChart] = useDashboardState();
+  const [, { span }] = useTimeSeries();
+
+  if (from) {
+    return (
+      <Button onClick={() => handleUpdateChart({ from: undefined })}>
+        Return to latest stream data
+      </Button>
+    );
+  }
+  return (
+    <SettingsDropLayout>
+      <Button
+        onClick={() => handleUpdateChart(lastMinuteRange)}
+        variant={span === "1 minute" ? "default" : "outline"}
+      >
+        Last minute of stream
+      </Button>
+      <Button
+        onClick={() => handleUpdateChart(lastHourRange)}
+        variant={span === "1 hour" ? "default" : "outline"}
+      >
+        Last hour of stream
+      </Button>
+      <Button
+        onClick={() => handleUpdateChart(last9HoursRange)}
+        variant={span === "9 hours" || span === null ? "default" : "outline"}
+      >
+        Last 9 hours of stream
+      </Button>
+    </SettingsDropLayout>
   );
 }
 
