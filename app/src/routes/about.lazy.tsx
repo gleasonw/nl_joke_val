@@ -1,6 +1,4 @@
-import { Link, createLazyFileRoute } from "@tanstack/react-router";
-import { LineChart } from "lucide-react";
-// @ts-expect-error - this is a valid import
+import { createLazyFileRoute } from "@tanstack/react-router";
 import React from "react";
 
 export const Route = createLazyFileRoute("/about")({

@@ -1,5 +1,5 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useLiveStatus, useTimeSeries } from "../hooks";
+import { useTimeSeries } from "../hooks";
 import React from "react";
 import { Chart } from "../components/Chart";
 import { TopPerformingEmotes } from "@/components/TopPerformingEmotes";
