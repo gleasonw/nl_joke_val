@@ -18,6 +18,7 @@ export type DashboardURLState = {
   series?: string[];
   maxClipIndex?: number;
   minClipIndex?: number;
+  from?: string;
 };
 
 const clipSpans = z
@@ -50,8 +51,6 @@ const seriesParamsSchema = z.object({
     .catch("minute")
     .optional(),
   rollingAverage: z.coerce.number().optional().catch(0),
-  from: z.string().optional().catch(undefined),
-  to: z.string().optional().catch(undefined),
 });
 
 const clipParamsSchema = z.object({
@@ -73,11 +72,12 @@ export const dashboardURLStateSchema = z.object({
   series: z.array(z.string()).optional().catch(["two"]),
   maxClipIndex: z.coerce.number().catch(0),
   minClipIndex: z.coerce.number().catch(0),
+  from: z.string().optional().catch(undefined),
+  to: z.string().optional().catch(undefined),
 });
 
 // ensure that the inferred type matches the type of the schema
-// @ts-ignore
-const parseParams = (params: Record<string, any>): DashboardURLState => {
+const parseParams = (params: unknown): DashboardURLState => {
   return dashboardURLStateSchema.parse(params);
 };
 

@@ -6,22 +6,25 @@
 
 export interface paths {
   "/api/clip": {
-    /** Get nearest clip */
-    get: operations["get-nearest-clip"];
+    get: operations["get-api-clip"];
   };
   "/api/clip_counts": {
-    /** Get clip counts */
-    get: operations["get-clip-counts"];
+    get: operations["list-api-clip-counts"];
+  };
+  "/api/emote_average_performance": {
+    get: operations["get-api-emote-average-performance"];
+  };
+  "/api/emote_density": {
+    get: operations["get-api-emote-density"];
+  };
+  "/api/emotes": {
+    get: operations["list-api-emotes"];
   };
   "/api/is_live": {
-    /** Is NL live */
-    get: operations["is-nl-live"];
+    get: operations["get-api-is-live"];
   };
   "/api/series": {
-    /** Get a time series of emote counts */
-    get: operations["get-series"];
-    /** Get a time series of emote counts */
-    options: operations["get-series"];
+    get: operations["list-api-series"];
   };
 }
 
@@ -29,46 +32,6 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
-    ChatCounts: {
-      /** Format: double */
-      caught: number;
-      /** Format: double */
-      cereal: number;
-      /** Format: double */
-      classic: number;
-      /** Format: double */
-      cocka: number;
-      /** Format: double */
-      copium: number;
-      /** Format: double */
-      huh: number;
-      /** Format: double */
-      joel: number;
-      /** Format: double */
-      life: number;
-      /** Format: double */
-      lol: number;
-      /** Format: double */
-      monka_giga: number;
-      /** Format: double */
-      monkas: number;
-      /** Format: double */
-      no: number;
-      /** Format: double */
-      pog: number;
-      /** Format: double */
-      ratjam: number;
-      /** Format: double */
-      shock: number;
-      /** Format: double */
-      sure: number;
-      /** Format: double */
-      time: number;
-      /** Format: double */
-      two: number;
-      /** Format: double */
-      who_asked: number;
-    };
     Clip: {
       /**
        * Format: uri
@@ -80,6 +43,87 @@ export interface components {
       count: number;
       /** Format: date-time */
       time: string;
+    };
+    DeletedAt: {
+      /** Format: date-time */
+      Time: string;
+      Valid: boolean;
+    };
+    Emote: {
+      /** Format: int64 */
+      BttvId: number;
+      ChannelId: string;
+      Code: string;
+      /** Format: date-time */
+      CreatedAt: string;
+      DeletedAt: components["schemas"]["DeletedAt"];
+      /** Format: int64 */
+      ID: number;
+      /** Format: date-time */
+      UpdatedAt: string;
+    };
+    EmoteDensity: {
+      Code: string;
+      /** Format: int64 */
+      Count: number;
+      /** Format: int64 */
+      EmoteID: number;
+      /** Format: double */
+      Percent: number;
+    };
+    EmoteDensityInput: {
+      /** Format: date-time */
+      From: string;
+      /**
+       * Format: int64
+       * @default 10
+       */
+      Limit: number;
+      /**
+       * @default 9 hours
+       * @enum {string}
+       */
+      Span: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+    };
+    EmoteDensityReport: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       */
+      $schema?: string;
+      Emotes: components["schemas"]["EmoteDensity"][];
+      Input: components["schemas"]["EmoteDensityInput"];
+    };
+    EmoteFullRow: {
+      Code: string;
+      /** Format: double */
+      CurrentSum: number;
+      /** Format: double */
+      Difference: number;
+      /** Format: int64 */
+      EmoteID: number;
+      /** Format: double */
+      PastAverage: number;
+      /** Format: double */
+      PercentDifference: number;
+    };
+    EmotePerformanceInput: {
+      /** Format: date-time */
+      From: string;
+      /**
+       * @default minute
+       * @enum {string}
+       */
+      Grouping: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+    };
+    EmoteReport: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       */
+      $schema?: string;
+      Emotes: components["schemas"]["EmoteFullRow"][];
+      Input: components["schemas"]["EmotePerformanceInput"];
     };
     ErrorDetail: {
       /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
@@ -118,6 +162,13 @@ export interface components {
        */
       type?: string;
     };
+    TimeSeries: {
+      series: {
+        [key: string]: number;
+      };
+      /** Format: date-time */
+      time: string;
+    };
   };
   responses: never;
   parameters: never;
@@ -132,8 +183,7 @@ export type external = Record<string, never>;
 
 export interface operations {
 
-  /** Get nearest clip */
-  "get-nearest-clip": {
+  "get-api-clip": {
     parameters: {
       query?: {
         time?: number;
@@ -154,15 +204,15 @@ export interface operations {
       };
     };
   };
-  /** Get clip counts */
-  "get-clip-counts": {
+  "list-api-clip-counts": {
     parameters: {
       query?: {
-        column?: string;
+        emote_id?: number;
         span?: "30 minutes" | "9 hours" | "1 week" | "1 month" | "1 year";
         grouping?: "25 seconds" | "1 minute" | "5 minutes" | "15 minutes" | "1 hour" | "1 day";
         order?: "ASC" | "DESC";
         limit?: number;
+        from?: string;
       };
     };
     responses: {
@@ -180,8 +230,68 @@ export interface operations {
       };
     };
   };
-  /** Is NL live */
-  "is-nl-live": {
+  "get-api-emote-average-performance": {
+    parameters: {
+      query?: {
+        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        from?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EmoteReport"];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  "get-api-emote-density": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+        limit?: number;
+        from?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EmoteDensityReport"];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  "list-api-emotes": {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["Emote"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  "get-api-is-live": {
     responses: {
       /** @description OK */
       200: {
@@ -197,8 +307,7 @@ export interface operations {
       };
     };
   };
-  /** Get a time series of emote counts */
-  "get-series": {
+  "list-api-series": {
     parameters: {
       query?: {
         span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
@@ -212,7 +321,7 @@ export interface operations {
       /** @description OK */
       200: {
         content: {
-          "application/json": components["schemas"]["ChatCounts"][];
+          "application/json": components["schemas"]["TimeSeries"][];
         };
       };
       /** @description Error */

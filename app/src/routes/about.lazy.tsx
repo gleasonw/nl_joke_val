@@ -1,6 +1,4 @@
-import { Link, createLazyFileRoute } from "@tanstack/react-router";
-import { LineChart } from "lucide-react";
-// @ts-expect-error - this is a valid import
+import { createLazyFileRoute } from "@tanstack/react-router";
 import React from "react";
 
 export const Route = createLazyFileRoute("/about")({
@@ -10,12 +8,6 @@ export const Route = createLazyFileRoute("/about")({
 function About() {
   return (
     <>
-      <Link
-        to="/"
-        className="[&.active]:font-bold absolute top-0 left-0 z-10 p-3"
-      >
-        <LineChart />
-      </Link>
       <section className="flex flex-col gap-10 p-10">
         <p>
           Imagine a world where a Twitch bot sits in NLs chat. The bot counts
