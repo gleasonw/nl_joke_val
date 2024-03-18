@@ -2,14 +2,17 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type Emote struct {
@@ -180,7 +183,12 @@ func migrateAndVerify() error {
 
 	dbUrl := os.Getenv("DATABASE_URL")
 
-	db, err := gorm.Open(postgres.Open(dbUrl))
+	db, err := gorm.Open(postgres.Open(dbUrl), &gorm.Config{
+		Logger: logger.New(log.New(os.Stdout, "", log.LstdFlags),
+			logger.Config{
+				LogLevel: logger.Silent,
+			}),
+	})
 
 	if err != nil {
 		panic("failed to connect database")
@@ -236,97 +244,123 @@ func migrateAndVerify() error {
 
 	emoteToIDMap := make(map[string]Emote)
 
-	db.Transaction(func(tx *gorm.DB) error {
+	for _, emote := range emotes {
+		emoteToMap := Emote{Code: emote}
+		err := db.Create(&emoteToMap).Error
+
+		if err != nil {
+			fmt.Println("Error creating emote", err)
+			return err
+		}
+
+		emoteToIDMap[emote] = emoteToMap
+	}
+
+	emoteCounts := make([]EmoteCount, 0, len(oldChatCounts)*len(emotes))
+	clipsToInsert := make([]FetchedClip, 0, len(oldChatCounts))
+	columnNameSet, _ := getEmotes()
+
+	for _, oldChatCount := range oldChatCounts {
+		oldCountReflect := reflect.ValueOf(oldChatCount)
+
+		columnToCount := make(map[string]int)
+
+		for i := 0; i < oldCountReflect.NumField(); i++ {
+			jsonTag := oldCountReflect.Type().Field(i).Tag.Get("json")
+			fieldValue := oldCountReflect.Field(i).Interface()
+			if ok := columnNameSet[jsonTag]; ok {
+				columnToCount[jsonTag] = int(fieldValue.(float64))
+			}
+
+		}
+
+		if oldChatCount.ClipId != "" {
+			clipsToInsert = append(clipsToInsert,
+				FetchedClip{
+					ClipID:    oldChatCount.ClipId,
+					CreatedAt: oldChatCount.CreatedAt,
+				},
+			)
+		}
 
 		for _, emote := range emotes {
-			emoteToMap := Emote{Code: emote}
-			err := tx.Create(&emoteToMap).Error
+			columnName := codeToColumnMap[emote]
+			emoteFromDb, ok := emoteToIDMap[emote]
 
-			if err != nil {
-				fmt.Println("Error creating emote", err)
-				return err
+			switch emoteFromDb.Code {
+			case "KEKW", "ICANT", "LUL", "POGCRAZY", "LETSGO", "Pog":
+				// these were tracked in combined columns, so we don't want to insert values for the individual columns.
+				continue
 			}
 
-			emoteToIDMap[emote] = emoteToMap
-		}
-
-		emoteCounts := make([]EmoteCount, 0, len(oldChatCounts)*len(emotes))
-		clipsToInsert := make([]FetchedClip, 0, len(oldChatCounts))
-		columnNameSet, _ := getEmotes()
-
-		for _, oldChatCount := range oldChatCounts {
-			oldCountReflect := reflect.ValueOf(oldChatCount)
-
-			columnToCount := make(map[string]int)
-
-			for i := 0; i < oldCountReflect.NumField(); i++ {
-				jsonTag := oldCountReflect.Type().Field(i).Tag.Get("json")
-				fieldValue := oldCountReflect.Field(i).Interface()
-				if ok := columnNameSet[jsonTag]; ok {
-					columnToCount[jsonTag] = int(fieldValue.(float64))
-				}
-
+			if !ok {
+				fmt.Println("Emote not found in database", emote)
+				return nil
 			}
+
+			var builder func(count int, emote Emote, oldChatCount ChatCounts) EmoteCount
 
 			if oldChatCount.ClipId != "" {
-				clipsToInsert = append(clipsToInsert,
-					FetchedClip{
-						ClipID:    oldChatCount.ClipId,
-						CreatedAt: oldChatCount.CreatedAt,
-					},
-				)
+				builder = buildEmoteCount
+			} else {
+				builder = buildEmoteCountNoClip
 			}
 
-			for _, emote := range emotes {
-				columnName := codeToColumnMap[emote]
-				emoteFromDb, ok := emoteToIDMap[emote]
+			count, ok := columnToCount[columnName]
 
-				switch emoteFromDb.Code {
-				case "KEKW", "ICANT", "LUL", "POGCRAZY", "LETSGO", "Pog":
-					// these were tracked in combined columns, so we don't want to insert values for the individual columns.
-					continue
-				}
-
-				if !ok {
-					fmt.Println("Emote not found in database", emote)
-					return nil
-				}
-
-				var builder func(count int, emote Emote, oldChatCount ChatCounts) EmoteCount
-
-				if oldChatCount.ClipId != "" {
-					builder = buildEmoteCount
-				} else {
-					builder = buildEmoteCountNoClip
-				}
-
-				count, ok := columnToCount[columnName]
-
-				if !ok {
-					fmt.Println("Emote not found in chat count", columnName)
-					// an emote we don't track yet
-					continue
-				}
-
-				emoteCount := builder(count, emoteFromDb, oldChatCount)
-
-				emoteCounts = append(emoteCounts, emoteCount)
-
+			if !ok {
+				fmt.Println("Emote not found in chat count", columnName)
+				// an emote we don't track yet
+				continue
 			}
+
+			emoteCount := builder(count, emoteFromDb, oldChatCount)
+
+			emoteCounts = append(emoteCounts, emoteCount)
+
 		}
-		fmt.Println("Inserting clips")
+	}
+	fmt.Println("Inserting clips")
 
-		tx.CreateInBatches(clipsToInsert, 1000)
+	err = concurrentBatchInsert(db, clipsToInsert)
 
-		fmt.Println("Inserting emote counts")
+	if err != nil {
+		fmt.Println("Error inserting clips:", err)
+		return err
+	}
 
-		tx.CreateInBatches(emoteCounts, 1000)
+	fmt.Println("Inserting emote counts")
 
-		return nil
-	})
+	err = concurrentBatchInsert(db, emoteCounts)
 
-	return verify(db)
+	if err != nil {
+		fmt.Println("Error inserting emote counts:", err)
+		return err
+	}
 
+	verify(db)
+
+	return nil
+
+}
+
+func concurrentBatchInsert[Row EmoteCount | FetchedClip](db *gorm.DB, rows []Row) error {
+	var wg sync.WaitGroup
+	numWorkers := 20
+	wg.Add(numWorkers)
+	numRowsPerWorker := len(rows) / numWorkers
+	for i := 0; i < numWorkers; i++ {
+		go func(chunkedRows []Row) {
+			defer wg.Done()
+			db.CreateInBatches(chunkedRows, 1000)
+		}(rows[i*numRowsPerWorker : (i+1)*numRowsPerWorker])
+	}
+	remainingRows := len(rows) - (numWorkers * numRowsPerWorker)
+	if remainingRows > 0 {
+		db.Create(rows[numWorkers*numRowsPerWorker:])
+	}
+	wg.Wait()
+	return nil
 }
 
 func buildEmoteCount(count int, emote Emote, oldChatCount ChatCounts) EmoteCount {
