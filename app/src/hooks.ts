@@ -57,20 +57,22 @@ export function useDefaultSeries(): string[] {
 
 export function useEmoteDensity(p: EmoteDensityParams) {
   const { from } = Route.useSearch();
+  const { data: isNlLive } = useLiveStatus();
   return useQuery({
     queryFn: () => getEmoteDensity({ ...p, from }),
     queryKey: ["emoteDensity", p, from],
-    refetchInterval: 1000 * 10,
+    refetchInterval: isNlLive ? 1000 * 10 : false,
     placeholderData: keepPreviousData,
   });
 }
 
 export function useEmoteAveragePerformance(p: EmotePerformanceParams) {
   const { from } = Route.useSearch();
+  const { data: isNlLive } = useLiveStatus();
   return useQuery({
     queryFn: () => getEmoteAveragePerformance({ ...p, from }),
     queryKey: ["emoteAveragePerformance", p, from],
-    refetchInterval: 1000 * 10,
+    refetchInterval: isNlLive ? 1000 * 10 : false,
     placeholderData: keepPreviousData,
   });
 }
@@ -151,7 +153,7 @@ export function useTimeSeries() {
   const seriesData = useQuery({
     queryFn: () => getSeries({ ...chartState, from }),
     queryKey: ["series", chartState, from],
-    refetchInterval: 1000 * 5,
+    refetchInterval: isNlLive ? 1000 * 10 : false,
     placeholderData: keepPreviousData,
   });
 

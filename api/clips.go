@@ -59,8 +59,8 @@ func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[st
 	if !p.From.IsZero() {
 		rollingSumQuery = fmt.Sprintf(`
 			%s
-			AND DATE(emote_counts.created_at) = '%s'
-			`, rollingSumQuery, p.From.Format("2006-01-02"))
+			AND (emote_counts.created_at AT TIME ZONE 'UTC')::date = '%s'
+			`, rollingSumQuery, p.From.Format("2006-01-02 15:04:05"))
 	} else if p.Span != "" {
 		rollingSumQuery = fmt.Sprintf(`
 			%s 
@@ -108,8 +108,6 @@ func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[st
 		LIMIT 1
 	) ec;
 	`, rollingSumQuery, p.Order, likelyBitLength, likelyBitLength, p.Order)
-
-	fmt.Println(query)
 
 	var clips []Clip
 	err := db.Raw(query, p.Limit, p.EmoteID).Scan(&clips).Error

@@ -10,7 +10,7 @@ import {
 } from "../hooks";
 import React from "react";
 import { ClipClicker } from "./ClipClicker";
-import { Card, CardTitle } from "@/components/ui/card";
+import { CardTitle } from "@/components/ui/card";
 import { Route } from "@/routes/index.lazy";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -82,7 +82,7 @@ function TopClipsByDensity() {
     <div className="flex flex-col gap-5">
       {topEmoteCodes?.map((e) => (
         <TopClip emoteId={e.id} key={e.id} emoteCode={e.code}>
-          {Math.round(e.percentOfTotal * 100)}% of tracked emotes
+          {Math.round(e.percentOfTotal)}% of tracked emotes{" "}
         </TopClip>
       ))}
     </div>

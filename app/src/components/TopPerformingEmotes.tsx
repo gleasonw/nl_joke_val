@@ -17,7 +17,7 @@ export function TopPerformingEmotes() {
   return (
     <section>
       <div className="flex gap-2">
-        {emotePerformance?.Emotes?.filter((e) => e.CurrentSum > 0)
+        {emotePerformance?.Emotes?.filter((e) => e.Difference != 0)
           .slice(0, 5)
           .map((e) => (
             <EmotePerformanceCard emotePerformance={e} key={e.Code} />
@@ -34,7 +34,7 @@ interface EmotePerformanceCardProps {
 
 function EmotePerformanceCard({ emotePerformance }: EmotePerformanceCardProps) {
   const grouping = usePerformanceGrouping();
-  const { Code, CurrentSum, PercentDifference, PastAverage } = emotePerformance;
+  const { Code, DaySum, PercentDifference, Average } = emotePerformance;
   const trend = PercentDifference > 0 ? "up" : "down";
   const ArrowIcon = trend === "up" ? ArrowUp : ArrowDown;
 
@@ -55,11 +55,11 @@ function EmotePerformanceCard({ emotePerformance }: EmotePerformanceCardProps) {
             data-trend={trend}
             className="data-[trend=up]:text-green-600 data-[trend=down]:text-red-600"
           >
-            {Math.round(PercentDifference * 100)}%
+            {Math.round(PercentDifference)}%
           </span>
         </span>
         <span>
-          {CurrentSum} {grouping} ({Math.round(PastAverage)})
+          {DaySum} {grouping} ({Math.round(Average)})
         </span>
       </span>
     </div>

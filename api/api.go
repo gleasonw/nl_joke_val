@@ -56,30 +56,28 @@ func main() {
 	env := GetConfig()
 
 	db, err := gorm.Open(postgres.Open(env.DatabaseUrl))
+
+	db.AutoMigrate(&RefreshTokenStore{})
+
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	db.AutoMigrate(&RefreshTokenStore{})
-	db.AutoMigrate(&Emote{})
-	db.AutoMigrate(&EmoteCount{})
-	db.AutoMigrate(&FetchedClip{})
-
 	liveStatus := &LiveStatus{IsLive: false}
 
-	go connectToTwitchChat(
-		db,
-		liveStatus,
-	)
+	// go connectToTwitchChat(
+	// 	db,
+	// 	liveStatus,
+	// )
+
+	validColumnSet, _ := getEmotes()
 
 	router := chi.NewMux()
 
 	router.Use(cors.Default().Handler)
 
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
-
-	validColumnSet, _ := getEmotes()
 
 	huma.Get(api, "/api/clip_counts", func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
 		return GetClipCountsNewModel(*input, db, validColumnSet)
@@ -101,9 +99,6 @@ func main() {
 	})
 
 	huma.Get(api, "/api/emote_average_performance", func(ctx context.Context, input *EmotePerformanceInput) (*TopPerformingEmotesOutput, error) {
-		if !input.From.IsZero() {
-			return GetTopPerformingEmotesOnDate(input.From, db)
-		}
 		return GetTopPerformingEmotes(*input, db)
 	})
 

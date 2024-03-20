@@ -71,6 +71,8 @@ export function Chart() {
 
   const chartType = urlChartType ?? "line";
 
+  console.log(localFetchedSeries);
+
   const emoteSeries:
     | Highcharts.SeriesLineOptions[]
     | Highcharts.SeriesBarOptions[] =
@@ -79,7 +81,7 @@ export function Chart() {
       data:
         localFetchedSeries?.map((d) => [
           new Date(d.time).getTime(),
-          d.series[key] ?? "",
+          d.series[key] ?? 0,
         ]) ?? [],
       events: {
         click: function (e) {

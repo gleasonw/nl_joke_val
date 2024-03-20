@@ -29,11 +29,11 @@ func (e *Emote) String() string {
 type EmoteCount struct {
 	Id        int64 `gorm:"primary_key"`
 	Count     int
-	EmoteID   int `gorm:"index"`
+	EmoteID   int
 	Emote     Emote
 	ClipID    *string
 	Clip      FetchedClip
-	CreatedAt time.Time `gorm:"index"`
+	CreatedAt time.Time
 }
 
 func (e *EmoteCount) String() string {
@@ -190,13 +190,13 @@ func migrateAndVerify() error {
 			}),
 	})
 
-	if err != nil {
-		panic("failed to connect database")
-	}
-
 	db.AutoMigrate(&Emote{})
 	db.AutoMigrate(&EmoteCount{})
 	db.AutoMigrate(&FetchedClip{})
+
+	if err != nil {
+		panic("failed to connect database")
+	}
 
 	oldChatCounts := make([]ChatCounts, 0, 1000000)
 

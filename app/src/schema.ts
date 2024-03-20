@@ -95,15 +95,15 @@ export interface components {
       Input: components["schemas"]["EmoteDensityInput"];
     };
     EmoteFullRow: {
+      /** Format: double */
+      Average: number;
       Code: string;
       /** Format: double */
-      CurrentSum: number;
+      DaySum: number;
       /** Format: double */
       Difference: number;
       /** Format: int64 */
       EmoteID: number;
-      /** Format: double */
-      PastAverage: number;
       /** Format: double */
       PercentDifference: number;
     };

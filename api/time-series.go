@@ -66,8 +66,7 @@ func baseSeriesSelect(p SeriesInput) sq.SelectBuilder {
 			Where(sq.LtOrEq{"emote_counts.created_at": p.To}).
 			Where(sq.GtOrEq{"emote_counts.created_at": p.From})
 	} else if !p.From.IsZero() {
-		fmt.Println("from", p.From)
-		series = series.Where(sq.Eq{"DATE(emote_counts.created_at)": p.From})
+		series = series.Where(sq.Eq{"(created_at AT TIME ZONE 'UTC')::date": p.From})
 	} else if p.Span != "" {
 		series = series.
 			Where(psql.Select(fmt.Sprintf("MAX(created_at) - '%s'::interval", p.Span)).
