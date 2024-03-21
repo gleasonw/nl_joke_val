@@ -10,10 +10,7 @@ export interface TopPerformingEmotesProps {
 }
 
 export function TopPerformingEmotes() {
-  const grouping = usePerformanceGrouping();
-  const { data: emotePerformance } = useEmoteAveragePerformance({
-    grouping,
-  });
+  const { data: emotePerformance } = useEmoteAveragePerformance({});
   return (
     <section>
       <div className="flex gap-2">

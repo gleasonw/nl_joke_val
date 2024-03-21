@@ -52,7 +52,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			initTimescaledb(db)
+			migrateAndVerify()
 			return
 		}
 	}
@@ -155,35 +155,44 @@ func getEmotes() (map[string]bool, []string) {
 
 }
 
-func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
-	env := GetConfig()
-
+func getTokenManager(db *gorm.DB) *TokenManager {
 	tokens, err := tryUseLatestRefreshToken(db)
 
 	if err != nil {
 		tokens, err = getTwitchWithAuthCode(db)
 		if err != nil {
-			fmt.Println("Error getting Twitch token:", err)
-			return
+			panic("Error getting Twitch token!")
 		}
 	}
+	return &TokenManager{AccessToken: tokens.AccessToken, _refreshToken: tokens.RefreshToken}
+}
+
+type TokenManager struct {
+	AccessToken   string
+	_refreshToken string
+}
+
+func (t *TokenManager) RefreshToken(db *gorm.DB) error {
+	response, err := refreshTwitchToken(db, t._refreshToken)
 
 	if err != nil {
-		fmt.Println("Error getting Twitch token:", err)
-		return
+		fmt.Println("Error refreshing Twitch token:", err)
+		return err
 	}
+
+	t._refreshToken = response.RefreshToken
+	t.AccessToken = response.AccessToken
+
+	return nil
+}
+
+func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
+	env := GetConfig()
+
+	tokenManager := getTokenManager(db)
 
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
-
-		refreshTokens := func() bool {
-			tokens, err = refreshTwitchToken(db, tokens.RefreshToken)
-			if err != nil {
-				fmt.Println("Error refreshing Twitch token:", err)
-				return false
-			}
-			return true
-		}
 
 		conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
 		if err != nil {
@@ -194,7 +203,7 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
 
 		defer conn.Close()
 
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", tokens.AccessToken)))
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("PASS oauth:%s", tokenManager.AccessToken)))
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("NICK %s", env.Nickname)))
 		conn.WriteMessage(websocket.TextMessage, []byte("JOIN #northernlion"))
 
@@ -213,7 +222,7 @@ func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
 
 		go syncTrackingEmotes(db, latestEmotes, ctx)
 
-		go countEmotes(incomingMessages, db, initEmotesToTrack, ctx, refreshTokens, tokens, liveStatus, latestEmotes)
+		go countEmotes(ctx, incomingMessages, db, initEmotesToTrack, tokenManager, liveStatus, latestEmotes)
 
 		<-ctx.Done()
 		cancel()
@@ -334,12 +343,11 @@ func readChatMessages(conn *websocket.Conn, incomingMessages chan Message, cance
 }
 
 func countEmotes(
+	ctx context.Context,
 	message chan Message,
 	db *gorm.DB,
 	trackingEmotes map[int]Emote,
-	ctx context.Context,
-	refreshTokens func() bool,
-	tokens TwitchResponse,
+	tokenManager *TokenManager,
 	liveStatus *LiveStatus,
 	emoteUpdates <-chan map[int]Emote,
 ) {
@@ -363,10 +371,6 @@ func countEmotes(
 		case msg := <-message:
 			message := string(msg.Data)
 			messageText := splitAndGetLast(message, "#northernlion")
-
-			if env.Debug {
-				fmt.Println("new message: ", messageText)
-			}
 
 			for _, emote := range trackingEmotes {
 				if emote.Code == "two" {
@@ -418,7 +422,7 @@ func countEmotes(
 
 			resetCounter()
 
-			go persistCountsIfLive(db, counts, tokens.AccessToken, liveStatus, refreshTokens)
+			go persistCountsIfLive(db, counts, tokenManager, liveStatus)
 
 		case refreshedEmotes := <-emoteUpdates:
 			for _, emote := range refreshedEmotes {
@@ -438,9 +442,8 @@ func countEmotes(
 func persistCountsIfLive(
 	db *gorm.DB,
 	counts []EmoteCount,
-	authToken string,
+	tokenManager *TokenManager,
 	liveStatus *LiveStatus,
-	refreshTokens func() bool,
 	retries ...int) {
 
 	env := GetConfig()
@@ -453,9 +456,10 @@ func persistCountsIfLive(
 		}
 	}
 
-	clipResult := getTwitchClip(authToken)
+	clipResult := getTwitchClip(tokenManager.AccessToken)
 
 	if clipResult.clipID != "" {
+
 		liveStatus.IsLive = true
 		countsWithClipIDs := make([]EmoteCount, 0, len(counts))
 
@@ -469,16 +473,30 @@ func persistCountsIfLive(
 				})
 		}
 
-		err := db.Create(&countsWithClipIDs).Error
+		err := db.Create(&FetchedClip{ClipID: clipResult.clipID}).Error
+
+		if err != nil {
+			fmt.Println("Error creating clip: ", clipResult.error)
+			liveStatus.IsLive = false
+		}
+
+		err = db.Create(&countsWithClipIDs).Error
 
 		if err != nil {
 			fmt.Println("Error inserting into db:", err)
 		}
+
+		if env.Debug {
+			fmt.Println("successfully inserted clip")
+		}
+
 	} else if clipResult.error == "unauthorized" {
 		fmt.Println("Unauthorized, refreshing token")
-		refreshTokens()
+
+		tokenManager.RefreshToken(db)
+
 		if len(retries) == 0 {
-			persistCountsIfLive(db, counts, authToken, liveStatus, refreshTokens, 1)
+			persistCountsIfLive(db, counts, tokenManager, liveStatus, 1)
 		}
 	} else {
 		fmt.Println("Error creating clip: ", clipResult.error)

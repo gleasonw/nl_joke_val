@@ -394,6 +394,8 @@ func initTimescaledb(db *gorm.DB) error {
 		return err
 	}
 
+	err = db.Exec("ALTER TABLE emote_counts drop constraint emote_counts_pkey").Error
+
 	if err != nil {
 		fmt.Println("Error dropping primary key constraint:", err)
 		return err

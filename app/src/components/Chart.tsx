@@ -40,12 +40,6 @@ const lastMinuteRange = {
 } as const;
 
 export function Chart() {
-  const { data: isNlLive } = useLiveStatus();
-
-  if (isNlLive) {
-    return <LiveChart />;
-  }
-
   const navigate = useNavigate();
   const currentState = Route.useSearch();
   const { seriesParams, chartType: urlChartType, series } = currentState;
