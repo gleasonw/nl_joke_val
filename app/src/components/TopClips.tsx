@@ -49,7 +49,7 @@ function TopClipsByRelativePerformance() {
 
   const topEmoteCodes = topPerformingEmotes?.Emotes?.slice()
     .sort((a, b) => b.PercentDifference - a.PercentDifference)
-    .slice(0, 5)
+    .slice(0, 3)
     .map((e) => ({
       id: e.EmoteID,
       code: e.Code,

@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
@@ -45,17 +44,18 @@ type LiveStatus struct {
 }
 
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "migrate":
-			migrateAndVerify()
-			return
-		}
-	}
 
 	env := GetConfig()
 
 	db, err := gorm.Open(postgres.Open(env.DatabaseUrl))
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "migrate":
+			initTimescaledb(db)
+			return
+		}
+	}
 
 	db.AutoMigrate(&RefreshTokenStore{})
 
@@ -406,39 +406,19 @@ func countEmotes(
 			}
 
 		case <-postInterval.C:
-			rowsToInsert := make([]EmoteCount, 0, len(counter))
+			counts := make([]EmoteCount, 0, len(counter))
 
 			for emoteId, count := range counter {
 				emote := trackingEmotes[emoteId]
-				rowsToInsert = append(rowsToInsert, EmoteCount{
+				counts = append(counts, EmoteCount{
 					Count: int(count),
 					Emote: emote,
 				})
 			}
 
-			err := db.Create(&rowsToInsert).Error
-
-			if env.Debug {
-				for _, row := range rowsToInsert {
-					if row.Count != 0 {
-						fmt.Println("inserting", row.Emote.Code, row.Count)
-					}
-				}
-			}
-
-			insertedRowIds := make([]int, 0, len(rowsToInsert))
-
-			for _, row := range rowsToInsert {
-				insertedRowIds = append(insertedRowIds, int(row.Id))
-			}
-
-			if err != nil {
-				fmt.Println("Error inserting into db:", err)
-			}
-
 			resetCounter()
 
-			createClipAndMaybeRefreshToken(db, insertedRowIds, tokens.AccessToken, liveStatus, refreshTokens)
+			go persistCountsIfLive(db, counts, tokens.AccessToken, liveStatus, refreshTokens)
 
 		case refreshedEmotes := <-emoteUpdates:
 			for _, emote := range refreshedEmotes {
@@ -455,33 +435,56 @@ func countEmotes(
 	}
 }
 
-func createClipAndMaybeRefreshToken(
+func persistCountsIfLive(
 	db *gorm.DB,
-	rowsToAssignClipId []int,
+	counts []EmoteCount,
 	authToken string,
 	liveStatus *LiveStatus,
 	refreshTokens func() bool,
 	retries ...int) {
 
-	clipResultChannel := make(chan CreateClipResponse)
+	env := GetConfig()
 
-	go func() {
-		clipResultChannel <- createClipAndInsert(db, rowsToAssignClipId, authToken)
-	}()
+	if env.Debug {
+		for _, row := range counts {
+			if row.Count != 0 {
+				fmt.Println("inserting", row.Emote.Code, row.Count)
+			}
+		}
+	}
 
-	clipResult := <-clipResultChannel
+	clipResult := getTwitchClip(authToken)
 
-	if clipResult.error == "unauthorized" {
+	if clipResult.clipID != "" {
+		liveStatus.IsLive = true
+		countsWithClipIDs := make([]EmoteCount, 0, len(counts))
+
+		for _, count := range counts {
+			countsWithClipIDs = append(
+				countsWithClipIDs,
+				EmoteCount{
+					Count:  count.Count,
+					Emote:  count.Emote,
+					ClipID: clipResult.clipID,
+				})
+		}
+
+		err := db.Create(&countsWithClipIDs).Error
+
+		if err != nil {
+			fmt.Println("Error inserting into db:", err)
+		}
+	} else if clipResult.error == "unauthorized" {
 		fmt.Println("Unauthorized, refreshing token")
 		refreshTokens()
 		if len(retries) == 0 {
-			createClipAndMaybeRefreshToken(db, rowsToAssignClipId, authToken, liveStatus, refreshTokens, 1)
+			persistCountsIfLive(db, counts, authToken, liveStatus, refreshTokens, 1)
 		}
-	} else if clipResult.error != "" {
-		fmt.Println("Error creating clip: ", clipResult.error)
 	} else {
-		liveStatus.IsLive = true
+		fmt.Println("Error creating clip: ", clipResult.error)
+		liveStatus.IsLive = false
 	}
+
 }
 
 func splitAndGetLast(text string, splitter string) string {
@@ -504,10 +507,11 @@ type ClipResponse struct {
 }
 
 type CreateClipResponse struct {
-	error string
+	error  string
+	clipID string
 }
 
-func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string) CreateClipResponse {
+func getTwitchClip(authToken string) CreateClipResponse {
 	env := GetConfig()
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",
@@ -559,35 +563,10 @@ func createClipAndInsert(db *gorm.DB, rowsToAssignClipId []int, authToken string
 	}
 
 	if len(responseObject.Data) > 0 {
-		clipId := responseObject.Data[0].Id
-
-		sq := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
-
-		query, args, err := sq.Update("emote_counts").
-			Set("clip_id", clipId).
-			Where(squirrel.Eq{"id": rowsToAssignClipId}).
-			ToSql()
-
-		if env.Debug {
-			fmt.Println("updating rows with", query)
-		}
-
-		if err != nil {
-			fmt.Println("Error building query:", err)
-			return CreateClipResponse{error: "error building query"}
-		}
-
-		err = db.Raw(query, args...).Error
-
-		if err != nil {
-			fmt.Println("Error updating emote_counts:", err)
-			return CreateClipResponse{error: "error updating emote_counts"}
-		}
-
-		return CreateClipResponse{}
+		return CreateClipResponse{clipID: responseObject.Data[0].Id}
 	}
 
-	return CreateClipResponse{}
+	return CreateClipResponse{error: "no clip found"}
 
 }
 

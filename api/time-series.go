@@ -58,26 +58,22 @@ func baseSeriesSelect(p SeriesInput) sq.SelectBuilder {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	series :=
-		psql.Select("sum(count) as count, date_trunc('" + p.Grouping + "', emote_counts.created_at) as time, emote_id").
-			From("emote_counts")
+		psql.Select("sum as count, bucket as time, emote_id").
+			From("ten_second_sum")
 
 	if !p.From.IsZero() && !p.To.IsZero() {
 		series = series.
-			Where(sq.LtOrEq{"emote_counts.created_at": p.To}).
-			Where(sq.GtOrEq{"emote_counts.created_at": p.From})
+			Where(sq.LtOrEq{"bucket": p.To}).
+			Where(sq.GtOrEq{"bucket": p.From})
 	} else if !p.From.IsZero() {
-		series = series.Where(sq.Eq{"(created_at AT TIME ZONE 'UTC')::date": p.From})
+		series = series.Where(sq.Eq{"DATE(bucket)": p.From})
 	} else if p.Span != "" {
 		series = series.
-			Where(psql.Select(fmt.Sprintf("MAX(created_at) - '%s'::interval", p.Span)).
-				From("emote_counts").
-				Prefix("emote_counts.created_at >=(").
+			Where(psql.Select(fmt.Sprintf("MAX(bucket) - '%s'::interval", p.Span)).
+				From("ten_second_sum").
+				Prefix("bucket >=(").
 				Suffix(")"))
 	}
-
-	series = series.
-		GroupBy("emote_id", "time").
-		OrderBy("time")
 
 	seriesJoin := psql.
 		Select("count", "time", "code").

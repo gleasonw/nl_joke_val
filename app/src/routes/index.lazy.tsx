@@ -27,13 +27,15 @@ function Index() {
 
   return (
     <div>
+      <section className="flex flex-col gap-2 justify-center items-center">
+        <div className="flex gap-4 my-4 items-center">
+          <span className="text-xs">{timeRangeString}</span>
+          <DatePicker />
+        </div>
+        <TopPerformingEmotes />
+      </section>
       <div className=" mx-auto p-4 bg-white shadow-lg rounded-lg grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <div className="flex gap-4 my-4 items-center">
-            <span className="text-xs">{timeRangeString}</span>
-            <DatePicker />
-          </div>
-          <TopPerformingEmotes />
           <Chart />
           <ClipAtTime />
         </div>

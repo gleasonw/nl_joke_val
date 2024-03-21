@@ -100,7 +100,7 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 	currentSumQuery := psql.Select("*").From("daily_sum")
 
 	if !p.From.IsZero() {
-		currentSumQuery = currentSumQuery.Where(sq.Eq{"DATE(date)": p.From.Format("2006-01-02")})
+		currentSumQuery = currentSumQuery.Where(sq.Eq{"DATE(day_time)": p.From.Format("2006-01-02")})
 	}
 
 	avgSeriesLatestPeriod := psql.Select("average", "emote_id").
@@ -162,9 +162,9 @@ func GetTopDensityEmotes(db *gorm.DB, p EmoteDensityInput) (*TopDensityEmotesOut
 	timeFilter := func(query *sq.SelectBuilder) sq.SelectBuilder {
 		updated := query.Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id not in (").Suffix(")"))
 		if !p.From.IsZero() {
-			return updated.Where(sq.Eq{"DATE(date)": p.From})
+			return updated.Where(sq.Eq{"DATE(day_time)": p.From})
 		}
-		return updated.Where(psql.Select("max(date) from daily_sum").Prefix("daily_sum.date = (").Suffix(")"))
+		return updated.Where(psql.Select("max(day_time) from daily_sum").Prefix("daily_sum.day_time = (").Suffix(")"))
 	}
 
 	crossJoinTotal := psql.Select("sum(day_sum) as total_count").

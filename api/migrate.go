@@ -27,11 +27,11 @@ func (e *Emote) String() string {
 }
 
 type EmoteCount struct {
-	Id        int64 `gorm:"primary_key"`
+	Id        int64
 	Count     int
 	EmoteID   int
 	Emote     Emote
-	ClipID    *string
+	ClipID    string
 	Clip      FetchedClip
 	CreatedAt time.Time
 }
@@ -45,6 +45,8 @@ type FetchedClip struct {
 	ClipID    string    `gorm:"primary_key"`
 	CreatedAt time.Time `gorm:"index"`
 }
+
+const noClipSentinel = "no_clip"
 
 func legacyCodes() []string {
 	return []string{
@@ -256,6 +258,14 @@ func migrateAndVerify() error {
 		emoteToIDMap[emote] = emoteToMap
 	}
 
+	// create a sentinel clip for emote counts with no clip
+	err = db.Create(&FetchedClip{ClipID: noClipSentinel}).Error
+
+	if err != nil {
+		fmt.Println("Error creating sentinel clip:", err)
+		return err
+	}
+
 	emoteCounts := make([]EmoteCount, 0, len(oldChatCounts)*len(emotes))
 	clipsToInsert := make([]FetchedClip, 0, len(oldChatCounts))
 	columnNameSet, _ := getEmotes()
@@ -338,6 +348,13 @@ func migrateAndVerify() error {
 		return err
 	}
 
+	err = initTimescaledb(db)
+
+	if err != nil {
+		fmt.Println("Error initializing timescaledb:", err)
+		return err
+	}
+
 	verify(db)
 
 	return nil
@@ -352,15 +369,85 @@ func concurrentBatchInsert[Row EmoteCount | FetchedClip](db *gorm.DB, rows []Row
 	for i := 0; i < numWorkers; i++ {
 		go func(chunkedRows []Row) {
 			defer wg.Done()
-			db.CreateInBatches(chunkedRows, 1000)
+			err := db.CreateInBatches(chunkedRows, 1000).Error
+			if err != nil {
+				fmt.Println("Error inserting rows:", err)
+			}
 		}(rows[i*numRowsPerWorker : (i+1)*numRowsPerWorker])
 	}
 	remainingRows := len(rows) - (numWorkers * numRowsPerWorker)
 	if remainingRows > 0 {
-		db.Create(rows[numWorkers*numRowsPerWorker:])
+		err := db.Create(rows[numWorkers*numRowsPerWorker:]).Error
+		if err != nil {
+			fmt.Println("Error inserting remaining rows:", err)
+		}
 	}
 	wg.Wait()
 	return nil
+}
+
+func initTimescaledb(db *gorm.DB) error {
+	err := db.Exec("CREATE extension if not exists timescaledb").Error
+
+	if err != nil {
+		fmt.Println("Error creating timescaledb extension:", err)
+		return err
+	}
+
+	if err != nil {
+		fmt.Println("Error dropping primary key constraint:", err)
+		return err
+	}
+
+	err = db.Exec("SELECT create_hypertable('emote_counts', 'created_at', migrate_data => true, if_not_exists => true);").Error
+
+	if err != nil {
+		fmt.Println("Error creating hypertable:", err)
+		return err
+	}
+
+	err = db.Exec(`CREATE MATERIALIZED VIEW IF NOT EXISTS daily_sum
+		 WITH (timescaledb.continuous) AS
+		 SELECT emote_id, 
+		        sum(count) as day_sum, 
+		        time_bucket('1 day', created_at) as day_time
+		 FROM emote_counts
+		 GROUP BY 1, 3;`).Error
+
+	if err != nil {
+		fmt.Println("Error creating daily_sum view:", err)
+		return err
+	}
+
+	err = db.Exec(`CREATE MATERIALIZED VIEW IF NOT EXISTS avg_daily_sum_three_months
+		 WITH (timescaledb.continuous) AS 
+		 SELECT time_bucket('3 months'::interval, day_time) as date, 
+		        avg(day_sum) as average, 
+		        emote_id
+		 FROM daily_sum
+		 GROUP BY 1, 3;`).Error
+
+	if err != nil {
+		fmt.Println("Error creating avg_daily_sum_three_months view:", err)
+		return err
+	}
+
+	err = db.Exec(`CREATE MATERIALIZED VIEW IF NOT EXISTS ten_second_sum
+		 WITH (timescaledb.continuous) AS
+		 SELECT time_bucket('10 seconds', created_at) as bucket, 
+		        sum(count), 
+		        emote_id 
+		 FROM emote_counts 
+		 GROUP BY 1, 3 
+		 ORDER BY bucket;`).Error
+
+	if err != nil {
+		fmt.Println("Error creating ten_second_sum view:", err)
+		return err
+	}
+
+	return nil
+
 }
 
 func buildEmoteCount(count int, emote Emote, oldChatCount ChatCounts) EmoteCount {
@@ -368,7 +455,7 @@ func buildEmoteCount(count int, emote Emote, oldChatCount ChatCounts) EmoteCount
 		Count:     count,
 		EmoteID:   int(emote.ID),
 		Emote:     emote,
-		ClipID:    &oldChatCount.ClipId,
+		ClipID:    oldChatCount.ClipId,
 		CreatedAt: oldChatCount.CreatedAt,
 	}
 }
@@ -377,6 +464,7 @@ func buildEmoteCountNoClip(count int, emote Emote, oldChatCount ChatCounts) Emot
 	return EmoteCount{
 		Count:     count,
 		EmoteID:   int(emote.ID),
+		ClipID:    noClipSentinel,
 		Emote:     emote,
 		CreatedAt: oldChatCount.CreatedAt,
 	}
