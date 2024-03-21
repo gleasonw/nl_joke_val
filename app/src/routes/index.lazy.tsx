@@ -7,6 +7,7 @@ import { ClipAtTime } from "@/components/ClipAtTime";
 import { TopClips } from "@/components/TopClips";
 import { MinClips } from "@/components/MinClips";
 import { DatePicker } from "@/components/DatePicker";
+import { EmoteInput } from "@/components/EmoteInput";
 
 export const Route = createLazyFileRoute("/")({
   component: Index,
@@ -33,6 +34,7 @@ function Index() {
           <DatePicker />
         </div>
         <TopPerformingEmotes />
+        <EmoteInput />
       </section>
       <div className=" mx-auto p-4 bg-white shadow-lg rounded-lg grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">

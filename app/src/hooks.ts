@@ -44,9 +44,11 @@ export function useDefaultSeries(): string[] {
     grouping,
   });
 
-  const topEmoteCodes = emotePerformance?.Emotes?.slice(0, 2).map(
-    (e) => e.Code
-  );
+  const topEmoteCodes = emotePerformance?.Emotes?.filter(
+    (e) => e.Code !== "two"
+  )
+    .slice(0, 4)
+    .map((e) => e.Code);
 
   if (!topEmoteCodes) {
     return ["two"];

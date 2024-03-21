@@ -58,20 +58,21 @@ func baseSeriesSelect(p SeriesInput) sq.SelectBuilder {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	series :=
-		psql.Select("sum as count, bucket as time, emote_id").
-			From("ten_second_sum")
+		psql.Select("sum(count) as count, date_trunc('" + p.Grouping + "', created_at) as time, emote_id").
+			From("emote_counts").
+			GroupBy("time, emote_id")
 
 	if !p.From.IsZero() && !p.To.IsZero() {
 		series = series.
-			Where(sq.LtOrEq{"bucket": p.To}).
-			Where(sq.GtOrEq{"bucket": p.From})
+			Where(sq.LtOrEq{"created_at": p.To}).
+			Where(sq.GtOrEq{"created_at": p.From})
 	} else if !p.From.IsZero() {
-		series = series.Where(sq.Eq{"DATE(bucket)": p.From})
+		series = series.Where(sq.Eq{"DATE(created_at)": p.From})
 	} else if p.Span != "" {
 		series = series.
-			Where(psql.Select(fmt.Sprintf("MAX(bucket) - '%s'::interval", p.Span)).
-				From("ten_second_sum").
-				Prefix("bucket >=(").
+			Where(psql.Select(fmt.Sprintf("MAX(created_at) - '%s'::interval", p.Span)).
+				From("emote_counts").
+				Prefix("created_at >= (").
 				Suffix(")"))
 	}
 

@@ -101,6 +101,10 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 
 	if !p.From.IsZero() {
 		currentSumQuery = currentSumQuery.Where(sq.Eq{"DATE(day_time)": p.From.Format("2006-01-02")})
+	} else {
+		// get lates day
+		currentSumQuery = currentSumQuery.
+			Where(psql.Select("max(day_time) from daily_sum").Prefix("day_time = (").Suffix(")"))
 	}
 
 	avgSeriesLatestPeriod := psql.Select("average", "emote_id").
