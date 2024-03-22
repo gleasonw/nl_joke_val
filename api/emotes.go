@@ -102,7 +102,6 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 	if !p.From.IsZero() {
 		currentSumQuery = currentSumQuery.Where(sq.Eq{"DATE(day_time)": p.From.Format("2006-01-02")})
 	} else {
-		// get lates day
 		currentSumQuery = currentSumQuery.
 			Where(psql.Select("max(day_time) from daily_sum").Prefix("day_time = (").Suffix(")"))
 	}
@@ -115,7 +114,7 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 		FromSelect(avgSeriesLatestPeriod, "avg_series").
 		JoinClause(currentSumQuery.Prefix("JOIN (").Suffix(") current_sum ON current_sum.emote_id = avg_series.emote_id"))
 
-	query, args, err := psql.Select("average", "day_sum", "code", "series.emote_id as emote_id", "day_sum - average as difference", "(day_sum - average) / Nullif(average, 0) * 100 as percent_difference").
+	query, args, err := psql.Select("average", "day_sum", "code", "series.emote_id as emote_id", "day_sum - average as difference", "COALESCE((day_sum - average) / Nullif(average, 0) * 100, 0) as percent_difference").
 		FromSelect(baseQuery, "series").
 		Join("emotes on emotes.id = series.emote_id").
 		OrderBy("percent_difference DESC").

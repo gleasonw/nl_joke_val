@@ -81,7 +81,7 @@ function TopClipsByDensity() {
   return (
     <div className="flex flex-col gap-5">
       {topEmoteCodes?.map((e) => (
-        <TopClip emoteId={e.id} key={e.id} emoteCode={e.code}>
+        <TopClip emoteId={e.id} key={e.id}>
           {Math.round(e.percentOfTotal)}% of tracked emotes{" "}
         </TopClip>
       ))}
@@ -91,11 +91,10 @@ function TopClipsByDensity() {
 
 export interface TopClipProps {
   emoteId: number;
-  emoteCode: string;
   children?: React.ReactNode;
 }
 
-export function TopClip({ emoteId, emoteCode, children }: TopClipProps) {
+export function TopClip({ emoteId, children }: TopClipProps) {
   const { data: isNlLive } = useLiveStatus();
 
   const [index, setIndex] = React.useState(0);
@@ -123,7 +122,6 @@ export function TopClip({ emoteId, emoteCode, children }: TopClipProps) {
 
   return (
     <div>
-      {emoteCode}
       {children}
 
       <ClipClicker

@@ -68,14 +68,13 @@ export function useEmoteDensity(p: EmoteDensityParams) {
   });
 }
 
-export function useEmoteAveragePerformance(p: EmotePerformanceParams) {
+export function useEmoteAveragePerformance(p?: EmotePerformanceParams) {
   const { from } = Route.useSearch();
   const { data: isNlLive } = useLiveStatus();
   return useQuery({
     queryFn: () => getEmoteAveragePerformance({ ...p, from }),
     queryKey: ["emoteAveragePerformance", p, from],
     refetchInterval: isNlLive ? 1000 * 10 : false,
-    placeholderData: keepPreviousData,
   });
 }
 

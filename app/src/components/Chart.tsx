@@ -3,12 +3,7 @@ import { TimeGroupings } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import {
-  useDashboardState,
-  useDefaultSeries,
-  useLiveStatus,
-  useTimeSeries,
-} from "../hooks";
+import { useDashboardState, useDefaultSeries, useTimeSeries } from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
 import { SettingsDropLayout } from "./SettingsDropLayout";
@@ -64,8 +59,6 @@ export function Chart() {
     : defaultSeries;
 
   const chartType = urlChartType ?? "line";
-
-  console.log(localFetchedSeries);
 
   const emoteSeries:
     | Highcharts.SeriesLineOptions[]

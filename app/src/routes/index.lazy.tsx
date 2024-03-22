@@ -4,10 +4,10 @@ import React from "react";
 import { Chart } from "../components/Chart";
 import { TopPerformingEmotes } from "@/components/TopPerformingEmotes";
 import { ClipAtTime } from "@/components/ClipAtTime";
-import { TopClips } from "@/components/TopClips";
-import { MinClips } from "@/components/MinClips";
 import { DatePicker } from "@/components/DatePicker";
 import { EmoteInput } from "@/components/EmoteInput";
+import { DataTable } from "@/components/DataTable";
+import { DayFocusClip } from "@/components/DayFocusClip";
 
 export const Route = createLazyFileRoute("/")({
   component: Index,
@@ -36,14 +36,16 @@ function Index() {
         <TopPerformingEmotes />
         <EmoteInput />
       </section>
-      <div className=" mx-auto p-4 bg-white shadow-lg rounded-lg grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="flex flex-col gap-2">
-          <Chart />
-          <ClipAtTime />
+      <section className="mx-auto p-4 bg-white shadow-lg rounded-lg">
+        <div className="  grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2">
+            <Chart />
+            <ClipAtTime />
+          </div>
+          <DayFocusClip />
         </div>
-        <TopClips />
-        <MinClips />
-      </div>
+        <DataTable />
+      </section>
     </div>
   );
 }
