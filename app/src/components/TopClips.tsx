@@ -1,6 +1,4 @@
 import { getClips } from "../api";
-import { Clip } from "../types";
-import { DashboardURLState } from "../utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   useEmoteAveragePerformance,
@@ -14,12 +12,6 @@ import { CardTitle } from "@/components/ui/card";
 import { Route } from "@/routes/index.lazy";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type LocalClipState = NonNullable<DashboardURLState["maxClipParams"]>;
-
-export interface TopClipsProps {
-  clips: Clip[];
-  params: LocalClipState;
-}
 export function TopClips() {
   return (
     <div>
@@ -57,9 +49,7 @@ function TopClipsByRelativePerformance() {
 
   return (
     <div className="flex flex-col gap-5">
-      {topEmoteCodes?.map((e) => (
-        <TopClip emoteId={e.id} key={e.id} emoteCode={e.code} />
-      ))}
+      {topEmoteCodes?.map((e) => <TopClip emoteId={e.id} key={e.id} />)}
     </div>
   );
 }

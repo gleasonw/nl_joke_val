@@ -37,7 +37,7 @@ const lastMinuteRange = {
 export function Chart() {
   const navigate = useNavigate();
   const currentState = Route.useSearch();
-  const { seriesParams, chartType: urlChartType, series } = currentState;
+  const { seriesParams, series } = currentState;
 
   function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
     navigate({
@@ -57,8 +57,6 @@ export function Chart() {
   const seriesToDisplay = series?.length
     ? [...series, ...defaultSeries]
     : defaultSeries;
-
-  const chartType = urlChartType ?? "line";
 
   const emoteSeries:
     | Highcharts.SeriesLineOptions[]
@@ -103,7 +101,7 @@ export function Chart() {
       },
     },
     chart: {
-      type: chartType as string,
+      type: "line",
       height: 600,
       zooming: {
         type: "x",
