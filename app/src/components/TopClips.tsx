@@ -1,11 +1,6 @@
 import { getClips } from "../api";
 import { useQuery } from "@tanstack/react-query";
-import {
-  useEmoteAveragePerformance,
-  useEmoteDensity,
-  useLiveStatus,
-  usePerformanceGrouping,
-} from "../hooks";
+import { useEmotePerformance, useEmoteDensity, useLiveStatus } from "../hooks";
 import React from "react";
 import { ClipClicker } from "./ClipClicker";
 import { CardTitle } from "@/components/ui/card";
@@ -33,11 +28,7 @@ export function TopClips() {
 }
 
 function TopClipsByRelativePerformance() {
-  const grouping = usePerformanceGrouping();
-
-  const { data: topPerformingEmotes } = useEmoteAveragePerformance({
-    grouping,
-  });
+  const topPerformingEmotes = useEmotePerformance();
 
   const topEmoteCodes = topPerformingEmotes?.Emotes?.slice()
     .sort((a, b) => b.PercentDifference - a.PercentDifference)

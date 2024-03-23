@@ -1,4 +1,4 @@
-import { useDashboardState, useEmoteAveragePerformance } from "@/hooks";
+import { useDashboardState, useEmotePerformance, useLiveStatus } from "@/hooks";
 import React from "react";
 import { EmotePerformance } from "@/types";
 import {
@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { CardTitle } from "@/components/ui/card";
 
 export interface DataTableProps {
   children?: React.ReactNode;
@@ -33,19 +34,19 @@ const columns: ColumnDef<EmotePerformance>[] = [
     accessorKey: "Code",
   },
   {
-    accessorKey: "DaySum",
+    accessorKey: "Count",
     header: ({ column }) => (
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
-        Day Total
+        Sum
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
   },
   {
-    header: "Average",
+    header: "Average sum (three months)",
     accessorKey: "Average",
   },
   {
@@ -67,8 +68,7 @@ const columns: ColumnDef<EmotePerformance>[] = [
 const emptyArray = [] as EmotePerformance[];
 
 export function DataTable() {
-  console.log("re render");
-  const { data } = useEmoteAveragePerformance();
+  const data = useEmotePerformance();
   const [sortingState, setSortingState] = React.useState<SortingState>([]);
   const table = useReactTable({
     data: data?.Emotes ?? emptyArray,
@@ -85,6 +85,7 @@ export function DataTable() {
 
   return (
     <div className="rounded-md border">
+      <DataTableTitle />
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -148,4 +149,25 @@ export function DataTable() {
       </div>
     </div>
   );
+}
+
+export function DataTableTitle() {
+  const data = useEmotePerformance();
+  const grouping = data?.Input?.Grouping;
+  const { data: isNlLive } = useLiveStatus();
+
+  if (data.Input && "Date" in data.Input) {
+    return (
+      <CardTitle>
+        {new Date(data?.Input?.Date).toLocaleDateString()}
+        <span className="ml-2 text-xs"> binned by {grouping}</span>
+      </CardTitle>
+    );
+  }
+
+  if (isNlLive) {
+    return <CardTitle>Live counts grouped by {grouping}</CardTitle>;
+  }
+
+  return <CardTitle>binned by {data?.Input?.Grouping}</CardTitle>;
 }

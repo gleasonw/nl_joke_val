@@ -2,6 +2,7 @@ import {
   ClipParams,
   EmoteDensityParams,
   EmotePerformanceParams,
+  LatestEmotePerformanceParams,
   SeriesParams,
 } from "./types";
 import { GET } from "./utils";
@@ -40,6 +41,22 @@ export async function getEmoteAveragePerformance(p: EmotePerformanceParams) {
 
   if (result.error) {
     throw new Error("Failed to fetch emote average performance");
+  }
+
+  return result.data;
+}
+
+export async function getLatestEmotePerformance(
+  p: LatestEmotePerformanceParams
+) {
+  const result = await GET("/api/latest_emote_performance", {
+    params: {
+      query: p,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch latest emote average performance");
   }
 
   return result.data;

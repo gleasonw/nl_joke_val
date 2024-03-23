@@ -1,8 +1,4 @@
-import {
-  useDashboardState,
-  useEmoteAveragePerformance,
-  usePerformanceGrouping,
-} from "@/hooks";
+import { useDashboardState, useEmotePerformance } from "@/hooks";
 import { EmotePerformance } from "@/types";
 import clsx from "clsx";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -14,28 +10,36 @@ export interface TopPerformingEmotesProps {
 }
 
 export function TopPerformingEmotes() {
-  const { data: emotePerformance } = useEmoteAveragePerformance({});
+  const emotePerformance = useEmotePerformance();
   return (
     <section>
       <div className="flex gap-5">
-        {emotePerformance?.Emotes?.filter((e) => e.Difference != 0)
+        {emotePerformance?.Emotes?.filter(
+          (e) => e.Difference != 0 && e.Count > 0
+        )
           .slice(0, 5)
           .map((e) => (
-            <EmotePerformanceCard emotePerformance={e} key={e.Code} />
+            <EmotePerformanceCard
+              emotePerformance={e}
+              key={e.Code}
+              grouping={emotePerformance?.Input?.Grouping}
+            />
           ))}
       </div>
-      <span className="text-xs">current / grouping (avg)</span>
     </section>
   );
 }
 
 interface EmotePerformanceCardProps {
   emotePerformance: EmotePerformance;
+  grouping: string;
 }
 
-function EmotePerformanceCard({ emotePerformance }: EmotePerformanceCardProps) {
-  const grouping = usePerformanceGrouping();
-  const { Code, DaySum, PercentDifference, Average } = emotePerformance;
+function EmotePerformanceCard({
+  emotePerformance,
+  grouping,
+}: EmotePerformanceCardProps) {
+  const { Code, Count, PercentDifference, Average } = emotePerformance;
   const trend = PercentDifference > 0 ? "up" : "down";
   const ArrowIcon = trend === "up" ? ArrowUp : ArrowDown;
   const [, navigate] = useDashboardState();
@@ -64,7 +68,7 @@ function EmotePerformanceCard({ emotePerformance }: EmotePerformanceCardProps) {
           </span>
         </span>
         <span>
-          {DaySum} {grouping} ({Math.round(Average)})
+          {Count} / {grouping} ({Math.round(Average)})
         </span>
       </span>
     </button>

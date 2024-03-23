@@ -16,24 +16,6 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-const last9HoursRange = {
-  from: undefined,
-  to: undefined,
-  span: "9 hours",
-} as const;
-
-const lastHourRange = {
-  from: undefined,
-  to: undefined,
-  span: "1 hour",
-} as const;
-
-const lastMinuteRange = {
-  from: undefined,
-  to: undefined,
-  span: "1 minute",
-} as const;
-
 export function Chart() {
   const navigate = useNavigate();
   const currentState = Route.useSearch();
@@ -141,11 +123,6 @@ export function Chart() {
   return (
     <div className="flex flex-col gap-2">
       <ChartSpanOptions />
-      {isLoading ? (
-        <div className="text-center w-full h-full">Loading series...</div>
-      ) : (
-        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
-      )}
       <SettingsDropLayout>
         <label>
           Group By
@@ -192,6 +169,11 @@ export function Chart() {
           </Select>
         </label>
       </SettingsDropLayout>
+      {isLoading ? (
+        <div className="aspect-video bg-gray-100 animate-pulse" />
+      ) : (
+        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
+      )}
     </div>
   );
 }
@@ -210,22 +192,40 @@ export function ChartSpanOptions() {
   return (
     <SettingsDropLayout>
       <Button
-        onClick={() => handleUpdateChart(lastMinuteRange)}
-        variant={span === "1 minute" ? "default" : "outline"}
+        onClick={() =>
+          handleUpdateChart({ seriesParams: { span: "1 minute" } })
+        }
+        variant="ghost"
+        className={span === "1 minute" ? "border-b-4 border-gray-700" : ""}
       >
-        Last minute of stream
+        1 m
       </Button>
       <Button
-        onClick={() => handleUpdateChart(lastHourRange)}
-        variant={span === "1 hour" ? "default" : "outline"}
+        onClick={() =>
+          handleUpdateChart({ seriesParams: { span: "30 minutes" } })
+        }
+        variant="ghost"
+        className={span === "30 minutes" ? "border-b-4 border-gray-700" : ""}
       >
-        Last hour of stream
+        30 m
       </Button>
       <Button
-        onClick={() => handleUpdateChart(last9HoursRange)}
-        variant={span === "9 hours" || span === null ? "default" : "outline"}
+        onClick={() => handleUpdateChart({ seriesParams: { span: "1 hour" } })}
+        variant="ghost"
+        className={span === "1 hour" ? "border-b-4 border-gray-700" : ""}
       >
-        Last 9 hours of stream
+        1 h
+      </Button>
+      <Button
+        onClick={() => handleUpdateChart({ seriesParams: { span: "9 hours" } })}
+        variant="ghost"
+        className={
+          span === "9 hours" || span === null
+            ? "border-b-4 border-gray-700"
+            : ""
+        }
+      >
+        9 h
       </Button>
     </SettingsDropLayout>
   );

@@ -72,14 +72,18 @@ func fetchNlEmotesFromBTTV() (EmoteSet, error) {
 }
 
 type EmotePerformanceInput struct {
-	Grouping string    `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
-	From     time.Time `query:"from"`
+	Date     time.Time `query:"date"`
+	Grouping string    `query:"grouping" enum:"hour,day" default:"day"`
+}
+
+type LatestEmotePerformanceInput struct {
+	Grouping string `query:"grouping" enum:"hour,day" default:"hour"`
 }
 
 type EmoteFullRow struct {
 	EmoteID           int
 	Code              string
-	DaySum            float64
+	Count             float64
 	Average           float64
 	Difference        float64
 	PercentDifference float64
@@ -94,47 +98,148 @@ type TopPerformingEmotesOutput struct {
 	Body EmoteReport
 }
 
-func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
-	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+func statementBuilder() sq.StatementBuilderType {
+	return sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+}
 
-	currentSumQuery := psql.Select("*").From("daily_sum")
+func baseHourlyQuery() sq.SelectBuilder {
+	return statementBuilder().
+		Select("hourly_sum as count, hourly_bucket as time, emote_id").
+		From("hourly_sum")
+}
 
-	if !p.From.IsZero() {
-		currentSumQuery = currentSumQuery.Where(sq.Eq{"DATE(day_time)": p.From.Format("2006-01-02")})
-	} else {
-		currentSumQuery = currentSumQuery.
-			Where(psql.Select("max(day_time) from daily_sum").Prefix("day_time = (").Suffix(")"))
+func baseDailyQuery() sq.SelectBuilder {
+	return statementBuilder().
+		Select("daily_sum as count, daily_bucket as time, emote_id").
+		From("daily_sum")
+}
+
+func recentHourlyAverage() sq.SelectBuilder {
+	return statementBuilder().
+		Select("average", "emote_id").
+		From("avg_hourly_sum_three_months").
+		Where(statementBuilder().
+			Select("max(date) from avg_hourly_sum_three_months").
+			Prefix("avg_hourly_sum_three_months.date = (").
+			Suffix(")"))
+}
+
+func recentDailyAverage() sq.SelectBuilder {
+	return statementBuilder().
+		Select("average", "emote_id").
+		From("avg_daily_sum_three_months").
+		Where(statementBuilder().
+			Select("max(date) from avg_daily_sum_three_months").
+			Prefix("avg_daily_sum_three_months.date = (").
+			Suffix(")"))
+}
+
+type LatestEmoteReport struct {
+	Emotes []EmoteFullRow
+	Input  LatestEmotePerformanceInput
+}
+
+type LatestEmotePerformanceOutput struct {
+	Body LatestEmoteReport
+}
+
+func GetLatestEmotePerformance(p LatestEmotePerformanceInput, db *gorm.DB) (*LatestEmotePerformanceOutput, error) {
+	var currentSumQuery, avgSeriesLatestPeriod sq.SelectBuilder
+
+	switch p.Grouping {
+	case "hour":
+		currentSumQuery = baseHourlyQuery().
+			Where(statementBuilder().Select("MAX(created_at) - '9 hours'::interval").
+				From("emote_counts").
+				Prefix("hourly_bucket >= (").
+				Suffix(")"))
+
+		avgSeriesLatestPeriod = recentHourlyAverage()
+	case "day":
+		currentSumQuery = baseDailyQuery().
+			Where(statementBuilder().Select("MAX(DATE(created_at))").
+				From("emote_counts").
+				Prefix("DATE(daily_bucket) = (").
+				Suffix(")"))
+
+		avgSeriesLatestPeriod = recentDailyAverage()
+	default:
+		fmt.Println("Unknown grouping")
+		return &LatestEmotePerformanceOutput{}, nil
 	}
 
-	avgSeriesLatestPeriod := psql.Select("average", "emote_id").
-		From("avg_daily_sum_three_months").
-		Where(psql.Select("max(date) from avg_daily_sum_three_months").Prefix("avg_daily_sum_three_months.date = (").Suffix(")"))
+	result, err := selectEmotePerformance(currentSumQuery, avgSeriesLatestPeriod, db)
 
-	baseQuery := psql.Select("average", "day_sum", "current_sum.emote_id as emote_id").
-		FromSelect(avgSeriesLatestPeriod, "avg_series").
-		JoinClause(currentSumQuery.Prefix("JOIN (").Suffix(") current_sum ON current_sum.emote_id = avg_series.emote_id"))
+	if err != nil {
+		return &LatestEmotePerformanceOutput{}, err
+	}
 
-	query, args, err := psql.Select("average", "day_sum", "code", "series.emote_id as emote_id", "day_sum - average as difference", "COALESCE((day_sum - average) / Nullif(average, 0) * 100, 0) as percent_difference").
+	return &LatestEmotePerformanceOutput{LatestEmoteReport{Emotes: result, Input: p}}, nil
+
+}
+
+func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
+	var currentSumQuery, avgSeriesLatestPeriod sq.SelectBuilder
+
+	switch p.Grouping {
+	case "hour":
+		currentSumQuery = baseHourlyQuery().
+			Where(sq.Eq{"DATE(hourly_bucket)": p.Date.Format("2006-01-02")})
+
+		avgSeriesLatestPeriod = recentHourlyAverage()
+
+	case "day":
+		currentSumQuery = baseDailyQuery().
+			Where(sq.Eq{"DATE(daily_bucket)": p.Date.Format("2006-01-02")})
+
+		avgSeriesLatestPeriod = recentDailyAverage()
+
+	default:
+		fmt.Println("Unknown grouping")
+		return &TopPerformingEmotesOutput{}, nil
+	}
+
+	result, err := selectEmotePerformance(currentSumQuery, avgSeriesLatestPeriod, db)
+
+	if err != nil {
+		return &TopPerformingEmotesOutput{}, err
+	}
+
+	return &TopPerformingEmotesOutput{EmoteReport{Emotes: result, Input: p}}, nil
+
+}
+
+func selectEmotePerformance(currentSumQuery sq.SelectBuilder, averageSumQuery sq.SelectBuilder, db *gorm.DB) ([]EmoteFullRow, error) {
+	baseQuery := statementBuilder().Select("average", "time", "count", "current_sum.emote_id as emote_id").
+		FromSelect(averageSumQuery, "avg_series").
+		JoinClause(currentSumQuery.
+			Prefix("JOIN (").
+			Suffix(") current_sum ON current_sum.emote_id = avg_series.emote_id"))
+
+	statQuery := statementBuilder().Select("average", "count", "code", "series.emote_id as emote_id", "count - average as difference", "COALESCE((count - average) / Nullif(average, 0) * 100, 0) as percent_difference").
 		FromSelect(baseQuery, "series").
-		Join("emotes on emotes.id = series.emote_id").
-		OrderBy("percent_difference DESC").
+		Join("emotes on emotes.id = series.emote_id")
+
+	weightedSortQuery, args, err := statementBuilder().Select("average", "count", "code", "emote_id", "difference", "percent_difference", "percent_difference * count as weighted_percent_difference").
+		FromSelect(statQuery, "stat").
+		OrderBy("weighted_percent_difference DESC").
 		ToSql()
 
 	if err != nil {
 		fmt.Println(err)
-		return &TopPerformingEmotesOutput{}, err
+		return nil, err
 	}
 
 	averages := []EmoteFullRow{}
 
-	err = db.Raw(query, args...).Scan(&averages).Error
+	err = db.Raw(weightedSortQuery, args...).Scan(&averages).Error
 
 	if err != nil {
 		fmt.Println(err)
-		return &TopPerformingEmotesOutput{}, err
+		return nil, err
 	}
 
-	return &TopPerformingEmotesOutput{EmoteReport{Emotes: averages}}, nil
+	return averages, nil
 }
 
 type EmoteDensityInput struct {

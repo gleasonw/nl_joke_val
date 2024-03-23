@@ -13,12 +13,24 @@ export function ClipAtTime() {
     refetchInterval: 1000 * 30,
   });
 
-  if (!clickedUnixSeconds) {
-    return <div>Click on the chart to pull the nearest clip</div>;
+  if (!clip || !clickedUnixSeconds) {
+    return (
+      <div className="flex justify-center items-center aspect-video border border-gray-300">
+        {!clickedUnixSeconds ? (
+          <div>Click on the chart to pull the nearest clip</div>
+        ) : (
+          <div>No clip found</div>
+        )}
+      </div>
+    );
   }
 
-  if (!clip) {
-    return <div>No clip found</div>;
+  if (clip.clip_id === "no_clip" || clip.clip_id === "") {
+    return (
+      <div className="flex justify-center items-center aspect-video border border-gray-300">
+        <div>No clip available for that timestamp</div>
+      </div>
+    );
   }
 
   return (

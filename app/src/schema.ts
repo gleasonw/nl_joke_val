@@ -23,6 +23,9 @@ export interface paths {
   "/api/is_live": {
     get: operations["get-api-is-live"];
   };
+  "/api/latest_emote_performance": {
+    get: operations["get-api-latest-emote-performance"];
+  };
   "/api/series": {
     get: operations["list-api-series"];
   };
@@ -99,7 +102,7 @@ export interface components {
       Average: number;
       Code: string;
       /** Format: double */
-      DaySum: number;
+      Count: number;
       /** Format: double */
       Difference: number;
       /** Format: int64 */
@@ -109,12 +112,12 @@ export interface components {
     };
     EmotePerformanceInput: {
       /** Format: date-time */
-      From: string;
+      Date: string;
       /**
-       * @default minute
+       * @default day
        * @enum {string}
        */
-      Grouping: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+      Grouping: "hour" | "day";
     };
     EmoteReport: {
       /**
@@ -161,6 +164,22 @@ export interface components {
        * @default about:blank
        */
       type?: string;
+    };
+    LatestEmotePerformanceInput: {
+      /**
+       * @default hour
+       * @enum {string}
+       */
+      Grouping: "hour" | "day";
+    };
+    LatestEmoteReport: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       */
+      $schema?: string;
+      Emotes: components["schemas"]["EmoteFullRow"][];
+      Input: components["schemas"]["LatestEmotePerformanceInput"];
     };
     TimeSeries: {
       series: {
@@ -233,8 +252,8 @@ export interface operations {
   "get-api-emote-average-performance": {
     parameters: {
       query?: {
-        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
-        from?: string;
+        date?: string;
+        grouping?: "hour" | "day";
       };
     };
     responses: {
@@ -297,6 +316,27 @@ export interface operations {
       200: {
         content: {
           "application/json": boolean;
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  "get-api-latest-emote-performance": {
+    parameters: {
+      query?: {
+        grouping?: "hour" | "day";
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LatestEmoteReport"];
         };
       };
       /** @description Error */

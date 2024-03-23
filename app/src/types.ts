@@ -12,6 +12,10 @@ export type EmotePerformanceParams = NonNullable<
   paths["/api/emote_average_performance"]["get"]["parameters"]["query"]
 >;
 
+export type LatestEmotePerformanceParams = NonNullable<
+  paths["/api/latest_emote_performance"]["get"]["parameters"]["query"]
+>;
+
 export type TimeGroupings = NonNullable<
   paths["/api/series"]["get"]["parameters"]["query"]
 >["grouping"];

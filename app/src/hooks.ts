@@ -1,26 +1,30 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { Route } from "./routes/index.lazy";
 import {
   ClipParams,
   EmoteDensityParams,
   EmotePerformanceParams,
+  LatestEmotePerformanceParams,
 } from "./types";
 import {
   getEmoteAveragePerformance,
   getEmoteDensity,
   getEmotes,
+  getLatestEmotePerformance,
+  getLiveStatus,
   getSeries,
 } from "./api";
-import { DashboardURLState, apiURL } from "./utils";
+import { DashboardURLState } from "./utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 export function useLiveStatus() {
   return useQuery({
-    queryFn: async () => {
-      const response = await fetch(`${apiURL}/api/is_live`);
-      return response.json();
-    },
+    queryFn: async () => getLiveStatus(),
     queryKey: ["liveStatus"],
   });
 }
@@ -32,17 +36,8 @@ export function useEmotes() {
   });
 }
 
-export function usePerformanceGrouping() {
-  const { data: isNlLive } = useLiveStatus();
-  return isNlLive ? "hour" : "day";
-}
-
 export function useDefaultSeries(): string[] {
-  const grouping = usePerformanceGrouping();
-
-  const { data: emotePerformance } = useEmoteAveragePerformance({
-    grouping,
-  });
+  const emotePerformance = useEmotePerformance();
 
   const topEmoteCodes = emotePerformance?.Emotes?.filter(
     (e) => e.Code !== "two"
@@ -68,12 +63,42 @@ export function useEmoteDensity(p: EmoteDensityParams) {
   });
 }
 
-export function useEmoteAveragePerformance(p?: EmotePerformanceParams) {
+export function useEmotePerformance():
+  | Awaited<ReturnType<typeof getEmoteAveragePerformance>>
+  | Awaited<ReturnType<typeof getLatestEmotePerformance>> {
   const { from } = Route.useSearch();
   const { data: isNlLive } = useLiveStatus();
-  return useQuery({
-    queryFn: () => getEmoteAveragePerformance({ ...p, from }),
+
+  const { data: performanceAtDay } = useEmoteAveragePerformanceAtDay({
+    date: from,
+  });
+
+  const { data: latestPerformance } = useLatestEmotePerformance({
+    grouping: isNlLive ? "hour" : "day",
+  });
+
+  if (from) {
+    return performanceAtDay;
+  }
+
+  return latestPerformance;
+}
+
+export function useEmoteAveragePerformanceAtDay(p?: EmotePerformanceParams) {
+  const { from } = Route.useSearch();
+  const { data: isNlLive } = useLiveStatus();
+  return useSuspenseQuery({
+    queryFn: () => getEmoteAveragePerformance({ ...p, date: from }),
     queryKey: ["emoteAveragePerformance", p, from],
+    refetchInterval: isNlLive ? 1000 * 10 : false,
+  });
+}
+
+export function useLatestEmotePerformance(p?: LatestEmotePerformanceParams) {
+  const { data: isNlLive } = useLiveStatus();
+  return useSuspenseQuery({
+    queryFn: () => getLatestEmotePerformance({ ...p }),
+    queryKey: ["latestEmotePerformance", p],
     refetchInterval: isNlLive ? 1000 * 10 : false,
   });
 }

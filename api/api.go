@@ -52,7 +52,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			migrateAndVerify()
+			initTimescaledb(db)
 			return
 		}
 	}
@@ -66,10 +66,10 @@ func main() {
 
 	liveStatus := &LiveStatus{IsLive: false}
 
-	go connectToTwitchChat(
-		db,
-		liveStatus,
-	)
+	// go connectToTwitchChat(
+	// 	db,
+	// 	liveStatus,
+	// )
 
 	validColumnSet, _ := getEmotes()
 
@@ -100,6 +100,10 @@ func main() {
 
 	huma.Get(api, "/api/emote_average_performance", func(ctx context.Context, input *EmotePerformanceInput) (*TopPerformingEmotesOutput, error) {
 		return GetTopPerformingEmotes(*input, db)
+	})
+
+	huma.Get(api, "/api/latest_emote_performance", func(ctx context.Context, input *LatestEmotePerformanceInput) (*LatestEmotePerformanceOutput, error) {
+		return GetLatestEmotePerformance(*input, db)
 	})
 
 	huma.Get(api, "/api/emote_density", func(ctx context.Context, input *EmoteDensityInput) (*TopDensityEmotesOutput, error) {
