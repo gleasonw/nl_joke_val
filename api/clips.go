@@ -132,10 +132,13 @@ func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error)
 	var clip Clip
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
+	// twitch captures ~20 seconds before the moment we create a clip. Clip last
+	// ~30 seconds. The range filter attempts to get a clip with an offset
+	// that captures the queried moment.
 	query, args, err := psql.Select("clip_id", "created_at as time").
 		From("chat_counts").
-		Where(sq.GtOrEq{"EXTRACT(epoch from created_at)": p.Time + 10}).
-		Where(sq.LtOrEq{"EXTRACT(epoch from created_at)": p.Time + 20}).
+		Where(sq.GtOrEq{"EXTRACT(epoch from created_at)": p.Time + 8}).
+		Where(sq.LtOrEq{"EXTRACT(epoch from created_at)": p.Time + 23}).
 		Limit(1).
 		ToSql()
 
