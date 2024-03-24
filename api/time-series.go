@@ -54,11 +54,15 @@ func GetTimeSeriesRollingAverage(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput,
 
 }
 
+func filterByDay(query sq.SelectBuilder, day time.Time) sq.SelectBuilder {
+	return query.Where(sq.GtOrEq{"created_at": day}).Where(sq.LtOrEq{"created_at": day.Add(time.Hour * 24)})
+}
+
 func baseSeriesSelect(p SeriesInput) sq.SelectBuilder {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	series :=
-		psql.Select("sum(count) as count, date_trunc('" + p.Grouping + "', created_at) as time, emote_id").
+		psql.Select("sum(count) as count, time_bucket('1 " + p.Grouping + "', created_at) as time, emote_id").
 			From("emote_counts").
 			GroupBy("time, emote_id")
 
@@ -67,11 +71,11 @@ func baseSeriesSelect(p SeriesInput) sq.SelectBuilder {
 			Where(sq.LtOrEq{"created_at": p.To}).
 			Where(sq.GtOrEq{"created_at": p.From})
 	} else if !p.From.IsZero() {
-		series = series.Where(sq.Eq{"DATE(created_at)": p.From})
+		series = filterByDay(series, p.From)
 	} else if p.Span != "" {
 		series = series.
-			Where(psql.Select(fmt.Sprintf("MAX(created_at) - '%s'::interval", p.Span)).
-				From("emote_counts").
+			Where(psql.Select(fmt.Sprintf("MAX(hourly_bucket) - '%s'::interval", p.Span)).
+				From("hourly_sum").
 				Prefix("created_at >= (").
 				Suffix(")"))
 	}

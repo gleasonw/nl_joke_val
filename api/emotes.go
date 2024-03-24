@@ -149,16 +149,16 @@ func GetLatestEmotePerformance(p LatestEmotePerformanceInput, db *gorm.DB) (*Lat
 	switch p.Grouping {
 	case "hour":
 		currentSumQuery = baseHourlyQuery().
-			Where(statementBuilder().Select("MAX(created_at) - '9 hours'::interval").
-				From("emote_counts").
+			Where(statementBuilder().Select("MAX(hourly_bucket) - '9 hours'::interval").
+				From("hourly_sum").
 				Prefix("hourly_bucket >= (").
 				Suffix(")"))
 
 		avgSeriesLatestPeriod = recentHourlyAverage()
 	case "day":
 		currentSumQuery = baseDailyQuery().
-			Where(statementBuilder().Select("MAX(DATE(created_at))").
-				From("emote_counts").
+			Where(statementBuilder().Select("MAX(DATE(hourly_bucket))").
+				From("hourly_sum").
 				Prefix("DATE(daily_bucket) = (").
 				Suffix(")"))
 

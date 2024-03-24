@@ -32,6 +32,7 @@ type ClipCountsOutput struct {
 // the solution is to filter rows within the likelyBitLength window
 const likelyBitLength = "1 minutes"
 
+// TODO: rewrite with squirrel.
 func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]bool) (*ClipCountsOutput, error) {
 
 	var query string
@@ -59,8 +60,11 @@ func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[st
 	if !p.From.IsZero() {
 		rollingSumQuery = fmt.Sprintf(`
 			%s
-			AND (emote_counts.created_at AT TIME ZONE 'UTC')::date = '%s'
-			`, rollingSumQuery, p.From.Format("2006-01-02 15:04:05"))
+			AND emote_counts.created_at >= '%s' AND emote_counts.created_at < '%s'
+			`,
+			rollingSumQuery,
+			p.From.Format("2006-01-02 15:04:05"),
+			p.From.Add(time.Hour*24).Format("2006-01-02 15:04:05"))
 	} else if p.Span != "" {
 		rollingSumQuery = fmt.Sprintf(`
 			%s 

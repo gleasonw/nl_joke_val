@@ -23,6 +23,8 @@ const loadingPhrases = [
   "Chargement...",
   "Firing up...😎",
 ] as const;
+// bug with resetting state when clicking table row
+// always use created_at ranges with queries... timescaledb index
 
 function loadingStatement() {
   const index = Math.floor(Math.random() * loadingPhrases.length);
