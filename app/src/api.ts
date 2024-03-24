@@ -90,7 +90,7 @@ export async function getClips(params: ClipParams) {
   return result.data;
 }
 
-export async function getClipAtTime(params: { time?: number }) {
+export async function getClipAtTime(params: { time?: string }) {
   const result = await GET("/api/clip", {
     params: {
       query: params,

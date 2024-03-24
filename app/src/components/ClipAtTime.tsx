@@ -8,7 +8,12 @@ export function ClipAtTime() {
   const { clickedUnixSeconds } = Route.useSearch();
 
   const { data: clip } = useQuery({
-    queryFn: () => getClipAtTime({ time: clickedUnixSeconds }),
+    queryFn: () =>
+      getClipAtTime({
+        time: clickedUnixSeconds
+          ? new Date(clickedUnixSeconds * 1000).toISOString()
+          : undefined,
+      }),
     queryKey: ["clip", clickedUnixSeconds],
     refetchInterval: 1000 * 30,
   });

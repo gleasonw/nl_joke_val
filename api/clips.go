@@ -121,7 +121,7 @@ func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[st
 }
 
 type NearestClipInput struct {
-	Time int `query:"time"`
+	Time time.Time `query:"time"`
 }
 
 type NearestClipOutput struct {
@@ -136,9 +136,9 @@ func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error)
 	// ~30 seconds. The range filter attempts to get a clip with an offset
 	// that captures the queried moment.
 	query, args, err := psql.Select("clip_id", "created_at as time").
-		From("chat_counts").
-		Where(sq.GtOrEq{"EXTRACT(epoch from created_at)": p.Time + 8}).
-		Where(sq.LtOrEq{"EXTRACT(epoch from created_at)": p.Time + 23}).
+		From("emote_counts").
+		Where(sq.GtOrEq{"created_at": p.Time.Add(8 * time.Second)}).
+		Where(sq.LtOrEq{"created_at": p.Time.Add(23 * time.Second)}).
 		Limit(1).
 		ToSql()
 
@@ -146,6 +146,11 @@ func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error)
 		fmt.Println(err)
 		return &NearestClipOutput{}, err
 	}
+
+	fmt.Println(p.Time.Add(8 * time.Second))
+	fmt.Println(p.Time.Add(23 * time.Second))
+
+	fmt.Println(query)
 
 	dbError := db.Raw(query, args...).Scan(&clip).Error
 

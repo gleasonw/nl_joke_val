@@ -205,7 +205,7 @@ export interface operations {
   "get-api-clip": {
     parameters: {
       query?: {
-        time?: number;
+        time?: string;
       };
     };
     responses: {
