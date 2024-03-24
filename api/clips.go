@@ -151,11 +151,6 @@ func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error)
 		return &NearestClipOutput{}, err
 	}
 
-	fmt.Println(p.Time.Add(8 * time.Second))
-	fmt.Println(p.Time.Add(23 * time.Second))
-
-	fmt.Println(query)
-
 	dbError := db.Raw(query, args...).Scan(&clip).Error
 
 	if dbError != nil {

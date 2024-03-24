@@ -102,25 +102,13 @@ func statementBuilder() sq.StatementBuilderType {
 	return sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 }
 
-func baseHourlyQuery() sq.SelectBuilder {
-	return statementBuilder().
-		Select("hourly_sum as count, hourly_bucket as time, emote_id").
-		From("hourly_sum")
-}
-
-func baseDailyQuery() sq.SelectBuilder {
-	return statementBuilder().
-		Select("daily_sum as count, daily_bucket as time, emote_id").
-		From("daily_sum")
-}
-
 func recentHourlyAverage() sq.SelectBuilder {
 	return statementBuilder().
 		Select("average", "emote_id").
 		From("avg_hourly_sum_three_months").
 		Where(statementBuilder().
-			Select("max(date) from avg_hourly_sum_three_months").
-			Prefix("avg_hourly_sum_three_months.date = (").
+			Select("max(bucket) from avg_hourly_sum_three_months").
+			Prefix("avg_hourly_sum_three_months.bucket = (").
 			Suffix(")"))
 }
 
@@ -129,8 +117,8 @@ func recentDailyAverage() sq.SelectBuilder {
 		Select("average", "emote_id").
 		From("avg_daily_sum_three_months").
 		Where(statementBuilder().
-			Select("max(date) from avg_daily_sum_three_months").
-			Prefix("avg_daily_sum_three_months.date = (").
+			Select("max(bucket) from avg_daily_sum_three_months").
+			Prefix("avg_daily_sum_three_months.bucket = (").
 			Suffix(")"))
 }
 
@@ -148,18 +136,22 @@ func GetLatestEmotePerformance(p LatestEmotePerformanceInput, db *gorm.DB) (*Lat
 
 	switch p.Grouping {
 	case "hour":
-		currentSumQuery = baseHourlyQuery().
-			Where(statementBuilder().Select("MAX(hourly_bucket) - '9 hours'::interval").
-				From("hourly_sum").
-				Prefix("hourly_bucket >= (").
+		currentSumQuery = statementBuilder().
+			Select("sum", "bucket", "emote_id").
+			From(hourlyViewAggregate).
+			Where(statementBuilder().Select("MAX(bucket) - '9 hours'::interval").
+				From(hourlyViewAggregate).
+				Prefix("bucket >= (").
 				Suffix(")"))
 
 		avgSeriesLatestPeriod = recentHourlyAverage()
 	case "day":
-		currentSumQuery = baseDailyQuery().
-			Where(statementBuilder().Select("MAX(DATE(hourly_bucket))").
-				From("hourly_sum").
-				Prefix("DATE(daily_bucket) = (").
+		currentSumQuery = statementBuilder().
+			Select("sum", "bucket", "emote_id").
+			From(dailyViewAggregate).
+			Where(statementBuilder().Select("MAX(DATE(bucket))").
+				From(hourlyViewAggregate).
+				Prefix("DATE(bucket) = (").
 				Suffix(")"))
 
 		avgSeriesLatestPeriod = recentDailyAverage()
@@ -183,14 +175,18 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 
 	switch p.Grouping {
 	case "hour":
-		currentSumQuery = baseHourlyQuery().
-			Where(sq.Eq{"DATE(hourly_bucket)": p.Date.Format("2006-01-02")})
+		currentSumQuery = statementBuilder().
+			Select("sum", "bucket", "emote_id").
+			From(hourlyViewAggregate).
+			Where(sq.Eq{"DATE(bucket)": p.Date.Format("2006-01-02")})
 
 		avgSeriesLatestPeriod = recentHourlyAverage()
 
 	case "day":
-		currentSumQuery = baseDailyQuery().
-			Where(sq.Eq{"DATE(daily_bucket)": p.Date.Format("2006-01-02")})
+		currentSumQuery = statementBuilder().
+			Select("sum", "bucket", "emote_id").
+			From(dailyViewAggregate).
+			Where(sq.Eq{"DATE(bucket)": p.Date.Format("2006-01-02")})
 
 		avgSeriesLatestPeriod = recentDailyAverage()
 
@@ -210,17 +206,20 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 }
 
 func selectEmotePerformance(currentSumQuery sq.SelectBuilder, averageSumQuery sq.SelectBuilder, db *gorm.DB) ([]EmoteFullRow, error) {
-	baseQuery := statementBuilder().Select("average", "time", "count", "current_sum.emote_id as emote_id").
+	baseQuery := statementBuilder().
+		Select("average", "bucket", "sum", "current_sum.emote_id as emote_id").
 		FromSelect(averageSumQuery, "avg_series").
 		JoinClause(currentSumQuery.
 			Prefix("JOIN (").
 			Suffix(") current_sum ON current_sum.emote_id = avg_series.emote_id"))
 
-	statQuery := statementBuilder().Select("average", "count", "code", "series.emote_id as emote_id", "count - average as difference", "COALESCE((count - average) / Nullif(average, 0) * 100, 0) as percent_difference").
+	statQuery := statementBuilder().
+		Select("average", "sum", "code", "series.emote_id as emote_id", "sum - average as difference", "COALESCE((sum - average) / Nullif(average, 0) * 100, 0) as percent_difference").
 		FromSelect(baseQuery, "series").
 		Join("emotes on emotes.id = series.emote_id")
 
-	weightedSortQuery, args, err := statementBuilder().Select("average", "count", "code", "emote_id", "difference", "percent_difference", "percent_difference * count as weighted_percent_difference").
+	weightedSortQuery, args, err := statementBuilder().
+		Select("average", "sum as count", "code", "emote_id", "difference", "percent_difference", "percent_difference * sum as weighted_percent_difference").
 		FromSelect(statQuery, "stat").
 		OrderBy("weighted_percent_difference DESC").
 		ToSql()
@@ -270,13 +269,13 @@ func GetTopDensityEmotes(db *gorm.DB, p EmoteDensityInput) (*TopDensityEmotesOut
 	timeFilter := func(query *sq.SelectBuilder) sq.SelectBuilder {
 		updated := query.Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id not in (").Suffix(")"))
 		if !p.From.IsZero() {
-			return updated.Where(sq.Eq{"DATE(day_time)": p.From})
+			return updated.Where(sq.Eq{"DATE(bucket)": p.From})
 		}
-		return updated.Where(psql.Select("max(day_time) from daily_sum").Prefix("daily_sum.day_time = (").Suffix(")"))
+		return updated.Where(psql.Select("max(bucket) from daily_sum").Prefix("daily_sum.bucket = (").Suffix(")"))
 	}
 
-	crossJoinTotal := psql.Select("sum(day_sum) as total_count").
-		From("daily_sum").
+	crossJoinTotal := psql.Select("sum(sum) as total_count").
+		From(dailyViewAggregate).
 		Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id not in (").Suffix(")")).
 		Prefix("(").Suffix(") total")
 
@@ -289,7 +288,7 @@ func GetTopDensityEmotes(db *gorm.DB, p EmoteDensityInput) (*TopDensityEmotesOut
 	}
 
 	baseQuery := psql.Select("emote_id, code, COALESCE((day_sum / NULLIF(total_count, 0)), 0) * 100 AS percent, day_sum").
-		From("daily_sum").
+		From(dailyViewAggregate).
 		Join("emotes on emotes.id = daily_sum.emote_id").
 		OrderBy("percent DESC")
 

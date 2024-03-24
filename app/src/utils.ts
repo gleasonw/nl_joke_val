@@ -41,9 +41,6 @@ export const timeGroupings: NonNullable<TimeGroupings>[] = [
   "minute",
   "hour",
   "day",
-  "week",
-  "month",
-  "year",
 ] as const;
 
 export const clipTimeGroupings: NonNullable<ClipTimeGroupings>[] = [

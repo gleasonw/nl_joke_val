@@ -43,6 +43,13 @@ type LiveStatus struct {
 	IsLive bool
 }
 
+const secondViewAggregate = "ten_second_sum"
+const minuteViewAggregate = "minute_sum"
+const hourlyViewAggregate = "hourly_sum"
+const dailyViewAggregate = "daily_sum"
+const averageDailyViewAggregate = "avg_daily_sum_three_months"
+const averageHourlyViewAggregate = "avg_hourly_sum_three_months"
+
 func main() {
 
 	env := GetConfig()
@@ -52,7 +59,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			migrateToNewModel()
+			initTimescaledb(db)
 			return
 		}
 	}

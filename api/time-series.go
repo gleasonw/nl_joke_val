@@ -21,9 +21,9 @@ type TimeSeriesOutput struct {
 }
 
 type TimeSeriesRow struct {
-	Count float64
-	Time  time.Time
-	Code  string
+	Sum    float64
+	Bucket time.Time
+	Code   string
 }
 
 type SeriesInput struct {
@@ -46,8 +46,8 @@ func GetTimeSeriesRollingAverage(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput,
 
 	rollingSeries := psql.Select(
 		"code",
-		"time",
-		"AVG(count) OVER (PARTITION BY code ORDER BY time ROWS BETWEEN "+strconv.Itoa(p.RollingAverage)+" PRECEDING AND CURRENT ROW) as count").
+		"bucket",
+		"AVG(sum) OVER (PARTITION BY code ORDER BY bucket ROWS BETWEEN "+strconv.Itoa(p.RollingAverage)+" PRECEDING AND CURRENT ROW) as sum").
 		FromSelect(baseSeries, "series")
 
 	return queryGroupAndSort(rollingSeries, db)
@@ -55,33 +55,38 @@ func GetTimeSeriesRollingAverage(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput,
 }
 
 func filterByDay(query sq.SelectBuilder, day time.Time) sq.SelectBuilder {
-	return query.Where(sq.GtOrEq{"created_at": day}).Where(sq.LtOrEq{"created_at": day.Add(time.Hour * 24)})
+	return query.Where(sq.GtOrEq{"bucket": day}).Where(sq.LtOrEq{"bucket": day.Add(time.Hour * 24)})
+}
+
+var groupingToView = map[string]string{
+	"second": secondViewAggregate,
+	"minute": minuteViewAggregate,
+	"hour":   hourlyViewAggregate,
+	"day":    dailyViewAggregate,
 }
 
 func baseSeriesSelect(p SeriesInput) sq.SelectBuilder {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	series :=
-		psql.Select("sum(count) as count, time_bucket('1 " + p.Grouping + "', created_at) as time, emote_id").
-			From("emote_counts").
-			GroupBy("time, emote_id")
+	series := psql.Select("sum, bucket, emote_id").
+		From(groupingToView[p.Grouping])
 
 	if !p.From.IsZero() && !p.To.IsZero() {
 		series = series.
-			Where(sq.LtOrEq{"created_at": p.To}).
-			Where(sq.GtOrEq{"created_at": p.From})
+			Where(sq.LtOrEq{"bucket": p.To}).
+			Where(sq.GtOrEq{"bucket": p.From})
 	} else if !p.From.IsZero() {
 		series = filterByDay(series, p.From)
 	} else if p.Span != "" {
 		series = series.
-			Where(psql.Select(fmt.Sprintf("MAX(hourly_bucket) - '%s'::interval", p.Span)).
+			Where(psql.Select(fmt.Sprintf("MAX(bucket) - '%s'::interval", p.Span)).
 				From("hourly_sum").
-				Prefix("created_at >= (").
+				Prefix("bucket >= (").
 				Suffix(")"))
 	}
 
 	seriesJoin := psql.
-		Select("count", "time", "code").
+		Select("sum", "bucket", "code").
 		FromSelect(series, "series").
 		Join("emotes on emotes.id = series.emote_id")
 
@@ -109,10 +114,10 @@ func queryGroupAndSort(builder sq.SelectBuilder, db *gorm.DB) (*TimeSeriesOutput
 	output := make(map[time.Time]TimeSeries)
 
 	for _, row := range result {
-		if _, ok := output[row.Time]; !ok {
-			output[row.Time] = TimeSeries{Time: row.Time, Series: make(map[string]float64)}
+		if _, ok := output[row.Bucket]; !ok {
+			output[row.Bucket] = TimeSeries{Time: row.Bucket, Series: make(map[string]float64)}
 		}
-		output[row.Time].Series[row.Code] = row.Count
+		output[row.Bucket].Series[row.Code] = row.Sum
 	}
 
 	seriesOutput := make([]TimeSeries, 0, len(output))

@@ -414,65 +414,101 @@ func initTimescaledb(db *gorm.DB) error {
 		return err
 	}
 
-	err = db.Exec(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS hourly_sum
+	err = db.Exec(fmt.Sprintf(`
+			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS
 			SELECT emote_id, 
-				sum(count) as hourly_sum,
-				time_bucket('1 hour', created_at) as hourly_bucket
+				sum(count) as sum,
+				time_bucket('10 seconds', created_at) as bucket
 			FROM emote_counts
 			GROUP BY 1, 3
-			ORDER BY hourly_bucket;`).Error
+			ORDER BY bucket;`,
+		secondViewAggregate)).Error
+
+	if err != nil {
+		fmt.Println("Error creating ten_second_bucket view:", err)
+		return err
+	}
+
+	err = db.Exec(fmt.Sprintf(`ALTER MATERIALIZED VIEW %s SET (timescaledb.materialized_only = false);`, secondViewAggregate)).Error
+
+	if err != nil {
+		fmt.Println("Error making ten_second_bucket view real time:", err)
+		return err
+	}
+
+	err = db.Exec(fmt.Sprintf(`
+			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
+			WITH (timescaledb.continuous) AS
+			SELECT emote_id, 
+				sum(sum) as sum,
+				time_bucket('1 minute', bucket) as bucket
+			FROM %s
+			GROUP BY 1, 3
+			ORDER BY bucket;`,
+		minuteViewAggregate, secondViewAggregate)).Error
+
+	if err != nil {
+		fmt.Println("Error creating minute_bucket view:", err)
+		return err
+	}
+
+	err = db.Exec(fmt.Sprintf(`
+			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
+			WITH (timescaledb.continuous) AS
+			SELECT emote_id, 
+				sum(sum) as sum,
+				time_bucket('1 hour', bucket) as bucket
+			FROM %s
+			GROUP BY 1, 3
+			ORDER BY bucket;`,
+		hourlyViewAggregate, minuteViewAggregate)).Error
 
 	if err != nil {
 		fmt.Println("Error creating hourly_sum view:", err)
 		return err
 	}
 
-	err = db.Exec(`ALTER MATERIALIZED VIEW hourly_sum SET (timescaledb.materialized_only = false);`).Error
-
-	if err != nil {
-		fmt.Println("Error making hourly_sum view real time:", err)
-		return err
-	}
-
-	err = db.Exec(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS daily_sum
+	err = db.Exec(fmt.Sprintf(`
+			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS
 			SELECT emote_id, 
-				sum(hourly_sum) as daily_sum,
-				time_bucket('1 day', hourly_bucket) as daily_bucket
-			FROM hourly_sum
+				sum(sum) as sum,
+				time_bucket('1 day', bucket) as bucket
+			FROM %s
 			GROUP BY 1, 3
-			ORDER BY daily_bucket;`).Error
+			ORDER BY bucket;`,
+		dailyViewAggregate, hourlyViewAggregate)).Error
 
 	if err != nil {
 		fmt.Println("Error creating daily_sum view:", err)
 		return err
 	}
 
-	err = db.Exec(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS avg_daily_sum_three_months
+	err = db.Exec(fmt.Sprintf(`
+			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS 
-			SELECT time_bucket('3 months'::interval, daily_bucket) as date, 
-				avg(daily_sum) as average, 
+			SELECT time_bucket('3 months'::interval, bucket) as bucket, 
+				avg(sum) as average, 
 				emote_id
-			FROM daily_sum
-			GROUP BY 1, 3;`).Error
+			FROM %s
+			GROUP BY 1, 3;`,
+		averageDailyViewAggregate, dailyViewAggregate)).Error
 
 	if err != nil {
 		fmt.Println("Error creating avg_daily_sum_three_months view:", err)
 		return err
 	}
 
-	err = db.Exec(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS avg_hourly_sum_three_months
+	err = db.Exec(fmt.Sprintf(`
+			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS 
-			SELECT time_bucket('3 months'::interval, hourly_bucket) as date, 
-				avg(hourly_sum) as average, 
+			SELECT time_bucket('3 months'::interval, bucket) as bucket, 
+				avg(sum) as average, 
 				emote_id
-			FROM hourly_sum
-			GROUP BY 1, 3;`).Error
+			FROM %s
+			GROUP BY 1, 3;`,
+		averageHourlyViewAggregate, hourlyViewAggregate)).Error
 
 	if err != nil {
 		fmt.Println("Error creating avg_hourly_sum_three_months view:", err)
