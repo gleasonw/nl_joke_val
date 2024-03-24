@@ -179,7 +179,9 @@ type ChatCounts struct {
 	Life         float64   `json:"life"`
 }
 
-func migrateAndVerify() error {
+// moves data in chat_counts to the new data model, more decoupled.
+// also sets up timescaledb for the new model
+func migrateToNewModel() error {
 
 	godotenv.Load()
 
@@ -348,6 +350,17 @@ func migrateAndVerify() error {
 		return err
 	}
 
+	fmt.Println("Setting up timescaledb")
+
+	// we must drop the primary key for the timescaledb setup.
+	// the key comes from gorm. I could probably disable it.
+	err = db.Exec("ALTER TABLE emote_counts drop constraint emote_counts_pkey").Error
+
+	if err != nil {
+		fmt.Println("Error dropping primary key constraint:", err)
+		return err
+	}
+
 	err = initTimescaledb(db)
 
 	if err != nil {
@@ -383,17 +396,6 @@ func concurrentBatchInsert[Row EmoteCount | FetchedClip](db *gorm.DB, rows []Row
 		}
 	}
 	wg.Wait()
-	return nil
-}
-
-func dropEmoteCountsPrimaryKey(db *gorm.DB) error {
-	err := db.Exec("ALTER TABLE emote_counts drop constraint emote_counts_pkey").Error
-
-	if err != nil {
-		fmt.Println("Error dropping primary key constraint:", err)
-		return err
-	}
-
 	return nil
 }
 

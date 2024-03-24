@@ -28,17 +28,27 @@ export function DatePicker() {
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP") : <span>Pick a date</span>}
+          {date ? format(date, "PPPP") : <span>Pick a date</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <Calendar
           mode="single"
           selected={date}
-          onSelect={(date) => handleUpdateURL({ from: date?.toISOString() })}
+          onDayClick={(d) => handleUpdateURL({ from: toLocalIso(d) })}
           initialFocus
         />
       </PopoverContent>
     </Popover>
   );
+}
+
+function toLocalIso(date: Date) {
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+
+  // Subtract the timezone offset from the date's time
+  const localTime = new Date(date.getTime() - timezoneOffset);
+
+  // Convert to ISO string and remove the time portion
+  return localTime.toISOString();
 }

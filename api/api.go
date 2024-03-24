@@ -52,7 +52,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			initTimescaledb(db)
+			migrateToNewModel()
 			return
 		}
 	}
@@ -66,10 +66,10 @@ func main() {
 
 	liveStatus := &LiveStatus{IsLive: false}
 
-	// go connectToTwitchChat(
-	// 	db,
-	// 	liveStatus,
-	// )
+	go connectToTwitchChat(
+		db,
+		liveStatus,
+	)
 
 	validColumnSet, _ := getEmotes()
 
