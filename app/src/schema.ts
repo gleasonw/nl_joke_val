@@ -227,7 +227,7 @@ export interface operations {
     parameters: {
       query?: {
         emote_id?: number;
-        span?: "30 minutes" | "9 hours" | "1 week" | "1 month" | "1 year";
+        span?: "30 minutes" | "1 hour" | "9 hours" | "1 week" | "1 month" | "1 year";
         grouping?: "25 seconds" | "1 minute" | "5 minutes" | "15 minutes" | "1 hour" | "1 day";
         order?: "ASC" | "DESC";
         limit?: number;
@@ -350,7 +350,7 @@ export interface operations {
   "list-api-series": {
     parameters: {
       query?: {
-        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
         grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
         rollingAverage?: number;
         from?: string;
