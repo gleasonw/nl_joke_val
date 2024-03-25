@@ -453,6 +453,13 @@ func initTimescaledb(db *gorm.DB) error {
 		return err
 	}
 
+	err = db.Exec(fmt.Sprintf(`ALTER MATERIALIZED VIEW %s SET (timescaledb.materialized_only = false);`, minuteViewAggregate)).Error
+
+	if err != nil {
+		fmt.Println("Error making minute_bucket view real time:", err)
+		return err
+	}
+
 	err = db.Exec(fmt.Sprintf(`
 			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS
@@ -466,6 +473,13 @@ func initTimescaledb(db *gorm.DB) error {
 
 	if err != nil {
 		fmt.Println("Error creating hourly_sum view:", err)
+		return err
+	}
+
+	err = db.Exec(fmt.Sprintf(`ALTER MATERIALIZED VIEW %s SET (timescaledb.materialized_only = false);`, hourlyViewAggregate)).Error
+
+	if err != nil {
+		fmt.Println("Error making hourly_sum view real time:", err)
 		return err
 	}
 

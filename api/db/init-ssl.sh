@@ -30,7 +30,4 @@ max_locks_per_transaction = 100
 timescaledb.max_background_workers = 16
 max_parallel_workers = 12
 max_worker_processes = 28
-shared_buffers = 15931MB
-work_mem = 13595kB
-jit = off
 EOF

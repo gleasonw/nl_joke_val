@@ -1,6 +1,11 @@
 import { getClips } from "../api";
 import { useQuery } from "@tanstack/react-query";
-import { useEmotePerformance, useEmoteDensity, useLiveStatus } from "../hooks";
+import {
+  useEmotePerformance,
+  useEmoteDensity,
+  useLiveStatus,
+  useLatestSpan,
+} from "../hooks";
 import React from "react";
 import { ClipClicker } from "./ClipClicker";
 import { CardTitle } from "@/components/ui/card";
@@ -76,13 +81,13 @@ export interface TopClipProps {
 }
 
 export function TopClip({ emoteId, children }: TopClipProps) {
-  const { data: isNlLive } = useLiveStatus();
+  const span = useLatestSpan();
 
   const [index, setIndex] = React.useState(0);
   const { from } = Route.useSearch();
 
   const params = {
-    span: isNlLive ? "30 minutes" : "9 hours",
+    span,
     grouping: "25 seconds",
     limit: 10,
     emote_id: emoteId,

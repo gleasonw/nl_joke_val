@@ -27,7 +27,7 @@ type TimeSeriesRow struct {
 }
 
 type SeriesInput struct {
-	Span           string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours,custom" default:"9 hours"`
+	Span           string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours" default:"9 hours"`
 	Grouping       string    `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
 	RollingAverage int       `query:"rollingAverage"`
 	From           time.Time `query:"from"`
@@ -78,11 +78,30 @@ func baseSeriesSelect(p SeriesInput) sq.SelectBuilder {
 	} else if !p.From.IsZero() {
 		series = filterByDay(series, p.From)
 	} else if p.Span != "" {
-		series = series.
-			Where(psql.Select(fmt.Sprintf("MAX(bucket) - '%s'::interval", p.Span)).
-				From("hourly_sum").
+		switch p.Span {
+		case "1 minute":
+			series = series.Where(psql.Select("MAX(bucket) - '1 minute'::interval").
+				From(minuteViewAggregate).
 				Prefix("bucket >= (").
 				Suffix(")"))
+		case "30 minutes":
+			series = series.Where(psql.Select("MAX(bucket) - '30 minutes'::interval").
+				From(minuteViewAggregate).
+				Prefix("bucket >= (").
+				Suffix(")"))
+		case "1 hour":
+			series = series.Where(psql.Select("MAX(bucket) - '1 hour'::interval").
+				From(hourlyViewAggregate).
+				Prefix("bucket >= (").
+				Suffix(")"))
+		case "9 hours":
+			series = series.Where(psql.Select("MAX(bucket) - '9 hours'::interval").
+				From(hourlyViewAggregate).
+				Prefix("bucket >= (").
+				Suffix(")"))
+		default:
+			panic("unknown span while trying to filter; huma should have caught this: " + p.Span)
+		}
 	}
 
 	seriesJoin := psql.

@@ -16,7 +16,7 @@ type Clip struct {
 
 type ClipCountsInput struct {
 	EmoteID  int       `query:"emote_id" default:"2"`
-	Span     string    `query:"span" default:"9 hours" enum:"30 minutes,9 hours,1 week,1 month,1 year"`
+	Span     string    `query:"span" default:"9 hours" enum:"30 minutes,1 hour,9 hours,1 week,1 month,1 year"`
 	Grouping string    `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
 	Order    string    `query:"order" default:"DESC" enum:"ASC,DESC"`
 	Limit    int       `query:"limit" default:"10"`
@@ -32,6 +32,9 @@ type ClipCountsOutput struct {
 // the solution is to filter rows within the likelyBitLength window
 const likelyBitLength = "1 minutes"
 
+// TODO: gross view
+// TODO: lower shared buffer size
+// TODO: limit the amount of data we return
 // TODO: rewrite with squirrel.
 func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]bool) (*ClipCountsOutput, error) {
 

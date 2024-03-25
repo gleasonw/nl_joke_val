@@ -137,17 +137,18 @@ func GetLatestEmotePerformance(p LatestEmotePerformanceInput, db *gorm.DB) (*Lat
 	switch p.Grouping {
 	case "hour":
 		currentSumQuery = statementBuilder().
-			Select("sum", "bucket", "emote_id").
+			Select("sum(sum) as sum", "emote_id").
 			From(hourlyViewAggregate).
-			Where(statementBuilder().Select("MAX(bucket) - '9 hours'::interval").
-				From(hourlyViewAggregate).
+			Where(statementBuilder().Select("MAX(bucket) - '1 hour'::interval").
+				From(secondViewAggregate).
 				Prefix("bucket >= (").
-				Suffix(")"))
+				Suffix(")")).
+			GroupBy("emote_id")
 
 		avgSeriesLatestPeriod = recentHourlyAverage()
 	case "day":
 		currentSumQuery = statementBuilder().
-			Select("sum", "bucket", "emote_id").
+			Select("sum", "emote_id").
 			From(dailyViewAggregate).
 			Where(statementBuilder().Select("MAX(DATE(bucket))").
 				From(hourlyViewAggregate).
@@ -176,9 +177,10 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 	switch p.Grouping {
 	case "hour":
 		currentSumQuery = statementBuilder().
-			Select("sum", "bucket", "emote_id").
+			Select("sum", "bucket", "emote_id", "ROW_NUMBER() OVER (PARTITION BY emote_id ORDER BY bucket DESC) AS rn").
 			From(hourlyViewAggregate).
-			Where(sq.Eq{"DATE(bucket)": p.Date.Format("2006-01-02")})
+			Where(sq.Eq{"DATE(bucket)": p.Date.Format("2006-01-02")}).
+			Where("rn = 1")
 
 		avgSeriesLatestPeriod = recentHourlyAverage()
 
@@ -207,7 +209,7 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 
 func selectEmotePerformance(currentSumQuery sq.SelectBuilder, averageSumQuery sq.SelectBuilder, db *gorm.DB) ([]EmoteFullRow, error) {
 	baseQuery := statementBuilder().
-		Select("average", "bucket", "sum", "current_sum.emote_id as emote_id").
+		Select("average", "sum", "current_sum.emote_id as emote_id").
 		FromSelect(averageSumQuery, "avg_series").
 		JoinClause(currentSumQuery.
 			Prefix("JOIN (").

@@ -63,6 +63,12 @@ export function useEmoteDensity(p: EmoteDensityParams) {
   });
 }
 
+export function useLatestSpan() {
+  const { data: isNlLive } = useLiveStatus();
+
+  return isNlLive ? "1 hour" : "9 hours";
+}
+
 export function useEmotePerformance():
   | Awaited<ReturnType<typeof getEmoteAveragePerformance>>
   | Awaited<ReturnType<typeof getLatestEmotePerformance>> {
@@ -165,7 +171,7 @@ export function useTimeSeries() {
   const currentState = Route.useSearch();
   const { seriesParams, from } = currentState;
 
-  const defaultSpan = isNlLive ? "30 minutes" : "9 hours";
+  const defaultSpan = isNlLive ? "1 hour" : "9 hours";
   const defaultGrouping = isNlLive ? "second" : "minute";
   const defaultRollingAverage = isNlLive ? 0 : 15;
 
