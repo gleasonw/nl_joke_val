@@ -74,9 +74,11 @@ func fetchNlEmotesFromBTTV() (EmoteSet, error) {
 type EmotePerformanceInput struct {
 	Date     time.Time `query:"date"`
 	Grouping string    `query:"grouping" enum:"hour,day" default:"day"`
+	Limit    int       `query:"limit" default:"10" minimum:"1"`
 }
 
 type LatestEmotePerformanceInput struct {
+	Limit    int    `query:"limit" default:"10" minimum:"1"`
 	Grouping string `query:"grouping" enum:"hour,day" default:"hour"`
 }
 
@@ -161,6 +163,8 @@ func GetLatestEmotePerformance(p LatestEmotePerformanceInput, db *gorm.DB) (*Lat
 		return &LatestEmotePerformanceOutput{}, nil
 	}
 
+	currentSumQuery = currentSumQuery.Limit(uint64(p.Limit))
+
 	result, err := selectEmotePerformance(currentSumQuery, avgSeriesLatestPeriod, db)
 
 	if err != nil {
@@ -196,6 +200,8 @@ func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformin
 		fmt.Println("Unknown grouping")
 		return &TopPerformingEmotesOutput{}, nil
 	}
+
+	currentSumQuery = currentSumQuery.Limit(uint64(p.Limit))
 
 	result, err := selectEmotePerformance(currentSumQuery, avgSeriesLatestPeriod, db)
 
@@ -243,45 +249,52 @@ func selectEmotePerformance(currentSumQuery sq.SelectBuilder, averageSumQuery sq
 	return averages, nil
 }
 
-type EmoteDensityInput struct {
-	Span  string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours,custom" default:"9 hours"`
-	Limit int       `query:"limit" default:"10"`
-	From  time.Time `query:"from"`
+type EmoteSumInput struct {
+	Span     string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours,custom" default:"9 hours"`
+	Limit    int       `query:"limit" default:"10" minimum:"1"`
+	From     time.Time `query:"from"`
+	Grouping string    `query:"grouping" enum:"second,minute,hour,day" default:"minute"`
 }
 
-type EmoteDensity struct {
+type EmoteSum struct {
 	EmoteID int
 	Code    string
 	Percent float64
 	Count   int
 }
 
-type EmoteDensityReport struct {
-	Emotes []EmoteDensity
-	Input  EmoteDensityInput
+type EmoteSumReport struct {
+	Emotes []EmoteSum
+	Input  EmoteSumInput
 }
 
 type TopDensityEmotesOutput struct {
-	Body EmoteDensityReport
+	Body EmoteSumReport
 }
 
-func GetTopDensityEmotes(db *gorm.DB, p EmoteDensityInput) (*TopDensityEmotesOutput, error) {
-	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+func selectEmoteSums(db *gorm.DB, p EmoteSumInput) (*TopDensityEmotesOutput, error) {
+	psql := statementBuilder()
 
-	timeFilter := func(query *sq.SelectBuilder) sq.SelectBuilder {
-		updated := query.Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id not in (").Suffix(")"))
-		if !p.From.IsZero() {
-			return updated.Where(sq.Eq{"DATE(bucket)": p.From})
-		}
-		return updated.Where(psql.Select("max(bucket) from daily_sum").Prefix("daily_sum.bucket = (").Suffix(")"))
+	aggregateForGrouping, ok := groupingToView[p.Grouping]
+
+	if !ok {
+		panic("Invalid grouping while trying to get aggregate in GetTopDensityEmotes: " + p.Grouping)
+	}
+
+	filteredCountRows := psql.
+		Select("*").
+		From(aggregateForGrouping).
+		Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id not in (").Suffix(")"))
+
+	if !p.From.IsZero() {
+		filteredCountRows = filterByDay(filteredCountRows, p.From)
+	} else if p.Span != "" {
+		filteredCountRows = filterBySpan(filteredCountRows, p.Span)
 	}
 
 	crossJoinTotal := psql.Select("sum(sum) as total_count").
-		From(dailyViewAggregate).
-		Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id not in (").Suffix(")")).
+		FromSelect(filteredCountRows, "count_rows").
 		Prefix("(").Suffix(") total")
-
-	crossJoinTotal = timeFilter(&crossJoinTotal)
 
 	crossJoinQuery, _, err := crossJoinTotal.ToSql()
 
@@ -289,28 +302,30 @@ func GetTopDensityEmotes(db *gorm.DB, p EmoteDensityInput) (*TopDensityEmotesOut
 		return &TopDensityEmotesOutput{}, err
 	}
 
-	baseQuery := psql.Select("emote_id, code, COALESCE((day_sum / NULLIF(total_count, 0)), 0) * 100 AS percent, day_sum").
-		From(dailyViewAggregate).
-		Join("emotes on emotes.id = daily_sum.emote_id").
-		OrderBy("percent DESC")
+	baseQuery := psql.Select("emote_id, code, COALESCE((sum / NULLIF(total_count, 0)), 0) * 100 AS percent, sum").
+		FromSelect(filteredCountRows, "count_rows").
+		OrderBy("percent DESC").
+		Limit(uint64(p.Limit))
 
-	baseQuery = timeFilter(&baseQuery)
-
-	query, baseArgs, err := baseQuery.CrossJoin(crossJoinQuery).ToSql()
+	query, baseArgs, err := baseQuery.
+		CrossJoin(crossJoinQuery).
+		Join("emotes on emotes.id = emote_id").
+		ToSql()
 
 	if err != nil {
 		return &TopDensityEmotesOutput{}, err
 	}
 
-	// Execute the query.
-	var densities []EmoteDensity
+	var densities []EmoteSum
+
 	err = db.Raw(query, baseArgs...).Scan(&densities).Error
+
 	if err != nil {
 		fmt.Println("Error executing query:", err)
 		return nil, err
 	}
 
-	return &TopDensityEmotesOutput{Body: EmoteDensityReport{
+	return &TopDensityEmotesOutput{Body: EmoteSumReport{
 		Emotes: densities,
 		Input:  p,
 	}}, nil

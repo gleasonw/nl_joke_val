@@ -3,7 +3,7 @@ import { TimeGroupings } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { useDashboardState, useDefaultSeries, useTimeSeries } from "../hooks";
+import { useDashboardState, useTimeSeries } from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
 import { SettingsDropLayout } from "./SettingsDropLayout";
@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 export function Chart() {
   const navigate = useNavigate();
   const currentState = Route.useSearch();
-  const { seriesParams, series } = currentState;
+  const { seriesParams } = currentState;
 
   function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
     navigate({
@@ -35,10 +35,7 @@ export function Chart() {
     { grouping, rollingAverage },
   ] = useTimeSeries();
 
-  const defaultSeries = useDefaultSeries();
-  const seriesToDisplay = series?.length
-    ? [...series, ...defaultSeries]
-    : defaultSeries;
+  const seriesToDisplay = Object.keys(localFetchedSeries?.at(0)?.series ?? {});
 
   const emoteSeries:
     | Highcharts.SeriesLineOptions[]

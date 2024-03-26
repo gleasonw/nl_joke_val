@@ -90,11 +90,15 @@ func main() {
 		return GetClipCountsNewModel(*input, db, validColumnSet)
 	})
 
-	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInput) (*TimeSeriesOutput, error) {
-		if input.RollingAverage > 0 {
+	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
+		if input.input.RollingAverage > 0 {
 			return GetTimeSeriesRollingAverage(*input, db)
 		}
 		return GetTimeSeries(*input, db)
+	})
+
+	huma.Get(api, "/api/series_greatest", func(ctx context.Context, input *SeriesInput) (*TimeSeriesOutput, error) {
+		return GetTimeSeriesGreatest(*input, db)
 	})
 
 	huma.Get(api, "/api/clip", func(ctx context.Context, input *NearestClipInput) (*NearestClipOutput, error) {
@@ -102,7 +106,7 @@ func main() {
 	})
 
 	huma.Get(api, "/api/is_live", func(ctx context.Context, input *struct{}) (*struct{ Body bool }, error) {
-		return &struct{ Body bool }{liveStatus.IsLive}, nil
+		return &struct{ Body bool }{true}, nil
 	})
 
 	huma.Get(api, "/api/emote_average_performance", func(ctx context.Context, input *EmotePerformanceInput) (*TopPerformingEmotesOutput, error) {
@@ -113,8 +117,8 @@ func main() {
 		return GetLatestEmotePerformance(*input, db)
 	})
 
-	huma.Get(api, "/api/emote_density", func(ctx context.Context, input *EmoteDensityInput) (*TopDensityEmotesOutput, error) {
-		return GetTopDensityEmotes(db, *input)
+	huma.Get(api, "/api/emote_density", func(ctx context.Context, input *EmoteSumInput) (*TopDensityEmotesOutput, error) {
+		return selectEmoteSums(db, *input)
 	})
 
 	type EmoteOutput struct {

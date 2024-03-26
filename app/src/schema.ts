@@ -29,6 +29,9 @@ export interface paths {
   "/api/series": {
     get: operations["list-api-series"];
   };
+  "/api/series_greatest": {
+    get: operations["list-api-series-greatest"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -65,38 +68,6 @@ export interface components {
       /** Format: date-time */
       UpdatedAt: string;
     };
-    EmoteDensity: {
-      Code: string;
-      /** Format: int64 */
-      Count: number;
-      /** Format: int64 */
-      EmoteID: number;
-      /** Format: double */
-      Percent: number;
-    };
-    EmoteDensityInput: {
-      /** Format: date-time */
-      From: string;
-      /**
-       * Format: int64
-       * @default 10
-       */
-      Limit: number;
-      /**
-       * @default 9 hours
-       * @enum {string}
-       */
-      Span: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
-    };
-    EmoteDensityReport: {
-      /**
-       * Format: uri
-       * @description A URL to the JSON Schema for this object.
-       */
-      $schema?: string;
-      Emotes: components["schemas"]["EmoteDensity"][];
-      Input: components["schemas"]["EmoteDensityInput"];
-    };
     EmoteFullRow: {
       /** Format: double */
       Average: number;
@@ -118,6 +89,11 @@ export interface components {
        * @enum {string}
        */
       Grouping: "hour" | "day";
+      /**
+       * Format: int64
+       * @default 10
+       */
+      Limit: number;
     };
     EmoteReport: {
       /**
@@ -127,6 +103,43 @@ export interface components {
       $schema?: string;
       Emotes: components["schemas"]["EmoteFullRow"][];
       Input: components["schemas"]["EmotePerformanceInput"];
+    };
+    EmoteSum: {
+      Code: string;
+      /** Format: int64 */
+      Count: number;
+      /** Format: int64 */
+      EmoteID: number;
+      /** Format: double */
+      Percent: number;
+    };
+    EmoteSumInput: {
+      /** Format: date-time */
+      From: string;
+      /**
+       * @default minute
+       * @enum {string}
+       */
+      Grouping: "second" | "minute" | "hour" | "day";
+      /**
+       * Format: int64
+       * @default 10
+       */
+      Limit: number;
+      /**
+       * @default 9 hours
+       * @enum {string}
+       */
+      Span: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+    };
+    EmoteSumReport: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       */
+      $schema?: string;
+      Emotes: components["schemas"]["EmoteSum"][];
+      Input: components["schemas"]["EmoteSumInput"];
     };
     ErrorDetail: {
       /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
@@ -171,6 +184,11 @@ export interface components {
        * @enum {string}
        */
       Grouping: "hour" | "day";
+      /**
+       * Format: int64
+       * @default 10
+       */
+      Limit: number;
     };
     LatestEmoteReport: {
       /**
@@ -254,6 +272,7 @@ export interface operations {
       query?: {
         date?: string;
         grouping?: "hour" | "day";
+        limit?: number;
       };
     };
     responses: {
@@ -277,13 +296,14 @@ export interface operations {
         span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
         limit?: number;
         from?: string;
+        grouping?: "second" | "minute" | "hour" | "day";
       };
     };
     responses: {
       /** @description OK */
       200: {
         content: {
-          "application/json": components["schemas"]["EmoteDensityReport"];
+          "application/json": components["schemas"]["EmoteSumReport"];
         };
       };
       /** @description Error */
@@ -329,6 +349,7 @@ export interface operations {
   "get-api-latest-emote-performance": {
     parameters: {
       query?: {
+        limit?: number;
         grouping?: "hour" | "day";
       };
     };
@@ -348,6 +369,22 @@ export interface operations {
     };
   };
   "list-api-series": {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TimeSeries"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  "list-api-series-greatest": {
     parameters: {
       query?: {
         span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";

@@ -16,7 +16,7 @@ import {
   getEmotes,
   getLatestEmotePerformance,
   getLiveStatus,
-  getSeries,
+  getSeriesGreatest,
 } from "./api";
 import { DashboardURLState } from "./utils";
 import { useNavigate } from "@tanstack/react-router";
@@ -183,7 +183,7 @@ export function useTimeSeries() {
   };
 
   const seriesData = useQuery({
-    queryFn: () => getSeries({ ...chartState, from }),
+    queryFn: () => getSeriesGreatest({ ...chartState, from }),
     queryKey: ["series", chartState, from],
     refetchInterval: isNlLive ? 1000 * 10 : false,
     placeholderData: keepPreviousData,

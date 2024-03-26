@@ -76,6 +76,23 @@ export async function getSeries(params: SeriesParams) {
   return result.data;
 }
 
+/**
+ * returns series data for top emotes by usage
+ */
+export async function getSeriesGreatest(params: SeriesParams) {
+  const result = await GET("/api/series_greatest", {
+    params: {
+      query: params,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch series");
+  }
+
+  return result.data;
+}
+
 export async function getClips(params: ClipParams) {
   const result = await GET("/api/clip_counts", {
     params: {
