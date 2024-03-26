@@ -35,8 +35,12 @@ type SeriesInput struct {
 }
 
 type SeriesInputForEmotes struct {
-	input    SeriesInput
-	EmoteIDs []int
+	Span           string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours" default:"9 hours"`
+	Grouping       string    `query:"grouping" enum:"second,minute,hour,day,week,month,year" default:"minute"`
+	RollingAverage int       `query:"rollingAverage"`
+	From           time.Time `query:"from"`
+	To             time.Time `query:"to"`
+	EmoteIDs       []int
 }
 
 func GetTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
@@ -52,7 +56,7 @@ func GetTimeSeriesRollingAverage(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeri
 	rollingSeries := psql.Select(
 		"code",
 		"bucket",
-		"AVG(sum) OVER (PARTITION BY code ORDER BY bucket ROWS BETWEEN "+strconv.Itoa(p.input.RollingAverage)+" PRECEDING AND CURRENT ROW) as sum").
+		"AVG(sum) OVER (PARTITION BY code ORDER BY bucket ROWS BETWEEN "+strconv.Itoa(p.RollingAverage)+" PRECEDING AND CURRENT ROW) as sum").
 		FromSelect(baseSeries, "series")
 
 	return queryGroupAndSort(rollingSeries, db)
@@ -79,7 +83,9 @@ func GetTimeSeriesGreatest(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error
 	}
 
 	baseSeries := baseSeriesSelect(SeriesInputForEmotes{
-		input:    p,
+		Grouping: p.Grouping,
+		From:     p.From,
+		Span:     p.Span,
 		EmoteIDs: topEmoteIds,
 	})
 
@@ -137,16 +143,16 @@ func baseSeriesSelect(p SeriesInputForEmotes) sq.SelectBuilder {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	series := psql.Select("sum, bucket, emote_id").
-		From(groupingToView[p.input.Grouping])
+		From(groupingToView[p.Grouping])
 
-	if !p.input.From.IsZero() && !p.input.To.IsZero() {
+	if !p.From.IsZero() && !p.To.IsZero() {
 		series = series.
-			Where(sq.LtOrEq{"bucket": p.input.To}).
-			Where(sq.GtOrEq{"bucket": p.input.From})
-	} else if !p.input.From.IsZero() {
-		series = filterByDay(series, p.input.From)
-	} else if p.input.Span != "" {
-		series = filterBySpan(series, p.input.Span)
+			Where(sq.LtOrEq{"bucket": p.To}).
+			Where(sq.GtOrEq{"bucket": p.From})
+	} else if !p.From.IsZero() {
+		series = filterByDay(series, p.From)
+	} else if p.Span != "" {
+		series = filterBySpan(series, p.Span)
 	}
 
 	series = series.Where(sq.Eq{"emote_id": p.EmoteIDs})

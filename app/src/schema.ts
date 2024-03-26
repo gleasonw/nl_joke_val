@@ -6,30 +6,39 @@
 
 export interface paths {
   "/api/clip": {
+    /** Get API clip */
     get: operations["get-api-clip"];
   };
   "/api/clip_counts": {
+    /** List API clip counts */
     get: operations["list-api-clip-counts"];
   };
   "/api/emote_average_performance": {
+    /** Get API emote average performance */
     get: operations["get-api-emote-average-performance"];
   };
   "/api/emote_density": {
+    /** Get API emote density */
     get: operations["get-api-emote-density"];
   };
   "/api/emotes": {
+    /** List API emotes */
     get: operations["list-api-emotes"];
   };
   "/api/is_live": {
+    /** Get API is live */
     get: operations["get-api-is-live"];
   };
   "/api/latest_emote_performance": {
+    /** Get API latest emote performance */
     get: operations["get-api-latest-emote-performance"];
   };
   "/api/series": {
+    /** List API series */
     get: operations["list-api-series"];
   };
   "/api/series_greatest": {
+    /** List API series greatest */
     get: operations["list-api-series-greatest"];
   };
 }
@@ -220,6 +229,7 @@ export type external = Record<string, never>;
 
 export interface operations {
 
+  /** Get API clip */
   "get-api-clip": {
     parameters: {
       query?: {
@@ -241,6 +251,7 @@ export interface operations {
       };
     };
   };
+  /** List API clip counts */
   "list-api-clip-counts": {
     parameters: {
       query?: {
@@ -267,6 +278,7 @@ export interface operations {
       };
     };
   };
+  /** Get API emote average performance */
   "get-api-emote-average-performance": {
     parameters: {
       query?: {
@@ -290,6 +302,7 @@ export interface operations {
       };
     };
   };
+  /** Get API emote density */
   "get-api-emote-density": {
     parameters: {
       query?: {
@@ -314,6 +327,7 @@ export interface operations {
       };
     };
   };
+  /** List API emotes */
   "list-api-emotes": {
     responses: {
       /** @description OK */
@@ -330,6 +344,7 @@ export interface operations {
       };
     };
   };
+  /** Get API is live */
   "get-api-is-live": {
     responses: {
       /** @description OK */
@@ -346,6 +361,7 @@ export interface operations {
       };
     };
   };
+  /** Get API latest emote performance */
   "get-api-latest-emote-performance": {
     parameters: {
       query?: {
@@ -368,7 +384,17 @@ export interface operations {
       };
     };
   };
+  /** List API series */
   "list-api-series": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
+        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        rollingAverage?: number;
+        from?: string;
+        to?: string;
+      };
+    };
     responses: {
       /** @description OK */
       200: {
@@ -384,6 +410,7 @@ export interface operations {
       };
     };
   };
+  /** List API series greatest */
   "list-api-series-greatest": {
     parameters: {
       query?: {

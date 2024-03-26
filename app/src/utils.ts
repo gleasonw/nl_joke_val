@@ -18,7 +18,7 @@ export type DashboardURLState = {
 
 const seriesParamsSchema = z.object({
   span: z
-    .enum(["1 minute", "30 minutes", "1 hour", "9 hours", "custom"])
+    .enum(["1 minute", "30 minutes", "1 hour", "9 hours"])
     .default("9 hours")
     .optional(),
   grouping: z

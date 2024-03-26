@@ -91,7 +91,7 @@ func main() {
 	})
 
 	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
-		if input.input.RollingAverage > 0 {
+		if input.RollingAverage > 0 {
 			return GetTimeSeriesRollingAverage(*input, db)
 		}
 		return GetTimeSeries(*input, db)
