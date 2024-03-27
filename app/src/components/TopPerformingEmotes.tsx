@@ -35,7 +35,7 @@ interface EmotePerformanceCardProps {
   grouping: string;
 }
 
-function EmotePerformanceCard({
+export function EmotePerformanceCard({
   emotePerformance,
   grouping,
 }: EmotePerformanceCardProps) {

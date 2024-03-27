@@ -43,40 +43,84 @@ type SeriesInputForEmotes struct {
 	EmoteIDs       []int
 }
 
-func GetTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
-	return queryGroupAndSort(baseSeriesSelect(p), db)
-}
-
-func GetTimeSeriesRollingAverage(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
-
-	baseSeries := baseSeriesSelect(p)
-
-	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-
-	rollingSeries := psql.Select(
-		"code",
-		"bucket",
-		"AVG(sum) OVER (PARTITION BY code ORDER BY bucket ROWS BETWEEN "+strconv.Itoa(p.RollingAverage)+" PRECEDING AND CURRENT ROW) as sum").
-		FromSelect(baseSeries, "series")
-
-	return queryGroupAndSort(rollingSeries, db)
-
-}
-
-func GetTimeSeriesGreatest(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error) {
-
-	result, err := selectEmoteSums(db, EmoteSumInput{
+func selectLatestGreatestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
+	topEmoteIds, err := topEmoteIds(db, EmoteSumInput{
 		Grouping: p.Grouping,
 		From:     p.From,
 		Span:     p.Span,
 		Limit:    5,
 	})
 
-	topEmoteIds := make([]int, 0, len(result.Body.Emotes))
-
-	for _, row := range result.Body.Emotes {
-		topEmoteIds = append(topEmoteIds, row.EmoteID)
+	if err != nil {
+		return &TimeSeriesOutput{}, err
 	}
+
+	return selectLatestTimeSeries(SeriesInputForEmotes{
+		Grouping: p.Grouping,
+		Span:     p.Span,
+		From:     p.From,
+		EmoteIDs: topEmoteIds,
+	}, db)
+}
+
+func selectLatestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
+	query := statementBuilder().
+		Select("sum(count) as sum", fmt.Sprintf("time_bucket('1 %s', created_at) as bucket", p.Grouping), "emote_id").
+		From("emote_counts")
+
+	switch p.Span {
+	case "30 minutes":
+		query = query.Where("created_at >= now() - interval '30 minutes'")
+	case "1 hour":
+		query = query.Where("created_at >= now() - interval '1 hour'")
+	case "9 hours":
+		query = query.Where("created_at >= now() - interval '9 hours'")
+	default:
+		query = query.Where("created_at >= now() - interval '1 day'")
+	}
+
+	query = query.
+		Where(sq.Eq{"emote_id": p.EmoteIDs}).
+		GroupBy("bucket, emote_id")
+
+	seriesJoin := statementBuilder().
+		Select("sum", "bucket", "code", "emote_id").
+		FromSelect(query, "series").
+		Join("emotes on emotes.id = series.emote_id")
+
+	rollingSeries := statementBuilder().
+		Select(
+			"code",
+			"bucket",
+			"AVG(sum) OVER (PARTITION BY emote_id ORDER BY bucket ROWS BETWEEN "+strconv.Itoa(p.RollingAverage)+" PRECEDING AND CURRENT ROW) as sum").
+		FromSelect(seriesJoin, "series_with_emotes")
+
+	return queryGroupAndSort(rollingSeries, db)
+}
+
+func selectTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
+
+	baseSeries := baseSeriesSelect(p)
+
+	rollingSeries := statementBuilder().
+		Select(
+			"code",
+			"bucket",
+			"AVG(sum) OVER (PARTITION BY emote_id ORDER BY bucket ROWS BETWEEN "+strconv.Itoa(p.RollingAverage)+" PRECEDING AND CURRENT ROW) as sum").
+		FromSelect(baseSeries, "series")
+
+	return queryGroupAndSort(rollingSeries, db)
+
+}
+
+func selectGreatestTimeSeries(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error) {
+
+	topEmoteIds, err := topEmoteIds(db, EmoteSumInput{
+		Grouping: p.Grouping,
+		From:     p.From,
+		Span:     p.Span,
+		Limit:    5,
+	})
 
 	if err != nil {
 		return &TimeSeriesOutput{}, err
@@ -84,8 +128,8 @@ func GetTimeSeriesGreatest(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error
 
 	baseSeries := baseSeriesSelect(SeriesInputForEmotes{
 		Grouping: p.Grouping,
-		From:     p.From,
 		Span:     p.Span,
+		From:     p.From,
 		EmoteIDs: topEmoteIds,
 	})
 
@@ -94,7 +138,7 @@ func GetTimeSeriesGreatest(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error
 	rollingSeries := psql.Select(
 		"code",
 		"bucket",
-		"MAX(sum) OVER (PARTITION BY code ORDER BY bucket ROWS BETWEEN "+strconv.Itoa(p.RollingAverage)+" PRECEDING AND CURRENT ROW) as sum").
+		"AVG(sum) OVER (PARTITION BY emote_id ORDER BY bucket ROWS BETWEEN "+strconv.Itoa(p.RollingAverage)+" PRECEDING AND CURRENT ROW) as sum").
 		FromSelect(baseSeries, "series")
 
 	return queryGroupAndSort(rollingSeries, db)
@@ -102,7 +146,9 @@ func GetTimeSeriesGreatest(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error
 }
 
 func filterByDay(query sq.SelectBuilder, day time.Time) sq.SelectBuilder {
-	return query.Where(sq.GtOrEq{"bucket": day}).Where(sq.LtOrEq{"bucket": day.Add(time.Hour * 24)})
+	return query.
+		Where(sq.GtOrEq{"bucket": day}).
+		Where(sq.LtOrEq{"bucket": day.Add(time.Hour * 24)})
 }
 
 func filterBySpan(query sq.SelectBuilder, span string) sq.SelectBuilder {

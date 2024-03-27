@@ -105,23 +105,22 @@ func statementBuilder() sq.StatementBuilderType {
 }
 
 func recentHourlyAverage() sq.SelectBuilder {
-	return statementBuilder().
-		Select("average", "emote_id").
-		From("avg_hourly_sum_three_months").
-		Where(statementBuilder().
-			Select("max(bucket) from avg_hourly_sum_three_months").
-			Prefix("avg_hourly_sum_three_months.bucket = (").
-			Suffix(")"))
+	return recentAverage(averageHourlyViewAggregate)
 }
 
 func recentDailyAverage() sq.SelectBuilder {
+	return recentAverage(averageDailyViewAggregate)
+}
+
+func recentAverage(averageAggregate string) sq.SelectBuilder {
+	partitioned := statementBuilder().
+		Select("average", "emote_id", "ROW_NUMBER() OVER (PARTITION BY emote_id ORDER BY bucket DESC) AS rn").
+		From(averageAggregate)
+
 	return statementBuilder().
-		Select("average", "emote_id").
-		From("avg_daily_sum_three_months").
-		Where(statementBuilder().
-			Select("max(bucket) from avg_daily_sum_three_months").
-			Prefix("avg_daily_sum_three_months.bucket = (").
-			Suffix(")"))
+		Select("*").
+		FromSelect(partitioned, "partitioned_average").
+		Where("rn = 1")
 }
 
 type LatestEmoteReport struct {
@@ -133,29 +132,24 @@ type LatestEmotePerformanceOutput struct {
 	Body LatestEmoteReport
 }
 
-func GetLatestEmotePerformance(p LatestEmotePerformanceInput, db *gorm.DB) (*LatestEmotePerformanceOutput, error) {
+func selectLatestRelativeEmotes(p LatestEmotePerformanceInput, db *gorm.DB) (*LatestEmotePerformanceOutput, error) {
 	var currentSumQuery, avgSeriesLatestPeriod sq.SelectBuilder
 
 	switch p.Grouping {
 	case "hour":
 		currentSumQuery = statementBuilder().
 			Select("sum(sum) as sum", "emote_id").
-			From(hourlyViewAggregate).
-			Where(statementBuilder().Select("MAX(bucket) - '1 hour'::interval").
-				From(secondViewAggregate).
-				Prefix("bucket >= (").
-				Suffix(")")).
+			From(minuteViewAggregate).
+			Where("bucket >= now() - interval '1 hour'").
 			GroupBy("emote_id")
 
 		avgSeriesLatestPeriod = recentHourlyAverage()
 	case "day":
 		currentSumQuery = statementBuilder().
-			Select("sum", "emote_id").
-			From(dailyViewAggregate).
-			Where(statementBuilder().Select("MAX(DATE(bucket))").
-				From(hourlyViewAggregate).
-				Prefix("DATE(bucket) = (").
-				Suffix(")"))
+			Select("sum(sum) as sum", "emote_id").
+			From(minuteViewAggregate).
+			Where("bucket >= now() - interval '1 day'").
+			GroupBy("emote_id")
 
 		avgSeriesLatestPeriod = recentDailyAverage()
 	default:
@@ -175,31 +169,14 @@ func GetLatestEmotePerformance(p LatestEmotePerformanceInput, db *gorm.DB) (*Lat
 
 }
 
-func GetTopPerformingEmotes(p EmotePerformanceInput, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
-	var currentSumQuery, avgSeriesLatestPeriod sq.SelectBuilder
+func selectTopRelativeEmotesDay(p EmotePerformanceInput, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
 
-	switch p.Grouping {
-	case "hour":
-		currentSumQuery = statementBuilder().
-			Select("sum", "bucket", "emote_id", "ROW_NUMBER() OVER (PARTITION BY emote_id ORDER BY bucket DESC) AS rn").
-			From(hourlyViewAggregate).
-			Where(sq.Eq{"DATE(bucket)": p.Date.Format("2006-01-02")}).
-			Where("rn = 1")
+	avgSeriesLatestPeriod := recentDailyAverage()
+	currentSumQuery := statementBuilder().
+		Select("sum", "bucket", "emote_id").
+		From(dailyViewAggregate)
 
-		avgSeriesLatestPeriod = recentHourlyAverage()
-
-	case "day":
-		currentSumQuery = statementBuilder().
-			Select("sum", "bucket", "emote_id").
-			From(dailyViewAggregate).
-			Where(sq.Eq{"DATE(bucket)": p.Date.Format("2006-01-02")})
-
-		avgSeriesLatestPeriod = recentDailyAverage()
-
-	default:
-		fmt.Println("Unknown grouping")
-		return &TopPerformingEmotesOutput{}, nil
-	}
+	currentSumQuery = filterByDay(currentSumQuery, p.Date)
 
 	currentSumQuery = currentSumQuery.Limit(uint64(p.Limit))
 
@@ -268,11 +245,45 @@ type EmoteSumReport struct {
 	Input  EmoteSumInput
 }
 
-type TopDensityEmotesOutput struct {
+type EmoteSumOutput struct {
 	Body EmoteSumReport
 }
 
-func selectEmoteSums(db *gorm.DB, p EmoteSumInput) (*TopDensityEmotesOutput, error) {
+func topEmoteIds(db *gorm.DB, p EmoteSumInput) ([]int, error) {
+	result, err := selectEmoteSums(db, EmoteSumInput{
+		Grouping: p.Grouping,
+		From:     p.From,
+		Span:     p.Span,
+		Limit:    p.Limit,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	topEmoteIds := make([]int, 0, len(result.Body.Emotes))
+
+	for _, row := range result.Body.Emotes {
+		topEmoteIds = append(topEmoteIds, row.EmoteID)
+	}
+
+	return topEmoteIds, nil
+}
+
+func selectEmoteSums(db *gorm.DB, p EmoteSumInput) (*EmoteSumOutput, error) {
+	filteredCountRows := baseSumSelect(p)
+
+	if !p.From.IsZero() {
+		filteredCountRows = filterByDay(filteredCountRows, p.From)
+	} else if p.Span != "" {
+		filteredCountRows = filterBySpan(filteredCountRows, p.Span)
+	}
+
+	return queryEmoteSums(db, filteredCountRows, p)
+
+}
+
+func baseSumSelect(p EmoteSumInput) sq.SelectBuilder {
 	psql := statementBuilder()
 
 	aggregateForGrouping, ok := groupingToView[p.Grouping]
@@ -281,28 +292,23 @@ func selectEmoteSums(db *gorm.DB, p EmoteSumInput) (*TopDensityEmotesOutput, err
 		panic("Invalid grouping while trying to get aggregate in GetTopDensityEmotes: " + p.Grouping)
 	}
 
-	filteredCountRows := psql.
-		Select("*").
+	return psql.Select("*").
 		From(aggregateForGrouping).
 		Where(psql.Select("id").From("emotes").Where("code = 'two'").Prefix("emote_id not in (").Suffix(")"))
+}
 
-	if !p.From.IsZero() {
-		filteredCountRows = filterByDay(filteredCountRows, p.From)
-	} else if p.Span != "" {
-		filteredCountRows = filterBySpan(filteredCountRows, p.Span)
-	}
-
-	crossJoinTotal := psql.Select("sum(sum) as total_count").
+func queryEmoteSums(db *gorm.DB, filteredCountRows sq.SelectBuilder, p EmoteSumInput) (*EmoteSumOutput, error) {
+	crossJoinTotal := statementBuilder().Select("sum(sum) as total_count").
 		FromSelect(filteredCountRows, "count_rows").
 		Prefix("(").Suffix(") total")
 
 	crossJoinQuery, _, err := crossJoinTotal.ToSql()
 
 	if err != nil {
-		return &TopDensityEmotesOutput{}, err
+		return &EmoteSumOutput{}, err
 	}
 
-	baseQuery := psql.Select("emote_id, code, COALESCE((sum / NULLIF(total_count, 0)), 0) * 100 AS percent, sum").
+	baseQuery := statementBuilder().Select("emote_id, code, COALESCE((sum / NULLIF(total_count, 0)), 0) * 100 AS percent, sum").
 		FromSelect(filteredCountRows, "count_rows").
 		OrderBy("percent DESC").
 		Limit(uint64(p.Limit))
@@ -313,7 +319,7 @@ func selectEmoteSums(db *gorm.DB, p EmoteSumInput) (*TopDensityEmotesOutput, err
 		ToSql()
 
 	if err != nil {
-		return &TopDensityEmotesOutput{}, err
+		return &EmoteSumOutput{}, err
 	}
 
 	var densities []EmoteSum
@@ -325,9 +331,8 @@ func selectEmoteSums(db *gorm.DB, p EmoteSumInput) (*TopDensityEmotesOutput, err
 		return nil, err
 	}
 
-	return &TopDensityEmotesOutput{Body: EmoteSumReport{
+	return &EmoteSumOutput{Body: EmoteSumReport{
 		Emotes: densities,
 		Input:  p,
 	}}, nil
-
 }

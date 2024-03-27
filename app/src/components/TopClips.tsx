@@ -2,7 +2,7 @@ import { getClips } from "../api";
 import { useQuery } from "@tanstack/react-query";
 import {
   useEmotePerformance,
-  useEmoteDensity,
+  useEmoteSums,
   useLiveStatus,
   useLatestSpan,
 } from "../hooks";
@@ -54,7 +54,7 @@ function TopClipsByDensity() {
   const { data: isNlLive } = useLiveStatus();
   const span = isNlLive ? "30 minutes" : "9 hours";
 
-  const { data: topPerformingEmotes } = useEmoteDensity({
+  const { data: topPerformingEmotes } = useEmoteSums({
     span,
   });
 

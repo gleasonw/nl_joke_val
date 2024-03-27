@@ -15,6 +15,7 @@ import {
   getEmoteDensity,
   getEmotes,
   getLatestEmotePerformance,
+  getLatestGreatestSeries,
   getLiveStatus,
   getSeriesGreatest,
 } from "./api";
@@ -52,12 +53,13 @@ export function useDefaultSeries(): string[] {
   return ["two", ...topEmoteCodes];
 }
 
-export function useEmoteDensity(p: EmoteDensityParams) {
+export function useEmoteSums() {
   const { from } = Route.useSearch();
   const { data: isNlLive } = useLiveStatus();
+  const [{ seriesParams }] = useDashboardState();
   return useQuery({
-    queryFn: () => getEmoteDensity({ ...p, from }),
-    queryKey: ["emoteDensity", p, from],
+    queryFn: () => getEmoteDensity({ ...seriesParams, from }),
+    queryKey: ["emoteDensity", seriesParams, from],
     refetchInterval: isNlLive ? 1000 * 10 : false,
     placeholderData: keepPreviousData,
   });
@@ -147,47 +149,22 @@ export function useDashboardState() {
   return [currentState, handleUpdateUrl] as const;
 }
 
-export function useDefaultClipParams(
-  params?: ClipParams
-): NonNullable<ClipParams> {
-  const { data: isNlLive } = useLiveStatus();
-
-  const defaultClipParams = {
-    span: isNlLive ? "30 minutes" : "9 hours",
-    grouping: "25 seconds",
-  } as const;
-
-  const baseParams = params ? params : defaultClipParams;
-
-  return {
-    ...baseParams,
-    grouping: baseParams?.grouping ?? defaultClipParams.grouping,
-    span: baseParams?.span ?? defaultClipParams.span,
-  };
+export function useLiveTimeSeries() {
+  const [{ seriesParams }] = useDashboardState();
+  return useSuspenseQuery({
+    queryFn: () => getLatestGreatestSeries(seriesParams),
+    queryKey: ["liveTimeSeries", seriesParams],
+    refetchInterval: 1000 * 10,
+  });
 }
 
 export function useTimeSeries() {
-  const { data: isNlLive } = useLiveStatus();
   const currentState = Route.useSearch();
   const { seriesParams, from } = currentState;
 
-  const defaultSpan = isNlLive ? "1 hour" : "9 hours";
-  const defaultGrouping = isNlLive ? "second" : "minute";
-  const defaultRollingAverage = isNlLive ? 0 : 15;
-
-  const chartState: typeof seriesParams = {
-    ...seriesParams,
-    span: seriesParams?.span ?? defaultSpan,
-    grouping: seriesParams?.grouping ?? defaultGrouping,
-    rollingAverage: seriesParams?.rollingAverage ?? defaultRollingAverage,
-  };
-
-  const seriesData = useQuery({
-    queryFn: () => getSeriesGreatest({ ...chartState, from }),
-    queryKey: ["series", chartState, from],
-    refetchInterval: isNlLive ? 1000 * 10 : false,
+  return useQuery({
+    queryFn: () => getSeriesGreatest({ ...seriesParams, from }),
+    queryKey: ["series", seriesParams, from],
     placeholderData: keepPreviousData,
   });
-
-  return [seriesData, chartState] as const;
 }

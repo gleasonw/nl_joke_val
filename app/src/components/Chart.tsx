@@ -1,9 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
-import { TimeGroupings } from "../types";
+import { TimeGroupings, TimeSeries } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { useDashboardState, useTimeSeries } from "../hooks";
+import { useDashboardState } from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
 import { SettingsDropLayout } from "./SettingsDropLayout";
@@ -16,7 +16,13 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-export function Chart() {
+export function Chart({
+  data,
+  isLoading,
+}: {
+  data?: TimeSeries[];
+  isLoading: boolean;
+}) {
   const navigate = useNavigate();
   const currentState = Route.useSearch();
   const { seriesParams } = currentState;
@@ -30,12 +36,7 @@ export function Chart() {
     });
   }
 
-  const [
-    { data: localFetchedSeries, isLoading },
-    { grouping, rollingAverage },
-  ] = useTimeSeries();
-
-  const seriesToDisplay = Object.keys(localFetchedSeries?.at(0)?.series ?? {});
+  const seriesToDisplay = Object.keys(data?.at(0)?.series ?? {});
 
   const emoteSeries:
     | Highcharts.SeriesLineOptions[]
@@ -43,10 +44,8 @@ export function Chart() {
     seriesToDisplay?.map((key) => ({
       name: key,
       data:
-        localFetchedSeries?.map((d) => [
-          new Date(d.time).getTime(),
-          d.series[key] ?? 0,
-        ]) ?? [],
+        data?.map((d) => [new Date(d.time).getTime(), d.series[key] ?? 0]) ??
+        [],
       events: {
         click: function (e) {
           navigate({
@@ -60,7 +59,7 @@ export function Chart() {
   const highChartsOptions: Highcharts.Options = {
     time: {
       getTimezoneOffset: function (timestamp: number) {
-        if (grouping === "day") {
+        if (seriesParams?.grouping === "day") {
           // using an offset would throw off the day grouping
           return 0;
         }
@@ -129,7 +128,7 @@ export function Chart() {
                 grouping: value as TimeGroupings,
               })
             }
-            value={grouping}
+            value={seriesParams?.grouping}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Time" />
@@ -151,7 +150,7 @@ export function Chart() {
                 rollingAverage: parseInt(value),
               })
             }
-            value={(rollingAverage ?? 0).toString()}
+            value={(seriesParams?.rollingAverage ?? 0).toString()}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Smoothing" />
@@ -176,8 +175,9 @@ export function Chart() {
 }
 
 export function ChartSpanOptions() {
-  const [{ from }, handleUpdateChart] = useDashboardState();
-  const [, { span }] = useTimeSeries();
+  const [{ from, seriesParams }, handleUpdateChart] = useDashboardState();
+
+  const span = seriesParams?.span;
 
   if (from) {
     return (
