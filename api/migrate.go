@@ -596,7 +596,7 @@ func createMaterializedView(db *gorm.DB, from string, grouping string, aggregate
   			end_offset => %s,
   			schedule_interval => INTERVAL '%s', 
 			if_not_exists => true
-			);
+		);
 		`, aggregateName, policy.StartOffset, policy.EndOffset, policy.ScheduleInterval)).Error
 
 	if err != nil {
