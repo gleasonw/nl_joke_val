@@ -1,11 +1,6 @@
 import { getClips } from "../api";
 import { useQuery } from "@tanstack/react-query";
-import {
-  useEmotePerformance,
-  useEmoteDensity,
-  useLiveStatus,
-  useLatestSpan,
-} from "../hooks";
+import { useEmoteGrowth, useEmoteSums, useLatestSpan } from "../hooks";
 import React from "react";
 import { ClipClicker } from "./ClipClicker";
 import { CardTitle } from "@/components/ui/card";
@@ -25,7 +20,7 @@ export function TopClips() {
           <TopClipsByRelativePerformance />
         </TabsContent>
         <TabsContent value="density">
-          <TopClipsByDensity />
+          <TopClipsBySum />
         </TabsContent>
       </Tabs>
     </div>
@@ -33,7 +28,7 @@ export function TopClips() {
 }
 
 function TopClipsByRelativePerformance() {
-  const topPerformingEmotes = useEmotePerformance();
+  const { data: topPerformingEmotes } = useEmoteGrowth();
 
   const topEmoteCodes = topPerformingEmotes?.Emotes?.slice()
     .sort((a, b) => b.PercentDifference - a.PercentDifference)
@@ -50,13 +45,8 @@ function TopClipsByRelativePerformance() {
   );
 }
 
-function TopClipsByDensity() {
-  const { data: isNlLive } = useLiveStatus();
-  const span = isNlLive ? "30 minutes" : "9 hours";
-
-  const { data: topPerformingEmotes } = useEmoteDensity({
-    span,
-  });
+function TopClipsBySum() {
+  const { data: topPerformingEmotes } = useEmoteSums();
 
   const topEmoteCodes = topPerformingEmotes?.Emotes?.slice(0, 5).map((e) => ({
     id: e.EmoteID,

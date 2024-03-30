@@ -26,8 +26,5 @@ ssl = on
 ssl_cert_file = '$SSL_DIR/server.crt'
 ssl_key_file = '$SSL_DIR/server.key'
 ssl_ca_file = '$SSL_DIR/root.crt'
-max_locks_per_transaction = 100
-timescaledb.max_background_workers = 16
-max_parallel_workers = 12
-max_worker_processes = 28
+jit = off
 EOF

@@ -1,14 +1,21 @@
-import { createLazyFileRoute } from "@tanstack/react-router";
-import { useDashboardState, useTimeSeries } from "../hooks";
+import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import {
+  useDashboardNavigate,
+  useDashboardState,
+  useLiveStatus,
+  useLiveTimeSeries,
+  useTimeSeries,
+} from "../hooks";
 import React, { Suspense } from "react";
 import { Chart } from "../components/Chart";
-import { TopPerformingEmotes } from "@/components/TopPerformingEmotes";
+import { TopGrowthEmotes } from "@/components/TopPerformingEmotes";
 import { ClipAtTime } from "@/components/ClipAtTime";
 import { DatePicker } from "@/components/DatePicker";
 import { DataTable } from "@/components/DataTable";
 import { DayFocusClip } from "@/components/DayFocusClip";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { LiveTopPerformingEmotes } from "@/components/LiveTopPerformingEmotes";
 
 const loadingPhrases = [
   "Reticulating splines...",
@@ -36,8 +43,7 @@ export const Route = createLazyFileRoute("/")({
 });
 
 function Index() {
-  const [{ data: localFetchedSeries }] = useTimeSeries();
-  const [{ from }, handleUpdateChart] = useDashboardState();
+  const { data: isNlLive } = useLiveStatus();
 
   return (
     <AnimatePresence>
@@ -48,46 +54,68 @@ function Index() {
           </div>
         }
       >
-        {localFetchedSeries?.length === 0 && from ? (
-          <div className="flex flex-col gap-5 items-center p-10">
-            No stream data for {new Date(from).toLocaleString()}
-            <Button onClick={() => handleUpdateChart({ from: undefined })}>
-              Return to latest stream data
-            </Button>
-          </div>
-        ) : (
-          <motion.div
-            className="flex flex-col gap-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <section className="flex flex-col gap-2 justify-center items-center">
-              <DateDisplay />
-              <TopPerformingEmotes />
-            </section>
-            <section className="p-4 bg-white shadow-lg rounded-lg flex flex-col gap-4">
-              <div className="  grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <Chart />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <DayFocusClip />
-                  <ClipAtTime />
-                </div>
-              </div>
-              <DataTable />
-            </section>
-          </motion.div>
-        )}
+        {isNlLive ? <LiveView /> : <HistoricalView />}{" "}
+        {/* <Chart data={localFetchedSeries} isLoading={isLoading} /> */}
       </Suspense>
     </AnimatePresence>
   );
 }
 
+function LiveView() {
+  const { data: localFetchedSeries, isLoading } = useLiveTimeSeries();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2 justify-center items-center">
+        <DateDisplay />
+        <LiveTopPerformingEmotes />
+      </section>
+      <Chart data={localFetchedSeries} isLoading={isLoading} />
+      <ClipAtTime />
+    </div>
+  );
+}
+
+function HistoricalView() {
+  const { data: localFetchedSeries, isLoading } = useTimeSeries();
+  const { from } = useDashboardState();
+  return localFetchedSeries?.length === 0 && from ? (
+    <div className="flex flex-col gap-5 items-center p-10">
+      No stream data for {new Date(from).toLocaleString()}
+      <Link to="/">
+        <Button>Return to latest stream data</Button>
+      </Link>
+    </div>
+  ) : (
+    <motion.div
+      className="flex flex-col gap-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <section className="flex flex-col gap-2 justify-center items-center">
+        <DateDisplay />
+        <TopGrowthEmotes />
+      </section>
+      <section className="p-4 bg-white shadow-lg rounded-lg flex flex-col gap-4">
+        <div className="  grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2">
+            <Chart data={localFetchedSeries} isLoading={isLoading} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <DayFocusClip />
+            <ClipAtTime />
+          </div>
+        </div>
+        <DataTable />
+      </section>
+    </motion.div>
+  );
+}
+
 export function DateDisplay() {
-  const [{ data: localFetchedSeries }] = useTimeSeries();
-  const [{ from }] = useDashboardState();
+  const { data: localFetchedSeries } = useTimeSeries();
+  const { from } = useDashboardState();
   let timeRangeString = "";
 
   const lowestTime = localFetchedSeries?.[0]?.time;

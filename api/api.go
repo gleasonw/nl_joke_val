@@ -91,14 +91,19 @@ func main() {
 	})
 
 	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
-		if input.RollingAverage > 0 {
-			return GetTimeSeriesRollingAverage(*input, db)
-		}
-		return GetTimeSeries(*input, db)
+		return selectSeries(*input, db)
 	})
 
 	huma.Get(api, "/api/series_greatest", func(ctx context.Context, input *SeriesInput) (*TimeSeriesOutput, error) {
-		return GetTimeSeriesGreatest(*input, db)
+		return selectSeriesForGreatest(*input, db)
+	})
+
+	huma.Get(api, "/api/latest_series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
+		return selectLatestSeries(*input, db)
+	})
+
+	huma.Get(api, "/api/latest_greatest_series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
+		return selectLatestGreatestTimeSeries(*input, db)
 	})
 
 	huma.Get(api, "/api/clip", func(ctx context.Context, input *NearestClipInput) (*NearestClipOutput, error) {
@@ -106,19 +111,23 @@ func main() {
 	})
 
 	huma.Get(api, "/api/is_live", func(ctx context.Context, input *struct{}) (*struct{ Body bool }, error) {
-		return &struct{ Body bool }{true}, nil
+		return &struct{ Body bool }{liveStatus.IsLive}, nil
 	})
 
-	huma.Get(api, "/api/emote_average_performance", func(ctx context.Context, input *EmotePerformanceInput) (*TopPerformingEmotesOutput, error) {
-		return GetTopPerformingEmotes(*input, db)
+	huma.Get(api, "/api/emote_growth", func(ctx context.Context, input *EmotePerformanceInput) (*TopPerformingEmotesOutput, error) {
+		return selectPercentGrowthDay(*input, db)
 	})
 
-	huma.Get(api, "/api/latest_emote_performance", func(ctx context.Context, input *LatestEmotePerformanceInput) (*LatestEmotePerformanceOutput, error) {
-		return GetLatestEmotePerformance(*input, db)
+	huma.Get(api, "/api/latest_emote_growth", func(ctx context.Context, input *LatestEmotePerformanceInput) (*LatestEmotePerformanceOutput, error) {
+		return selectLatestPercentGrowth(*input, db)
 	})
 
-	huma.Get(api, "/api/emote_density", func(ctx context.Context, input *EmoteSumInput) (*TopDensityEmotesOutput, error) {
-		return selectEmoteSums(db, *input)
+	huma.Get(api, "/api/emote_sums", func(ctx context.Context, input *EmoteSumInput) (*EmoteSumOutput, error) {
+		return selectSums(db, *input)
+	})
+
+	huma.Get(api, "/api/latest_emote_sums", func(ctx context.Context, input *LatestEmoteSumInput) (*EmoteSumOutput, error) {
+		return selectLatestSums(*input, db)
 	})
 
 	type EmoteOutput struct {

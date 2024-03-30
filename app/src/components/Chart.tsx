@@ -1,9 +1,9 @@
-import { useNavigate } from "@tanstack/react-router";
-import { TimeGroupings } from "../types";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { TimeGroupings, TimeSeries } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { useDashboardState, useTimeSeries } from "../hooks";
+import { useDashboardState } from "../hooks";
 import React from "react";
 import { Route } from "../routes/index.lazy";
 import { SettingsDropLayout } from "./SettingsDropLayout";
@@ -16,7 +16,13 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-export function Chart() {
+export function Chart({
+  data,
+  isLoading,
+}: {
+  data?: TimeSeries[];
+  isLoading: boolean;
+}) {
   const navigate = useNavigate();
   const currentState = Route.useSearch();
   const { seriesParams } = currentState;
@@ -30,12 +36,7 @@ export function Chart() {
     });
   }
 
-  const [
-    { data: localFetchedSeries, isLoading },
-    { grouping, rollingAverage },
-  ] = useTimeSeries();
-
-  const seriesToDisplay = Object.keys(localFetchedSeries?.at(0)?.series ?? {});
+  const seriesToDisplay = Object.keys(data?.at(0)?.series ?? {});
 
   const emoteSeries:
     | Highcharts.SeriesLineOptions[]
@@ -43,10 +44,8 @@ export function Chart() {
     seriesToDisplay?.map((key) => ({
       name: key,
       data:
-        localFetchedSeries?.map((d) => [
-          new Date(d.time).getTime(),
-          d.series[key] ?? 0,
-        ]) ?? [],
+        data?.map((d) => [new Date(d.time).getTime(), d.series[key] ?? 0]) ??
+        [],
       events: {
         click: function (e) {
           navigate({
@@ -60,7 +59,7 @@ export function Chart() {
   const highChartsOptions: Highcharts.Options = {
     time: {
       getTimezoneOffset: function (timestamp: number) {
-        if (grouping === "day") {
+        if (seriesParams?.grouping === "day") {
           // using an offset would throw off the day grouping
           return 0;
         }
@@ -129,7 +128,7 @@ export function Chart() {
                 grouping: value as TimeGroupings,
               })
             }
-            value={grouping}
+            value={seriesParams?.grouping}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Time" />
@@ -151,7 +150,7 @@ export function Chart() {
                 rollingAverage: parseInt(value),
               })
             }
-            value={(rollingAverage ?? 0).toString()}
+            value={(seriesParams?.rollingAverage ?? 0).toString()}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Smoothing" />
@@ -176,46 +175,54 @@ export function Chart() {
 }
 
 export function ChartSpanOptions() {
-  const [{ from }, handleUpdateChart] = useDashboardState();
-  const [, { span }] = useTimeSeries();
+  const { from, seriesParams } = useDashboardState();
+
+  const span = seriesParams?.span;
+
+  function pushNewSpan(previous: DashboardURLState, span: string) {
+    return {
+      ...previous,
+      seriesParams: {
+        ...previous.seriesParams,
+        span,
+      },
+    };
+  }
 
   if (from) {
     return (
-      <Button onClick={() => handleUpdateChart({ from: undefined })}>
-        Return to latest stream data
-      </Button>
+      <Link to={"/"}>
+        <Button>Return to latest stream data</Button>
+      </Link>
     );
   }
+
   return (
     <SettingsDropLayout>
-      <Button
-        onClick={() =>
-          handleUpdateChart({ seriesParams: { span: "1 minute" } })
-        }
-        variant="ghost"
+      <Link
+        to="/"
+        search={(prev) => pushNewSpan(prev, "1 minute")}
         className={span === "1 minute" ? "border-b-4 border-gray-700" : ""}
       >
         1 m
-      </Button>
-      <Button
-        onClick={() =>
-          handleUpdateChart({ seriesParams: { span: "30 minutes" } })
-        }
-        variant="ghost"
+      </Link>
+      <Link
+        to="/"
+        search={(prev) => pushNewSpan(prev, "30 minutes")}
         className={span === "30 minutes" ? "border-b-4 border-gray-700" : ""}
       >
         30 m
-      </Button>
-      <Button
-        onClick={() => handleUpdateChart({ seriesParams: { span: "1 hour" } })}
-        variant="ghost"
+      </Link>
+      <Link
+        to="/"
+        search={(prev) => pushNewSpan(prev, "1 hour")}
         className={span === "1 hour" ? "border-b-4 border-gray-700" : ""}
       >
         1 h
-      </Button>
-      <Button
-        onClick={() => handleUpdateChart({ seriesParams: { span: "9 hours" } })}
-        variant="ghost"
+      </Link>
+      <Link
+        to="/"
+        search={(prev) => pushNewSpan(prev, "9 hours")}
         className={
           span === "9 hours" || span === null
             ? "border-b-4 border-gray-700"
@@ -223,11 +230,7 @@ export function ChartSpanOptions() {
         }
       >
         9 h
-      </Button>
+      </Link>
     </SettingsDropLayout>
   );
-}
-
-export function LiveChart() {
-  return <div>hello</div>;
 }

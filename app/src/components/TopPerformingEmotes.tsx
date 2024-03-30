@@ -1,5 +1,6 @@
-import { useDashboardState, useEmotePerformance } from "@/hooks";
+import { useEmoteGrowth } from "@/hooks";
 import { EmotePerformance } from "@/types";
+import { Link } from "@tanstack/react-router";
 import clsx from "clsx";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import React from "react";
@@ -9,8 +10,8 @@ export interface TopPerformingEmotesProps {
   className?: string;
 }
 
-export function TopPerformingEmotes() {
-  const emotePerformance = useEmotePerformance();
+export function TopGrowthEmotes() {
+  const { data: emotePerformance } = useEmoteGrowth();
   return (
     <section>
       <div className="flex gap-5">
@@ -35,19 +36,19 @@ interface EmotePerformanceCardProps {
   grouping: string;
 }
 
-function EmotePerformanceCard({
+export function EmotePerformanceCard({
   emotePerformance,
   grouping,
 }: EmotePerformanceCardProps) {
   const { Code, Count, PercentDifference, Average } = emotePerformance;
   const trend = PercentDifference > 0 ? "up" : "down";
   const ArrowIcon = trend === "up" ? ArrowUp : ArrowDown;
-  const [, navigate] = useDashboardState();
 
   return (
-    <button
+    <Link
       className="flex items-center gap-2 rounded-lg bg-white text-xs flex-col sm:flex-row hover:bg-gray-100"
-      onClick={() => navigate({ focusedEmote: emotePerformance.EmoteID })}
+      to={"/"}
+      search={(prev) => ({ ...prev, focusedEmote: emotePerformance.EmoteID })}
     >
       <ArrowIcon
         className={clsx("h-8 w-8 p-2 rounded", {
@@ -71,6 +72,6 @@ function EmotePerformanceCard({
           {Count} / {grouping} ({Math.round(Average)})
         </span>
       </span>
-    </button>
+    </Link>
   );
 }

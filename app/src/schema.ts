@@ -13,13 +13,13 @@ export interface paths {
     /** List API clip counts */
     get: operations["list-api-clip-counts"];
   };
-  "/api/emote_average_performance": {
-    /** Get API emote average performance */
-    get: operations["get-api-emote-average-performance"];
+  "/api/emote_growth": {
+    /** Get API emote growth */
+    get: operations["get-api-emote-growth"];
   };
-  "/api/emote_density": {
-    /** Get API emote density */
-    get: operations["get-api-emote-density"];
+  "/api/emote_sums": {
+    /** Get API emote sums */
+    get: operations["get-api-emote-sums"];
   };
   "/api/emotes": {
     /** List API emotes */
@@ -29,9 +29,21 @@ export interface paths {
     /** Get API is live */
     get: operations["get-api-is-live"];
   };
-  "/api/latest_emote_performance": {
-    /** Get API latest emote performance */
-    get: operations["get-api-latest-emote-performance"];
+  "/api/latest_emote_growth": {
+    /** Get API latest emote growth */
+    get: operations["get-api-latest-emote-growth"];
+  };
+  "/api/latest_emote_sums": {
+    /** Get API latest emote sums */
+    get: operations["get-api-latest-emote-sums"];
+  };
+  "/api/latest_greatest_series": {
+    /** List API latest greatest series */
+    get: operations["list-api-latest-greatest-series"];
+  };
+  "/api/latest_series": {
+    /** List API latest series */
+    get: operations["list-api-latest-series"];
   };
   "/api/series": {
     /** List API series */
@@ -116,11 +128,11 @@ export interface components {
     EmoteSum: {
       Code: string;
       /** Format: int64 */
-      Count: number;
-      /** Format: int64 */
       EmoteID: number;
       /** Format: double */
       Percent: number;
+      /** Format: int64 */
+      Sum: number;
     };
     EmoteSumInput: {
       /** Format: date-time */
@@ -278,8 +290,8 @@ export interface operations {
       };
     };
   };
-  /** Get API emote average performance */
-  "get-api-emote-average-performance": {
+  /** Get API emote growth */
+  "get-api-emote-growth": {
     parameters: {
       query?: {
         date?: string;
@@ -302,8 +314,8 @@ export interface operations {
       };
     };
   };
-  /** Get API emote density */
-  "get-api-emote-density": {
+  /** Get API emote sums */
+  "get-api-emote-sums": {
     parameters: {
       query?: {
         span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
@@ -361,8 +373,8 @@ export interface operations {
       };
     };
   };
-  /** Get API latest emote performance */
-  "get-api-latest-emote-performance": {
+  /** Get API latest emote growth */
+  "get-api-latest-emote-growth": {
     parameters: {
       query?: {
         limit?: number;
@@ -374,6 +386,81 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["LatestEmoteReport"];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** Get API latest emote sums */
+  "get-api-latest-emote-sums": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+        limit?: number;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EmoteSumReport"];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** List API latest greatest series */
+  "list-api-latest-greatest-series": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
+        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        rollingAverage?: number;
+        from?: string;
+        to?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TimeSeries"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** List API latest series */
+  "list-api-latest-series": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
+        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        rollingAverage?: number;
+        from?: string;
+        to?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TimeSeries"][];
         };
       };
       /** @description Error */

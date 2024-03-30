@@ -1,8 +1,8 @@
 import {
   ClipParams,
-  EmoteDensityParams,
-  EmotePerformanceParams,
-  LatestEmotePerformanceParams,
+  EmoteSumParams,
+  EmoteGrowthParams,
+  LatestEmoteGrowthParams,
   SeriesParams,
 } from "./types";
 import { GET } from "./utils";
@@ -18,8 +18,8 @@ export async function getLiveStatus() {
   return response.data;
 }
 
-export async function getEmoteDensity(p: EmoteDensityParams) {
-  const result = await GET("/api/emote_density", {
+export async function getEmoteSums(p: EmoteSumParams) {
+  const result = await GET("/api/emote_sums", {
     params: {
       query: p,
     },
@@ -32,8 +32,22 @@ export async function getEmoteDensity(p: EmoteDensityParams) {
   return result.data;
 }
 
-export async function getEmoteAveragePerformance(p: EmotePerformanceParams) {
-  const result = await GET("/api/emote_average_performance", {
+export async function getLatestEmoteSums(p: EmoteSumParams) {
+  const result = await GET("/api/latest_emote_sums", {
+    params: {
+      query: p,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch latest emote sums");
+  }
+
+  return result.data;
+}
+
+export async function getEmoteGrowth(p: EmoteGrowthParams) {
+  const result = await GET("/api/emote_growth", {
     params: {
       query: p,
     },
@@ -46,10 +60,8 @@ export async function getEmoteAveragePerformance(p: EmotePerformanceParams) {
   return result.data;
 }
 
-export async function getLatestEmotePerformance(
-  p: LatestEmotePerformanceParams
-) {
-  const result = await GET("/api/latest_emote_performance", {
+export async function getLatestEmoteGrowth(p: LatestEmoteGrowthParams) {
+  const result = await GET("/api/latest_emote_growth", {
     params: {
       query: p,
     },
@@ -57,6 +69,34 @@ export async function getLatestEmotePerformance(
 
   if (result.error) {
     throw new Error("Failed to fetch latest emote average performance");
+  }
+
+  return result.data;
+}
+
+export async function getLatestSeries(p: SeriesParams) {
+  const result = await GET("/api/latest_series", {
+    params: {
+      query: p,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch latest series");
+  }
+
+  return result.data;
+}
+
+export async function getLatestGreatestSeries(p: SeriesParams) {
+  const result = await GET("/api/latest_greatest_series", {
+    params: {
+      query: p,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch latest greatest series");
   }
 
   return result.data;

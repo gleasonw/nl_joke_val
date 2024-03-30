@@ -181,6 +181,9 @@ type ChatCounts struct {
 
 // moves data in chat_counts to the new data model, more decoupled.
 // also sets up timescaledb for the new model
+
+// todo: set jit off
+// todo: set up refresh settings
 func migrateToNewModel() error {
 
 	godotenv.Load()
@@ -414,88 +417,74 @@ func initTimescaledb(db *gorm.DB) error {
 		return err
 	}
 
-	err = db.Exec(fmt.Sprintf(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
-			WITH (timescaledb.continuous) AS
-			SELECT emote_id, 
-				sum(count) as sum,
-				time_bucket('10 seconds', created_at) as bucket
-			FROM emote_counts
-			GROUP BY 1, 3
-			ORDER BY bucket;`,
-		secondViewAggregate)).Error
-
-	if err != nil {
-		fmt.Println("Error creating ten_second_bucket view:", err)
-		return err
-	}
-
-	err = db.Exec(fmt.Sprintf(`ALTER MATERIALIZED VIEW %s SET (timescaledb.materialized_only = false);`, secondViewAggregate)).Error
-
-	if err != nil {
-		fmt.Println("Error making ten_second_bucket view real time:", err)
-		return err
-	}
+	secondAggregateName := groupingToView["second"]
 
 	err = db.Exec(fmt.Sprintf(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
-			WITH (timescaledb.continuous) AS
-			SELECT emote_id, 
-				sum(sum) as sum,
-				time_bucket('1 minute', bucket) as bucket
-			FROM %s
-			GROUP BY 1, 3
-			ORDER BY bucket;`,
-		minuteViewAggregate, secondViewAggregate)).Error
+		CREATE MATERIALIZED VIEW IF NOT EXISTS %s
+		WITH (timescaledb.continuous) AS
+		SELECT emote_id, 
+			sum(count) as sum,
+			time_bucket('10 seconds', created_at) as bucket
+		FROM emote_counts
+		GROUP BY 1, 3
+		ORDER BY bucket;`,
+		secondAggregateName)).Error
 
 	if err != nil {
-		fmt.Println("Error creating minute_bucket view:", err)
+		fmt.Println("Error creating second aggregate: ", err)
 		return err
 	}
 
-	err = db.Exec(fmt.Sprintf(`ALTER MATERIALIZED VIEW %s SET (timescaledb.materialized_only = false);`, minuteViewAggregate)).Error
+	err = db.Exec(`
+		SELECT add_continuous_aggregate_policy('ten_second_sum',
+  			start_offset => NULL,
+  			end_offset => NULL,
+  			schedule_interval => INTERVAL '10 hours',
+			if_not_exists => true
+			);
+		`).Error
 
 	if err != nil {
-		fmt.Println("Error making minute_bucket view real time:", err)
+		fmt.Println("Error creating policy: ", err)
 		return err
 	}
 
-	err = db.Exec(fmt.Sprintf(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
-			WITH (timescaledb.continuous) AS
-			SELECT emote_id, 
-				sum(sum) as sum,
-				time_bucket('1 hour', bucket) as bucket
-			FROM %s
-			GROUP BY 1, 3
-			ORDER BY bucket;`,
-		hourlyViewAggregate, minuteViewAggregate)).Error
+	minuteAggregateName := groupingToView["minute"]
+
+	err = createMaterializedView(db, secondAggregateName, "1 minute", minuteAggregateName, RefreshPolicy{
+		StartOffset:      "NULL",
+		EndOffset:        "NULL",
+		ScheduleInterval: "11 hours",
+	})
 
 	if err != nil {
-		fmt.Println("Error creating hourly_sum view:", err)
+		fmt.Println("Error creating minute aggregate: ", err)
 		return err
 	}
 
-	err = db.Exec(fmt.Sprintf(`ALTER MATERIALIZED VIEW %s SET (timescaledb.materialized_only = false);`, hourlyViewAggregate)).Error
+	hourlyAggregateName := groupingToView["hour"]
+
+	err = createMaterializedView(db, minuteAggregateName, "1 hour", hourlyAggregateName, RefreshPolicy{
+		StartOffset:      "NULL",
+		EndOffset:        "NULL",
+		ScheduleInterval: "12 hours",
+	})
 
 	if err != nil {
-		fmt.Println("Error making hourly_sum view real time:", err)
+		fmt.Println("Error creating hourly aggregate: ", err)
 		return err
 	}
 
-	err = db.Exec(fmt.Sprintf(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
-			WITH (timescaledb.continuous) AS
-			SELECT emote_id, 
-				sum(sum) as sum,
-				time_bucket('1 day', bucket) as bucket
-			FROM %s
-			GROUP BY 1, 3
-			ORDER BY bucket;`,
-		dailyViewAggregate, hourlyViewAggregate)).Error
+	dailyAggregateName := groupingToView["day"]
+
+	err = createMaterializedView(db, hourlyAggregateName, "1 day", dailyAggregateName, RefreshPolicy{
+		StartOffset:      "NULL",
+		EndOffset:        "NULL",
+		ScheduleInterval: "13 hours",
+	})
 
 	if err != nil {
-		fmt.Println("Error creating daily_sum view:", err)
+		fmt.Println("Error creating daily aggregate: ", err)
 		return err
 	}
 
@@ -515,6 +504,18 @@ func initTimescaledb(db *gorm.DB) error {
 	}
 
 	err = db.Exec(fmt.Sprintf(`
+		SELECT add_continuous_aggregate_policy('%s',
+  			start_offset => NULL,
+  			end_offset => NULL,
+  			schedule_interval => INTERVAL '1 week');
+		`, averageDailyViewAggregate)).Error
+
+	if err != nil {
+		fmt.Println("Error creating refresh policy for daily average: ", err)
+		return err
+	}
+
+	err = db.Exec(fmt.Sprintf(`
 			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS 
 			SELECT time_bucket('3 months'::interval, bucket) as bucket, 
@@ -526,6 +527,18 @@ func initTimescaledb(db *gorm.DB) error {
 
 	if err != nil {
 		fmt.Println("Error creating avg_hourly_sum_three_months view:", err)
+		return err
+	}
+
+	err = db.Exec(fmt.Sprintf(`
+		SELECT add_continuous_aggregate_policy('%s',
+  			start_offset => NULL,
+  			end_offset => NULL,
+  			schedule_interval => INTERVAL '1 month');
+		`, averageHourlyViewAggregate)).Error
+
+	if err != nil {
+		fmt.Println("Error creating refresh policy for hourly average: ", err)
 		return err
 	}
 
@@ -551,4 +564,46 @@ func buildEmoteCountNoClip(count int, emote Emote, oldChatCount ChatCounts) Emot
 		Emote:     emote,
 		CreatedAt: oldChatCount.CreatedAt,
 	}
+}
+
+type RefreshPolicy struct {
+	StartOffset      string
+	EndOffset        string
+	ScheduleInterval string
+}
+
+func createMaterializedView(db *gorm.DB, from string, grouping string, aggregateName string, policy RefreshPolicy) error {
+	err := db.Exec(fmt.Sprintf(`
+			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
+			WITH (timescaledb.continuous) AS
+			SELECT emote_id, 
+				sum(sum) as sum,
+				time_bucket('%s', bucket) as bucket
+			FROM %s
+			GROUP BY 1, 3
+			ORDER BY bucket;`,
+		aggregateName, grouping, from)).Error
+
+	if err != nil {
+		fmt.Println("Error creating materialized view: ", err)
+		fmt.Println(grouping)
+		return err
+	}
+
+	err = db.Exec(fmt.Sprintf(`
+		SELECT add_continuous_aggregate_policy('%s',
+  			start_offset => %s,
+  			end_offset => %s,
+  			schedule_interval => INTERVAL '%s', 
+			if_not_exists => true
+			);
+		`, aggregateName, policy.StartOffset, policy.EndOffset, policy.ScheduleInterval)).Error
+
+	if err != nil {
+		fmt.Println("Error creating policy: ", err)
+		return err
+	}
+
+	return nil
+
 }

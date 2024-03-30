@@ -4,16 +4,18 @@ export type TimeSpans = NonNullable<
   paths["/api/series"]["get"]["parameters"]["query"]
 >["span"];
 
-export type EmoteDensityParams = NonNullable<
-  paths["/api/emote_density"]["get"]["parameters"]["query"]
+export type TimeSeries = components["schemas"]["TimeSeries"];
+
+export type EmoteSumParams = NonNullable<
+  paths["/api/emote_sums"]["get"]["parameters"]["query"]
 >;
 
-export type EmotePerformanceParams = NonNullable<
-  paths["/api/emote_average_performance"]["get"]["parameters"]["query"]
+export type EmoteGrowthParams = NonNullable<
+  paths["/api/emote_growth"]["get"]["parameters"]["query"]
 >;
 
-export type LatestEmotePerformanceParams = NonNullable<
-  paths["/api/latest_emote_performance"]["get"]["parameters"]["query"]
+export type LatestEmoteGrowthParams = NonNullable<
+  paths["/api/latest_emote_growth"]["get"]["parameters"]["query"]
 >;
 
 export type TimeGroupings = NonNullable<
@@ -35,3 +37,6 @@ export type SeriesParams = paths["/api/series"]["get"]["parameters"]["query"];
 
 export type EmotePerformance =
   components["schemas"]["EmoteReport"]["Emotes"][number];
+
+export type EmoteSum =
+  components["schemas"]["EmoteSumReport"]["Emotes"][number];
