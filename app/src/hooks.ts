@@ -35,12 +35,10 @@ export function useEmotes() {
 
 export function useEmoteSums() {
   const { from } = Route.useSearch();
-  const { data: isNlLive } = useLiveStatus();
   const { seriesParams } = useDashboardState();
   return useQuery({
-    queryFn: () => getEmoteSums({ ...seriesParams, from }),
+    queryFn: () => getEmoteSums({ from }),
     queryKey: ["emoteDensity", seriesParams, from],
-    refetchInterval: isNlLive ? 1000 * 10 : false,
     placeholderData: keepPreviousData,
   });
 }
@@ -50,6 +48,7 @@ export function useLatestEmoteSums() {
   return useQuery({
     queryFn: () => getLatestEmoteSums({ span: "30 minutes" }),
     queryKey: ["latestEmoteSums", seriesParams],
+    refetchInterval: 1000 * 10,
     placeholderData: keepPreviousData,
   });
 }
@@ -121,9 +120,7 @@ export function useSeriesState() {
 }
 
 export function useDashboardState() {
-  const currentState = Route.useSearch();
-
-  return currentState;
+  return Route.useSearch();
 }
 
 export function useLiveTimeSeries() {
