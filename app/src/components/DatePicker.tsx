@@ -10,10 +10,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useDashboardState } from "@/hooks";
+import { useDashboardNavigate, useDashboardState } from "@/hooks";
 
 export function DatePicker() {
-  const [{ from }, handleUpdateURL] = useDashboardState();
+  const handleUpdateURL = useDashboardNavigate();
+  const { from } = useDashboardState();
 
   const date = from ? new Date(from) : undefined;
 

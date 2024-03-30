@@ -13,9 +13,9 @@ export interface paths {
     /** List API clip counts */
     get: operations["list-api-clip-counts"];
   };
-  "/api/emote_relative_performance": {
-    /** Get API emote relative performance */
-    get: operations["get-api-emote-relative-performance"];
+  "/api/emote_growth": {
+    /** Get API emote growth */
+    get: operations["get-api-emote-growth"];
   };
   "/api/emote_sums": {
     /** Get API emote sums */
@@ -29,9 +29,13 @@ export interface paths {
     /** Get API is live */
     get: operations["get-api-is-live"];
   };
-  "/api/latest_emote_relative": {
-    /** Get API latest emote relative */
-    get: operations["get-api-latest-emote-relative"];
+  "/api/latest_emote_growth": {
+    /** Get API latest emote growth */
+    get: operations["get-api-latest-emote-growth"];
+  };
+  "/api/latest_emote_sums": {
+    /** Get API latest emote sums */
+    get: operations["get-api-latest-emote-sums"];
   };
   "/api/latest_greatest_series": {
     /** List API latest greatest series */
@@ -124,11 +128,11 @@ export interface components {
     EmoteSum: {
       Code: string;
       /** Format: int64 */
-      Count: number;
-      /** Format: int64 */
       EmoteID: number;
       /** Format: double */
       Percent: number;
+      /** Format: int64 */
+      Sum: number;
     };
     EmoteSumInput: {
       /** Format: date-time */
@@ -286,8 +290,8 @@ export interface operations {
       };
     };
   };
-  /** Get API emote relative performance */
-  "get-api-emote-relative-performance": {
+  /** Get API emote growth */
+  "get-api-emote-growth": {
     parameters: {
       query?: {
         date?: string;
@@ -369,8 +373,8 @@ export interface operations {
       };
     };
   };
-  /** Get API latest emote relative */
-  "get-api-latest-emote-relative": {
+  /** Get API latest emote growth */
+  "get-api-latest-emote-growth": {
     parameters: {
       query?: {
         limit?: number;
@@ -382,6 +386,29 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["LatestEmoteReport"];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** Get API latest emote sums */
+  "get-api-latest-emote-sums": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+        limit?: number;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EmoteSumReport"];
         };
       };
       /** @description Error */

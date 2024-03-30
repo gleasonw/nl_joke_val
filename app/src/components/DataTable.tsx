@@ -1,4 +1,4 @@
-import { useDashboardState, useEmotePerformance, useLiveStatus } from "@/hooks";
+import { useEmoteGrowth, useLiveStatus } from "@/hooks";
 import React from "react";
 import { EmotePerformance } from "@/types";
 import {
@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { CardTitle } from "@/components/ui/card";
+import { Link } from "@tanstack/react-router";
+import clsx from "clsx";
 
 export interface DataTableProps {
   children?: React.ReactNode;
@@ -60,6 +62,25 @@ const columns: ColumnDef<EmotePerformance>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
+    cell: ({ row }) => {
+      const { PercentDifference } = row.original;
+      const trend = PercentDifference > 0 ? "up" : "down";
+      return (
+        <div className="flex items-center gap-1">
+          <span
+            data-trend={trend}
+            className={clsx("rounded p-3", {
+              "text-green-500": trend === "up",
+              "bg-green-100": trend === "up",
+              "text-red-500": trend === "down",
+              "bg-red-100": trend === "down",
+            })}
+          >
+            {Math.round(PercentDifference)}%
+          </span>
+        </div>
+      );
+    },
   },
 ];
 
@@ -68,7 +89,7 @@ const columns: ColumnDef<EmotePerformance>[] = [
 const emptyArray = [] as EmotePerformance[];
 
 export function DataTable() {
-  const data = useEmotePerformance();
+  const { data } = useEmoteGrowth();
   const [sortingState, setSortingState] = React.useState<SortingState>([]);
   const table = useReactTable({
     data: data?.Emotes ?? emptyArray,
@@ -81,7 +102,6 @@ export function DataTable() {
       sorting: sortingState,
     },
   });
-  const [, navigate] = useDashboardState();
 
   return (
     <div className="rounded-md border">
@@ -111,11 +131,21 @@ export function DataTable() {
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && "selected"}
-                onClick={() => navigate({ focusedEmote: row.original.EmoteID })}
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    <Link
+                      to="/"
+                      search={(prev) => ({
+                        ...prev,
+                        focusedEmote: row.original.EmoteID,
+                      })}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </Link>
                   </TableCell>
                 ))}
               </TableRow>
@@ -152,11 +182,11 @@ export function DataTable() {
 }
 
 export function DataTableTitle() {
-  const data = useEmotePerformance();
+  const { data } = useEmoteGrowth();
   const grouping = data?.Input?.Grouping;
   const { data: isNlLive } = useLiveStatus();
 
-  if (data.Input && "Date" in data.Input) {
+  if (data?.Input && "Date" in data.Input) {
     return (
       <CardTitle>
         {new Date(data?.Input?.Date).toLocaleDateString()}

@@ -1,4 +1,3 @@
-import { CustomErrorParams } from "zod";
 import { components, paths } from "./schema";
 
 export type TimeSpans = NonNullable<
@@ -7,16 +6,16 @@ export type TimeSpans = NonNullable<
 
 export type TimeSeries = components["schemas"]["TimeSeries"];
 
-export type EmoteDensityParams = NonNullable<
-  paths["/api/emote_density"]["get"]["parameters"]["query"]
+export type EmoteSumParams = NonNullable<
+  paths["/api/emote_sums"]["get"]["parameters"]["query"]
 >;
 
-export type EmotePerformanceParams = NonNullable<
-  paths["/api/emote_average_performance"]["get"]["parameters"]["query"]
+export type EmoteGrowthParams = NonNullable<
+  paths["/api/emote_growth"]["get"]["parameters"]["query"]
 >;
 
-export type LatestEmotePerformanceParams = NonNullable<
-  paths["/api/latest_emote_performance"]["get"]["parameters"]["query"]
+export type LatestEmoteGrowthParams = NonNullable<
+  paths["/api/latest_emote_growth"]["get"]["parameters"]["query"]
 >;
 
 export type TimeGroupings = NonNullable<

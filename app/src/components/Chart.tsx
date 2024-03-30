@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { TimeGroupings, TimeSeries } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
@@ -175,47 +175,54 @@ export function Chart({
 }
 
 export function ChartSpanOptions() {
-  const [{ from, seriesParams }, handleUpdateChart] = useDashboardState();
+  const { from, seriesParams } = useDashboardState();
 
   const span = seriesParams?.span;
 
+  function pushNewSpan(previous: DashboardURLState, span: string) {
+    return {
+      ...previous,
+      seriesParams: {
+        ...previous.seriesParams,
+        span,
+      },
+    };
+  }
+
   if (from) {
     return (
-      <Button onClick={() => handleUpdateChart({ from: undefined })}>
-        Return to latest stream data
-      </Button>
+      <Link to={"/"}>
+        <Button>Return to latest stream data</Button>
+      </Link>
     );
   }
+
   return (
     <SettingsDropLayout>
-      <Button
-        onClick={() =>
-          handleUpdateChart({ seriesParams: { span: "1 minute" } })
-        }
-        variant="ghost"
+      <Link
+        to="/"
+        search={(prev) => pushNewSpan(prev, "1 minute")}
         className={span === "1 minute" ? "border-b-4 border-gray-700" : ""}
       >
         1 m
-      </Button>
-      <Button
-        onClick={() =>
-          handleUpdateChart({ seriesParams: { span: "30 minutes" } })
-        }
-        variant="ghost"
+      </Link>
+      <Link
+        to="/"
+        search={(prev) => pushNewSpan(prev, "30 minutes")}
         className={span === "30 minutes" ? "border-b-4 border-gray-700" : ""}
       >
         30 m
-      </Button>
-      <Button
-        onClick={() => handleUpdateChart({ seriesParams: { span: "1 hour" } })}
-        variant="ghost"
+      </Link>
+      <Link
+        to="/"
+        search={(prev) => pushNewSpan(prev, "1 hour")}
         className={span === "1 hour" ? "border-b-4 border-gray-700" : ""}
       >
         1 h
-      </Button>
-      <Button
-        onClick={() => handleUpdateChart({ seriesParams: { span: "9 hours" } })}
-        variant="ghost"
+      </Link>
+      <Link
+        to="/"
+        search={(prev) => pushNewSpan(prev, "9 hours")}
         className={
           span === "9 hours" || span === null
             ? "border-b-4 border-gray-700"
@@ -223,11 +230,7 @@ export function ChartSpanOptions() {
         }
       >
         9 h
-      </Button>
+      </Link>
     </SettingsDropLayout>
   );
-}
-
-export function LiveChart() {
-  return <div>hello</div>;
 }

@@ -4,24 +4,20 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { Route } from "./routes/index.lazy";
+import { EmoteGrowthParams, LatestEmoteGrowthParams } from "./types";
 import {
-  ClipParams,
-  EmoteDensityParams,
-  EmotePerformanceParams,
-  LatestEmotePerformanceParams,
-} from "./types";
-import {
-  getEmoteAveragePerformance,
-  getEmoteDensity,
+  getEmoteGrowth,
+  getEmoteSums,
   getEmotes,
-  getLatestEmotePerformance,
+  getLatestEmoteGrowth as getLatestEmoteGrowth,
+  getLatestEmoteSums,
   getLatestGreatestSeries,
   getLiveStatus,
   getSeriesGreatest,
 } from "./api";
-import { DashboardURLState } from "./utils";
-import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { DashboardURLState } from "@/utils";
 
 export function useLiveStatus() {
   return useQuery({
@@ -37,30 +33,23 @@ export function useEmotes() {
   });
 }
 
-export function useDefaultSeries(): string[] {
-  const emotePerformance = useEmotePerformance();
-
-  const topEmoteCodes = emotePerformance?.Emotes?.filter(
-    (e) => e.Code !== "two"
-  )
-    .slice(0, 4)
-    .map((e) => e.Code);
-
-  if (!topEmoteCodes) {
-    return ["two"];
-  }
-
-  return ["two", ...topEmoteCodes];
-}
-
 export function useEmoteSums() {
   const { from } = Route.useSearch();
   const { data: isNlLive } = useLiveStatus();
-  const [{ seriesParams }] = useDashboardState();
+  const { seriesParams } = useDashboardState();
   return useQuery({
-    queryFn: () => getEmoteDensity({ ...seriesParams, from }),
+    queryFn: () => getEmoteSums({ ...seriesParams, from }),
     queryKey: ["emoteDensity", seriesParams, from],
     refetchInterval: isNlLive ? 1000 * 10 : false,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useLatestEmoteSums() {
+  const { seriesParams } = useDashboardState();
+  return useQuery({
+    queryFn: () => getLatestEmoteSums({ span: "30 minutes" }),
+    queryKey: ["latestEmoteSums", seriesParams],
     placeholderData: keepPreviousData,
   });
 }
@@ -71,49 +60,46 @@ export function useLatestSpan() {
   return isNlLive ? "1 hour" : "9 hours";
 }
 
-export function useEmotePerformance():
-  | Awaited<ReturnType<typeof getEmoteAveragePerformance>>
-  | Awaited<ReturnType<typeof getLatestEmotePerformance>> {
-  const { from } = Route.useSearch();
-  const { data: isNlLive } = useLiveStatus();
-
-  const { data: performanceAtDay } = useEmoteAveragePerformanceAtDay({
-    date: from,
-  });
-
-  const { data: latestPerformance } = useLatestEmotePerformance({
-    grouping: isNlLive ? "hour" : "day",
-  });
-
-  if (from) {
-    return performanceAtDay;
-  }
-
-  return latestPerformance;
-}
-
-export function useEmoteAveragePerformanceAtDay(p?: EmotePerformanceParams) {
-  const { from } = Route.useSearch();
-  const { data: isNlLive } = useLiveStatus();
+export function useEmoteAveragePerformanceAtDay(p?: EmoteGrowthParams) {
+  const { from } = useDashboardState();
   return useSuspenseQuery({
-    queryFn: () => getEmoteAveragePerformance({ ...p, date: from }),
+    queryFn: () => getEmoteGrowth({ ...p, date: from }),
     queryKey: ["emoteAveragePerformance", p, from],
-    refetchInterval: isNlLive ? 1000 * 10 : false,
   });
 }
 
-export function useLatestEmotePerformance(p?: LatestEmotePerformanceParams) {
-  const { data: isNlLive } = useLiveStatus();
-  return useSuspenseQuery({
-    queryFn: () => getLatestEmotePerformance({ ...p }),
-    queryKey: ["latestEmotePerformance", p],
-    refetchInterval: isNlLive ? 1000 * 10 : false,
+export function useEmoteGrowth(p?: EmoteGrowthParams) {
+  const { from } = useDashboardState();
+  return useQuery({
+    queryFn: () => getEmoteGrowth({ ...p, date: from }),
+    queryKey: ["emoteGrowth", p, from],
   });
+}
+
+export function useLatestEmoteGrowth(p?: LatestEmoteGrowthParams) {
+  return useQuery({
+    queryFn: () => getLatestEmoteGrowth({ ...p }),
+    queryKey: ["latestEmotePerformance", p],
+    refetchInterval: 1000 * 10,
+  });
+}
+
+export function useDashboardNavigate() {
+  const navigate = useNavigate();
+  const currentState = useDashboardState();
+  return useCallback((newParams: DashboardURLState) => {
+    navigate({
+      search: {
+        ...currentState,
+        ...newParams,
+      },
+    });
+  }, []);
 }
 
 export function useSeriesState() {
   const currentSeries = Route.useSearch().series;
-  const [, handleUpdateUrl] = useDashboardState();
+  const handleUpdateUrl = useDashboardNavigate();
 
   const handleUpdateSeries = useCallback((newSeries: string) => {
     let updatedSeries = [];
@@ -136,21 +122,12 @@ export function useSeriesState() {
 
 export function useDashboardState() {
   const currentState = Route.useSearch();
-  const navigate = useNavigate();
-  const handleUpdateUrl = useCallback((newParams: DashboardURLState) => {
-    navigate({
-      search: {
-        ...currentState,
-        ...newParams,
-      },
-    });
-  }, []);
 
-  return [currentState, handleUpdateUrl] as const;
+  return currentState;
 }
 
 export function useLiveTimeSeries() {
-  const [{ seriesParams }] = useDashboardState();
+  const { seriesParams } = useDashboardState();
   return useSuspenseQuery({
     queryFn: () => getLatestGreatestSeries(seriesParams),
     queryKey: ["liveTimeSeries", seriesParams],

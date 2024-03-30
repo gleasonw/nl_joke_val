@@ -55,7 +55,7 @@ func selectLatestGreatestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeS
 		return &TimeSeriesOutput{}, err
 	}
 
-	return selectLatestTimeSeries(SeriesInputForEmotes{
+	return selectLatestSeries(SeriesInputForEmotes{
 		Grouping: p.Grouping,
 		Span:     p.Span,
 		From:     p.From,
@@ -63,21 +63,12 @@ func selectLatestGreatestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeS
 	}, db)
 }
 
-func selectLatestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
+func selectLatestSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
 	query := statementBuilder().
 		Select("sum(count) as sum", fmt.Sprintf("time_bucket('1 %s', created_at) as bucket", p.Grouping), "emote_id").
 		From("emote_counts")
 
-	switch p.Span {
-	case "30 minutes":
-		query = query.Where("created_at >= now() - interval '30 minutes'")
-	case "1 hour":
-		query = query.Where("created_at >= now() - interval '1 hour'")
-	case "9 hours":
-		query = query.Where("created_at >= now() - interval '9 hours'")
-	default:
-		query = query.Where("created_at >= now() - interval '1 day'")
-	}
+	query = addFilterCreatedAtSpan(query, p.Span)
 
 	query = query.
 		Where(sq.Eq{"emote_id": p.EmoteIDs}).
@@ -98,7 +89,7 @@ func selectLatestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOut
 	return queryGroupAndSort(rollingSeries, db)
 }
 
-func selectTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
+func selectSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
 
 	baseSeries := baseSeriesSelect(p)
 
@@ -113,7 +104,7 @@ func selectTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, e
 
 }
 
-func selectGreatestTimeSeries(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error) {
+func selectSeriesForGreatest(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, error) {
 
 	topEmoteIds, err := topEmoteIds(db, EmoteSumInput{
 		Grouping: p.Grouping,
@@ -145,13 +136,31 @@ func selectGreatestTimeSeries(p SeriesInput, db *gorm.DB) (*TimeSeriesOutput, er
 
 }
 
-func filterByDay(query sq.SelectBuilder, day time.Time) sq.SelectBuilder {
-	return query.
-		Where(sq.GtOrEq{"bucket": day}).
-		Where(sq.LtOrEq{"bucket": day.Add(time.Hour * 24)})
+// for live view queries
+func addFilterCreatedAtSpan(query sq.SelectBuilder, span string) sq.SelectBuilder {
+	switch span {
+	case "30 minutes":
+		query = query.Where("created_at >= now() - interval '30 minutes'")
+	case "1 hour":
+		query = query.Where("created_at >= now() - interval '1 hour'")
+	case "9 hours":
+		query = query.Where("created_at >= now() - interval '9 hours'")
+	default:
+		fmt.Println("unknown span", span)
+		query = query.Where("created_at >= now() - interval '1 day'")
+	}
+
+	return query
 }
 
-func filterBySpan(query sq.SelectBuilder, span string) sq.SelectBuilder {
+func filterBucketByDay(query sq.SelectBuilder, day time.Time) sq.SelectBuilder {
+	return query.
+		Where(sq.GtOrEq{"bucket": day}).
+		Where(sq.Lt{"bucket": day.Add(time.Hour * 24)})
+}
+
+// for historical view queries; from our aggregates
+func filterBucketBySpan(query sq.SelectBuilder, span string) sq.SelectBuilder {
 	switch span {
 	case "1 minute":
 		return query.Where(statementBuilder().Select("MAX(bucket) - '1 minute'::interval").
@@ -196,9 +205,9 @@ func baseSeriesSelect(p SeriesInputForEmotes) sq.SelectBuilder {
 			Where(sq.LtOrEq{"bucket": p.To}).
 			Where(sq.GtOrEq{"bucket": p.From})
 	} else if !p.From.IsZero() {
-		series = filterByDay(series, p.From)
+		series = filterBucketByDay(series, p.From)
 	} else if p.Span != "" {
-		series = filterBySpan(series, p.Span)
+		series = filterBucketBySpan(series, p.Span)
 	}
 
 	series = series.Where(sq.Eq{"emote_id": p.EmoteIDs})

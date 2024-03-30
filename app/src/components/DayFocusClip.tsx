@@ -1,5 +1,5 @@
 import { TopClip } from "@/components/TopClips";
-import { useEmotePerformance } from "@/hooks";
+import { useEmoteGrowth } from "@/hooks";
 import { Route } from "@/routes/index.lazy";
 import { EmotePerformance } from "@/types";
 import React from "react";
@@ -9,7 +9,7 @@ export interface DayFocusClipProps {}
 export function DayFocusClip() {
   const { focusedEmote } = Route.useSearch();
 
-  const emotePerformance = useEmotePerformance();
+  const { data: emotePerformance } = useEmoteGrowth();
 
   // days with 0 difference are not interesting
   const emotes = emotePerformance?.Emotes.filter(
@@ -32,7 +32,7 @@ export function DayFocusClip() {
 }
 
 export function FocusTitle({ emote }: { emote: EmotePerformance }) {
-  const emotePerformance = useEmotePerformance();
+  const { data: emotePerformance } = useEmoteGrowth();
   const isLatestHourView =
     emotePerformance?.Input?.Grouping === "hour" &&
     !("Date" in emotePerformance.Input);
