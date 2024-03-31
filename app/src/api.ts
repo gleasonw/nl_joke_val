@@ -170,3 +170,35 @@ export async function getEmotes() {
 
   return result.data;
 }
+
+export async function getPreviousStreamDate(from?: string) {
+  const result = await GET("/api/previous_stream_date", {
+    params: {
+      query: {
+        from: from,
+      },
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch previous stream date");
+  }
+
+  return result.data;
+}
+
+export async function getNextStreamDate(from?: string) {
+  const result = await GET("/api/next_stream_date", {
+    params: {
+      query: {
+        from: from,
+      },
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch next stream date");
+  }
+
+  return result.data;
+}

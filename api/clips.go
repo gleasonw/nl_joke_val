@@ -36,7 +36,7 @@ const likelyBitLength = "1 minutes"
 // TODO: lower shared buffer size
 // TODO: limit the amount of data we return
 // TODO: rewrite with squirrel.
-func GetClipCountsNewModel(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]bool) (*ClipCountsOutput, error) {
+func selectClipsFromEmotePeaks(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]bool) (*ClipCountsOutput, error) {
 
 	var query string
 
@@ -135,7 +135,7 @@ type NearestClipOutput struct {
 	Body Clip
 }
 
-func GetNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error) {
+func selectNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, error) {
 	var clip Clip
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 

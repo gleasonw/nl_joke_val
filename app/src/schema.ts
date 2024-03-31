@@ -45,6 +45,14 @@ export interface paths {
     /** List API latest series */
     get: operations["list-api-latest-series"];
   };
+  "/api/next_stream_date": {
+    /** Get API next stream date */
+    get: operations["get-api-next-stream-date"];
+  };
+  "/api/previous_stream_date": {
+    /** Get API previous stream date */
+    get: operations["get-api-previous-stream-date"];
+  };
   "/api/series": {
     /** List API series */
     get: operations["list-api-series"];
@@ -461,6 +469,50 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TimeSeries"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** Get API next stream date */
+  "get-api-next-stream-date": {
+    parameters: {
+      query?: {
+        from?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": string;
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** Get API previous stream date */
+  "get-api-previous-stream-date": {
+    parameters: {
+      query?: {
+        from?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": string;
         };
       };
       /** @description Error */

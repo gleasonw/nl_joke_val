@@ -3,9 +3,8 @@ import { TimeGroupings, TimeSeries } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { useDashboardState } from "../hooks";
+import { useDashboardState, useSeriesParams } from "../hooks";
 import React from "react";
-import { Route } from "../routes/index.lazy";
 import { SettingsDropLayout } from "./SettingsDropLayout";
 import {
   Select,
@@ -24,8 +23,10 @@ export function Chart({
   isLoading: boolean;
 }) {
   const navigate = useNavigate();
-  const currentState = Route.useSearch();
+  const currentState = useDashboardState();
   const { seriesParams } = currentState;
+
+  const seriesParamsWithDefaults = useSeriesParams();
 
   function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
     navigate({
@@ -128,7 +129,7 @@ export function Chart({
                 grouping: value as TimeGroupings,
               })
             }
-            value={seriesParams?.grouping}
+            value={seriesParamsWithDefaults?.grouping}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Time" />
@@ -150,7 +151,7 @@ export function Chart({
                 rollingAverage: parseInt(value),
               })
             }
-            value={(seriesParams?.rollingAverage ?? 0).toString()}
+            value={(seriesParamsWithDefaults?.rollingAverage ?? 0).toString()}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Smoothing" />
@@ -175,7 +176,9 @@ export function Chart({
 }
 
 export function ChartSpanOptions() {
-  const { from, seriesParams } = useDashboardState();
+  const { from } = useDashboardState();
+
+  const seriesParams = useSeriesParams();
 
   const span = seriesParams?.span;
 
@@ -199,37 +202,41 @@ export function ChartSpanOptions() {
 
   return (
     <SettingsDropLayout>
-      <Link
-        to="/"
-        search={(prev) => pushNewSpan(prev, "1 minute")}
-        className={span === "1 minute" ? "border-b-4 border-gray-700" : ""}
-      >
-        1 m
+      <Link to="/" search={(prev) => pushNewSpan(prev, "1 minute")}>
+        <Button
+          className={span === "1 minute" ? "border-b-4 border-gray-700" : ""}
+          variant="ghost"
+        >
+          1 m
+        </Button>
       </Link>
-      <Link
-        to="/"
-        search={(prev) => pushNewSpan(prev, "30 minutes")}
-        className={span === "30 minutes" ? "border-b-4 border-gray-700" : ""}
-      >
-        30 m
+      <Link to="/" search={(prev) => pushNewSpan(prev, "30 minutes")}>
+        <Button
+          className={span === "30 minutes" ? "border-b-4 border-gray-700" : ""}
+          variant="ghost"
+        >
+          30 m
+        </Button>
       </Link>
-      <Link
-        to="/"
-        search={(prev) => pushNewSpan(prev, "1 hour")}
-        className={span === "1 hour" ? "border-b-4 border-gray-700" : ""}
-      >
-        1 h
+      <Link to="/" search={(prev) => pushNewSpan(prev, "1 hour")}>
+        <Button
+          className={span === "1 hour" ? "border-b-4 border-gray-700" : ""}
+          variant="ghost"
+        >
+          1 h
+        </Button>
       </Link>
-      <Link
-        to="/"
-        search={(prev) => pushNewSpan(prev, "9 hours")}
-        className={
-          span === "9 hours" || span === null
-            ? "border-b-4 border-gray-700"
-            : ""
-        }
-      >
-        9 h
+      <Link to="/" search={(prev) => pushNewSpan(prev, "9 hours")}>
+        <Button
+          className={
+            span === "9 hours" || span === null
+              ? "border-b-4 border-gray-700"
+              : ""
+          }
+          variant="ghost"
+        >
+          9 h
+        </Button>
       </Link>
     </SettingsDropLayout>
   );

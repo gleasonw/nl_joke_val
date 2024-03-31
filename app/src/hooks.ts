@@ -13,6 +13,8 @@ import {
   getLatestEmoteSums,
   getLatestGreatestSeries,
   getLiveStatus,
+  getNextStreamDate,
+  getPreviousStreamDate,
   getSeriesGreatest,
 } from "./api";
 import { useCallback } from "react";
@@ -124,7 +126,7 @@ export function useDashboardState() {
 }
 
 export function useLiveTimeSeries() {
-  const { seriesParams } = useDashboardState();
+  const seriesParams = useSeriesParams();
   return useSuspenseQuery({
     queryFn: () => getLatestGreatestSeries(seriesParams),
     queryKey: ["liveTimeSeries", seriesParams],
@@ -133,12 +135,42 @@ export function useLiveTimeSeries() {
 }
 
 export function useTimeSeries() {
-  const currentState = Route.useSearch();
-  const { seriesParams, from } = currentState;
+  const { from } = useDashboardState();
+  const seriesParams = useSeriesParams();
 
   return useQuery({
     queryFn: () => getSeriesGreatest({ ...seriesParams, from }),
     queryKey: ["series", seriesParams, from],
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useSeriesParams(): DashboardURLState["seriesParams"] {
+  const { seriesParams } = useDashboardState();
+  return {
+    ...seriesParams,
+    grouping: seriesParams?.grouping ?? "minute",
+    rollingAverage: seriesParams?.rollingAverage ?? 30,
+    span: seriesParams?.span ?? "9 hours",
+  };
+}
+
+export function usePreviousStreamDate() {
+  const { from } = useDashboardState();
+
+  return useQuery({
+    queryFn: () => getPreviousStreamDate(from),
+    queryKey: ["previousStreamDate", from],
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useNextStreamDate() {
+  const { from } = useDashboardState();
+
+  return useQuery({
+    queryFn: () => getNextStreamDate(from),
+    queryKey: ["nextStreamDate", from],
     placeholderData: keepPreviousData,
   });
 }

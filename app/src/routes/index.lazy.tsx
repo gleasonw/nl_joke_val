@@ -1,9 +1,10 @@
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import {
-  useDashboardNavigate,
   useDashboardState,
   useLiveStatus,
   useLiveTimeSeries,
+  useNextStreamDate,
+  usePreviousStreamDate,
   useTimeSeries,
 } from "../hooks";
 import React, { Suspense } from "react";
@@ -16,6 +17,7 @@ import { DayFocusClip } from "@/components/DayFocusClip";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { LiveTopPerformingEmotes } from "@/components/LiveTopPerformingEmotes";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 const loadingPhrases = [
   "Reticulating splines...",
@@ -44,6 +46,9 @@ export const Route = createLazyFileRoute("/")({
 
 function Index() {
   const { data: isNlLive } = useLiveStatus();
+  const { from } = useDashboardState();
+
+  const isLiveView = isNlLive && !from;
 
   return (
     <AnimatePresence>
@@ -54,8 +59,7 @@ function Index() {
           </div>
         }
       >
-        {isNlLive ? <LiveView /> : <HistoricalView />}{" "}
-        {/* <Chart data={localFetchedSeries} isLoading={isLoading} /> */}
+        {isLiveView ? <LiveView /> : <HistoricalView />}
       </Suspense>
     </AnimatePresence>
   );
@@ -79,6 +83,7 @@ function LiveView() {
 function HistoricalView() {
   const { data: localFetchedSeries, isLoading } = useTimeSeries();
   const { from } = useDashboardState();
+
   return localFetchedSeries?.length === 0 && from ? (
     <div className="flex flex-col gap-5 items-center p-10">
       No stream data for {new Date(from).toLocaleString()}
@@ -131,15 +136,50 @@ export function DateDisplay() {
     timeRangeString = `${lowestDate.toLocaleString()} - ${highestDate.toLocaleTimeString()}`;
   }
   return (
-    <div className="flex gap-4 items-left w-full my-4 items-center p-2">
-      <DatePicker />
-      {!from ? (
-        <span className="text-xs text-gray-800">
-          Using latest stream data: {timeRangeString}
-        </span>
-      ) : (
-        <span className="text-xs text-gray-800">{timeRangeString}</span>
-      )}
+    <div className="flex items-center justify-between">
+      <PreviousDayButton />
+
+      <div className="flex gap-4 items-left w-full my-4 items-center p-2">
+        <DatePicker />
+        {!from ? (
+          <span className=" text-gray-800">
+            Latest stream: {timeRangeString}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-800">{timeRangeString}</span>
+        )}
+      </div>
+
+      <NextDayButton />
     </div>
+  );
+}
+
+export function PreviousDayButton() {
+  const { data: previousStreamDate } = usePreviousStreamDate();
+
+  return (
+    <Link to="/" search={(prev) => ({ ...prev, from: previousStreamDate })}>
+      <Button variant="ghost">
+        <ArrowLeft />
+      </Button>
+    </Link>
+  );
+}
+
+export function NextDayButton() {
+  const { from } = useDashboardState();
+  const { data: nextStreamDate } = useNextStreamDate();
+
+  if (!from) {
+    return null;
+  }
+
+  return (
+    <Link to="/" search={(prev) => ({ ...prev, from: nextStreamDate })}>
+      <Button variant="ghost">
+        <ArrowRight />
+      </Button>
+    </Link>
   );
 }

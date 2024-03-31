@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
@@ -87,7 +88,7 @@ func main() {
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
 	huma.Get(api, "/api/clip_counts", func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
-		return GetClipCountsNewModel(*input, db, validColumnSet)
+		return selectClipsFromEmotePeaks(*input, db, validColumnSet)
 	})
 
 	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
@@ -107,7 +108,7 @@ func main() {
 	})
 
 	huma.Get(api, "/api/clip", func(ctx context.Context, input *NearestClipInput) (*NearestClipOutput, error) {
-		return GetNearestClip(*input, db)
+		return selectNearestClip(*input, db)
 	})
 
 	huma.Get(api, "/api/is_live", func(ctx context.Context, input *struct{}) (*struct{ Body bool }, error) {
@@ -128,6 +129,70 @@ func main() {
 
 	huma.Get(api, "/api/latest_emote_sums", func(ctx context.Context, input *LatestEmoteSumInput) (*EmoteSumOutput, error) {
 		return selectLatestSums(*input, db)
+	})
+
+	type PreviousStreamDateInput struct {
+		From time.Time `query:"from"`
+	}
+
+	// todo: eventually we should just include all data for a date in a single query
+	// reduce some round trips
+	huma.Get(api, "/api/previous_stream_date", func(ctx context.Context, input *PreviousStreamDateInput) (*struct{ Body time.Time }, error) {
+		psql := statementBuilder()
+		var query squirrel.SelectBuilder
+		if input.From.IsZero() {
+			query = psql.
+				Select("DATE(MAX(created_at))").
+				From("emote_counts").
+				Where(psql.
+					Select("DATE(max(created_at))").
+					From("emote_counts").
+					Prefix("created_at < (").
+					Suffix(")"))
+
+		} else {
+			query = psql.
+				Select("DATE(max(created_at))").
+				From("emote_counts").
+				Where(squirrel.Lt{"created_at": input.From})
+		}
+
+		var date time.Time
+
+		queryString, args, _ := query.ToSql()
+
+		err := db.Raw(queryString, args...).Scan(&date).Error
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &struct{ Body time.Time }{Body: date}, nil
+
+	})
+
+	huma.Get(api, "/api/next_stream_date", func(ctx context.Context, input *PreviousStreamDateInput) (*struct{ Body time.Time }, error) {
+
+		if input.From.IsZero() {
+			return nil, fmt.Errorf("from date is required")
+		}
+
+		query := statementBuilder().
+			Select("DATE(min(created_at))").
+			From("emote_counts").
+			Where(squirrel.Gt{"created_at": input.From.Add(time.Hour * 24)})
+
+		var date time.Time
+
+		queryString, args, _ := query.ToSql()
+
+		err := db.Raw(queryString, args...).Scan(&date).Error
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &struct{ Body time.Time }{Body: date}, nil
 	})
 
 	type EmoteOutput struct {
