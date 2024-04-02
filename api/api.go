@@ -74,10 +74,10 @@ func main() {
 
 	liveStatus := &LiveStatus{IsLive: false}
 
-	// go connectToTwitchChat(
-	// 	db,
-	// 	liveStatus,
-	// )
+	go connectToTwitchChat(
+		db,
+		liveStatus,
+	)
 
 	validColumnSet, _ := getEmotes()
 
