@@ -3,7 +3,11 @@ import { TimeGroupings, TimeSeries } from "../types";
 import { DashboardURLState, timeGroupings } from "../utils";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
-import { useDashboardState, useSeriesParams } from "../hooks";
+import {
+  useDashboardState,
+  useTimeSeriesOptions as useTimeSeriesOptions,
+  useSeriesParams,
+} from "../hooks";
 import React from "react";
 import { SettingsDropLayout } from "./SettingsDropLayout";
 import {
@@ -39,83 +43,24 @@ export function Chart({
 
   const seriesToDisplay = Object.keys(data?.at(0)?.series ?? {});
 
-  const emoteSeries:
-    | Highcharts.SeriesLineOptions[]
-    | Highcharts.SeriesBarOptions[] =
-    seriesToDisplay?.map((key) => ({
-      name: key,
-      data:
-        data?.map((d) => [new Date(d.time).getTime(), d.series[key] ?? 0]) ??
-        [],
-      events: {
-        click: function (e) {
-          navigate({
-            search: { ...currentState, clickedUnixSeconds: e.point.x / 1000 },
-          });
-        },
-      },
-      type: "line",
-    })) ?? ([] as Highcharts.SeriesOptionsType[]);
-
-  const highChartsOptions: Highcharts.Options = {
-    time: {
-      getTimezoneOffset: function (timestamp: number) {
-        if (seriesParams?.grouping === "day") {
-          // using an offset would throw off the day grouping
-          return 0;
-        }
-        return new Date(timestamp).getTimezoneOffset();
-      },
-    },
-    plotOptions: {
-      series: {
-        marker: {
-          enabled: false,
-        },
-        cursor: "pointer",
-      },
-      line: {
-        linecap: "round",
-        lineWidth: 2,
-      },
-    },
-    chart: {
-      type: "line",
-      height: 600,
-      zooming: {
-        type: "x",
-      },
-      events: {
-        click: function (e) {
-          // @ts-expect-error - this is a valid event
-          const xVal = e?.xAxis?.[0]?.value;
-          if (xVal) {
+  const highChartsOptions = useTimeSeriesOptions({
+    data:
+      seriesToDisplay?.map((key) => ({
+        name: key,
+        data:
+          data?.map((d) => [new Date(d.time).getTime(), d.series[key] ?? 0]) ??
+          [],
+        events: {
+          click: function (e) {
             navigate({
-              search: {
-                ...currentState,
-                clickedUnixSeconds: new Date().getTime(),
-              },
+              search: { ...currentState, clickedUnixSeconds: e.point.x / 1000 },
             });
-          }
+          },
         },
-      },
-    },
-    title: {
-      text: "",
-    },
-    xAxis: {
-      type: "datetime",
-      title: {
-        text: "Time",
-      },
-    },
-    yAxis: {
-      title: {
-        text: "Count",
-      },
-    },
-    series: emoteSeries,
-  };
+        type: "line",
+      })) ?? ([] as Highcharts.SeriesOptionsType[]),
+    chartType: "line",
+  });
 
   return (
     <div className="flex flex-col gap-2">

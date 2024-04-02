@@ -8,6 +8,7 @@ import {
 import { GET } from "./utils";
 
 export async function getLiveStatus() {
+  return true;
   const response = await GET("/api/is_live");
 
   if (response.error) {
@@ -97,6 +98,20 @@ export async function getLatestGreatestSeries(p: SeriesParams) {
 
   if (result.error) {
     throw new Error("Failed to fetch latest greatest series");
+  }
+
+  return result.data;
+}
+
+export async function getLatestTrendiestSeries(p: SeriesParams) {
+  const result = await GET("/api/latest_trendiest_series", {
+    params: {
+      query: p,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch latest trendiest series");
   }
 
   return result.data;

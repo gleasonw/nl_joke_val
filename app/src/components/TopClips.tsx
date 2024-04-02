@@ -1,13 +1,21 @@
 import { getClips } from "../api";
 import { useQuery } from "@tanstack/react-query";
 import { useEmoteGrowth, useEmoteSums, useLatestSpan } from "../hooks";
-import React from "react";
+import React, { useEffect } from "react";
 import { ClipClicker } from "./ClipClicker";
 import { CardTitle } from "@/components/ui/card";
 import { Route } from "@/routes/index.lazy";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function TopClips() {
+  const [count, setCount] = React.useState(0);
+
+  useEffect(() => {
+    console.log("count", count);
+
+    setCount(count + 1);
+  }, []);
+
   return (
     <div>
       <CardTitle>Clips from Top Windows</CardTitle>

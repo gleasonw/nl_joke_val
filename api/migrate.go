@@ -590,6 +590,7 @@ func createMaterializedView(db *gorm.DB, from string, grouping string, aggregate
 		return err
 	}
 
+	fmt.Println("adding refresh policy for ", aggregateName)
 	err = db.Exec(fmt.Sprintf(`
 		SELECT add_continuous_aggregate_policy('%s',
   			start_offset => %s,

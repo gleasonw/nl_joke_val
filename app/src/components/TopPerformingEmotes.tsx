@@ -13,21 +13,17 @@ export interface TopPerformingEmotesProps {
 export function TopGrowthEmotes() {
   const { data: emotePerformance } = useEmoteGrowth();
   return (
-    <section>
-      <div className="flex gap-5">
-        {emotePerformance?.Emotes?.filter(
-          (e) => e.Difference != 0 && e.Count > 0
-        )
-          .slice(0, 5)
-          .map((e) => (
-            <EmotePerformanceCard
-              emotePerformance={e}
-              key={e.Code}
-              grouping={emotePerformance?.Input?.Grouping}
-            />
-          ))}
-      </div>
-    </section>
+    <div className="flex gap-5 justify-between w-full">
+      {emotePerformance?.Emotes?.filter((e) => e.Difference != 0 && e.Count > 0)
+        .slice(0, 5)
+        .map((e) => (
+          <EmotePerformanceCard
+            emotePerformance={e}
+            key={e.Code}
+            grouping={emotePerformance?.Input?.Grouping}
+          />
+        ))}
+    </div>
   );
 }
 

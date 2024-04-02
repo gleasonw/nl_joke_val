@@ -74,10 +74,10 @@ func main() {
 
 	liveStatus := &LiveStatus{IsLive: false}
 
-	go connectToTwitchChat(
-		db,
-		liveStatus,
-	)
+	// go connectToTwitchChat(
+	// 	db,
+	// 	liveStatus,
+	// )
 
 	validColumnSet, _ := getEmotes()
 
@@ -105,6 +105,10 @@ func main() {
 
 	huma.Get(api, "/api/latest_greatest_series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
 		return selectLatestGreatestTimeSeries(*input, db)
+	})
+
+	huma.Get(api, "/api/latest_trendiest_series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
+		return selectLatestTrendiestTimeSeries(*input, db)
 	})
 
 	huma.Get(api, "/api/clip", func(ctx context.Context, input *NearestClipInput) (*NearestClipOutput, error) {

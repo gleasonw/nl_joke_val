@@ -39,7 +39,6 @@ type EmoteSet struct {
 	Emotes []BttvEmote `json:"emotes"`
 }
 
-// fetch northernlion's emotes from bttv
 func fetchNlEmotesFromBTTV() (EmoteSet, error) {
 	req, err := http.NewRequest("GET", "https://api.betterttv.net/3/cached/users/twitch/14371185", nil)
 	if err != nil {
@@ -127,6 +126,23 @@ type LatestEmoteReport struct {
 
 type LatestEmotePerformanceOutput struct {
 	Body LatestEmoteReport
+}
+
+func trendiestEmoteIDs(p LatestEmotePerformanceInput, db *gorm.DB) ([]int, error) {
+	e, error := selectLatestPercentGrowth(p, db)
+
+	if error != nil {
+		fmt.Println("error retrieving trendiest emote ids")
+		return nil, error
+	}
+
+	trendiestEmotes := make([]int, 0, len(e.Body.Emotes))
+
+	for _, emote := range e.Body.Emotes {
+		trendiestEmotes = append(trendiestEmotes, emote.EmoteID)
+	}
+
+	return trendiestEmotes, nil
 }
 
 func selectLatestPercentGrowth(p LatestEmotePerformanceInput, db *gorm.DB) (*LatestEmotePerformanceOutput, error) {

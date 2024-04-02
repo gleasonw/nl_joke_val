@@ -63,6 +63,32 @@ func selectLatestGreatestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeS
 	}, db)
 }
 
+func selectLatestTrendiestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
+	trendiestEmoteIDs, err := trendiestEmoteIDs(
+		LatestEmotePerformanceInput{
+			Limit:    5,
+			Grouping: "hour",
+		},
+		db,
+	)
+
+	if err != nil {
+		fmt.Println("Error fetching trendiest emotes")
+		return &TimeSeriesOutput{}, err
+	}
+
+	return selectLatestSeries(
+		SeriesInputForEmotes{
+			Grouping: p.Grouping,
+			Span:     p.Span,
+			From:     p.From,
+			EmoteIDs: trendiestEmoteIDs,
+		},
+		db,
+	)
+
+}
+
 func selectLatestSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
 	query := statementBuilder().
 		Select("sum(count) as sum", fmt.Sprintf("time_bucket('1 %s', created_at) as bucket", p.Grouping), "emote_id").

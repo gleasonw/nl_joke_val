@@ -3,6 +3,7 @@ import {
   useDashboardState,
   useLiveStatus,
   useLiveTimeSeries,
+  useLiveTrendyTimeSeries,
   useNextStreamDate,
   usePreviousStreamDate,
   useTimeSeries,
@@ -32,8 +33,6 @@ const loadingPhrases = [
   "Chargement...",
   "Firing up...😎",
 ] as const;
-// bug with resetting state when clicking table row
-// always use created_at ranges with queries... timescaledb index
 
 function loadingStatement() {
   const index = Math.floor(Math.random() * loadingPhrases.length);
@@ -66,14 +65,14 @@ function Index() {
 }
 
 function LiveView() {
-  const { data: localFetchedSeries, isLoading } = useLiveTimeSeries();
+  const { data: localFetchedSeries, isLoading } = useLiveTrendyTimeSeries();
 
   return (
-    <div className="flex flex-col gap-2">
-      <section className="flex flex-col gap-2 justify-center items-center">
-        <DateDisplay />
-        <LiveTopPerformingEmotes />
-      </section>
+    <div className="flex flex-col gap-5">
+      <DateDisplay />
+      <LiveTopPerformingEmotes />
+      {/* <LivePlusTwos />
+        <LiveMinusTwos /> */}
       <Chart data={localFetchedSeries} isLoading={isLoading} />
       <ClipAtTime />
     </div>
@@ -98,7 +97,7 @@ function HistoricalView() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <section className="flex flex-col gap-2 justify-center items-center">
+      <section className="flex flex-col gap-2 w-full">
         <DateDisplay />
         <TopGrowthEmotes />
       </section>

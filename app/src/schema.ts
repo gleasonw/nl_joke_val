@@ -45,6 +45,10 @@ export interface paths {
     /** List API latest series */
     get: operations["list-api-latest-series"];
   };
+  "/api/latest_trendiest_series": {
+    /** List API latest trendiest series */
+    get: operations["list-api-latest-trendiest-series"];
+  };
   "/api/next_stream_date": {
     /** Get API next stream date */
     get: operations["get-api-next-stream-date"];
@@ -455,6 +459,32 @@ export interface operations {
   };
   /** List API latest series */
   "list-api-latest-series": {
+    parameters: {
+      query?: {
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
+        grouping?: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
+        rollingAverage?: number;
+        from?: string;
+        to?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TimeSeries"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** List API latest trendiest series */
+  "list-api-latest-trendiest-series": {
     parameters: {
       query?: {
         span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";

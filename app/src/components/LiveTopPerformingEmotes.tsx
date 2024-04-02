@@ -9,8 +9,8 @@ export function LiveTopPerformingEmotes() {
   const { data: emoteGrowth } = useLatestEmoteGrowth();
 
   return (
-    <div className="flex flex-col gap-5">
-      <section className="flex gap-2">
+    <div className="flex flex-col gap-10">
+      <section className="flex gap-10 justify-center">
         {emoteGrowth?.Emotes?.filter((e) => e.Difference != 0 && e.Count > 0)
           .slice(0, 5)
           .map((e) => (
@@ -22,7 +22,7 @@ export function LiveTopPerformingEmotes() {
           ))}
       </section>
       <section>
-        <div className="flex gap-5">
+        <div className="flex gap-10 justify-center">
           {emotePerformance?.Emotes.map((e) => (
             <LiveEmotePerformanceCard emotePerformance={e} key={e.Code} />
           ))}
