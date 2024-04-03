@@ -8,7 +8,6 @@ import {
 import { GET } from "./utils";
 
 export async function getLiveStatus() {
-  return true;
   const response = await GET("/api/is_live");
 
   if (response.error) {
