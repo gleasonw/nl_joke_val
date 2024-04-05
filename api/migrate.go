@@ -435,20 +435,6 @@ func initTimescaledb(db *gorm.DB) error {
 		return err
 	}
 
-	err = db.Exec(`
-		SELECT add_continuous_aggregate_policy('ten_second_sum',
-  			start_offset => NULL,
-  			end_offset => NULL,
-  			schedule_interval => INTERVAL '10 hours',
-			if_not_exists => true
-			);
-		`).Error
-
-	if err != nil {
-		fmt.Println("Error creating policy: ", err)
-		return err
-	}
-
 	minuteAggregateName := groupingToView["minute"]
 
 	err = createMaterializedView(db, secondAggregateName, "1 minute", minuteAggregateName, RefreshPolicy{
@@ -504,18 +490,6 @@ func initTimescaledb(db *gorm.DB) error {
 	}
 
 	err = db.Exec(fmt.Sprintf(`
-		SELECT add_continuous_aggregate_policy('%s',
-  			start_offset => NULL,
-  			end_offset => NULL,
-  			schedule_interval => INTERVAL '1 week');
-		`, averageDailyViewAggregate)).Error
-
-	if err != nil {
-		fmt.Println("Error creating refresh policy for daily average: ", err)
-		return err
-	}
-
-	err = db.Exec(fmt.Sprintf(`
 			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS 
 			SELECT time_bucket('3 months'::interval, bucket) as bucket, 
@@ -527,18 +501,6 @@ func initTimescaledb(db *gorm.DB) error {
 
 	if err != nil {
 		fmt.Println("Error creating avg_hourly_sum_three_months view:", err)
-		return err
-	}
-
-	err = db.Exec(fmt.Sprintf(`
-		SELECT add_continuous_aggregate_policy('%s',
-  			start_offset => NULL,
-  			end_offset => NULL,
-  			schedule_interval => INTERVAL '1 month');
-		`, averageHourlyViewAggregate)).Error
-
-	if err != nil {
-		fmt.Println("Error creating refresh policy for hourly average: ", err)
 		return err
 	}
 
@@ -587,21 +549,6 @@ func createMaterializedView(db *gorm.DB, from string, grouping string, aggregate
 	if err != nil {
 		fmt.Println("Error creating materialized view: ", err)
 		fmt.Println(grouping)
-		return err
-	}
-
-	fmt.Println("adding refresh policy for ", aggregateName)
-	err = db.Exec(fmt.Sprintf(`
-		SELECT add_continuous_aggregate_policy('%s',
-  			start_offset => %s,
-  			end_offset => %s,
-  			schedule_interval => INTERVAL '%s', 
-			if_not_exists => true
-		);
-		`, aggregateName, policy.StartOffset, policy.EndOffset, policy.ScheduleInterval)).Error
-
-	if err != nil {
-		fmt.Println("Error creating policy: ", err)
 		return err
 	}
 

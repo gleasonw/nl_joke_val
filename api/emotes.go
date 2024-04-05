@@ -73,7 +73,7 @@ func fetchNlEmotesFromBTTV() (EmoteSet, error) {
 type EmotePerformanceInput struct {
 	Date     time.Time `query:"date"`
 	Grouping string    `query:"grouping" enum:"hour,day" default:"day"`
-	Limit    int       `query:"limit" default:"10" minimum:"1"`
+	Limit    int       `query:"limit" default:"20" minimum:"1"`
 }
 
 type LatestEmotePerformanceInput struct {

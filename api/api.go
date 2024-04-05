@@ -40,16 +40,46 @@ type TwitchResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-type LiveStatus struct {
-	IsLive bool
-}
-
 const secondViewAggregate = "ten_second_sum"
 const minuteViewAggregate = "minute_sum"
 const hourlyViewAggregate = "hourly_sum"
 const dailyViewAggregate = "daily_sum"
 const averageDailyViewAggregate = "avg_daily_sum_three_months"
 const averageHourlyViewAggregate = "avg_hourly_sum_three_months"
+
+type LiveStatus struct {
+	IsLive bool
+}
+
+func (ls *LiveStatus) setLiveStatus(liveStatusUpdate bool, db *gorm.DB) {
+	if !ls.IsLive && liveStatusUpdate {
+		// pog!
+		ls.IsLive = true
+		return
+	}
+
+	if ls.IsLive && !liveStatusUpdate {
+		// nl has logged off, refresh our aggregates to get the latest stream data
+		tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+		yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+
+		aggregates := []string{secondViewAggregate, minuteViewAggregate, hourlyViewAggregate, dailyViewAggregate, averageDailyViewAggregate, averageHourlyViewAggregate}
+
+		for _, agg := range aggregates {
+			query := fmt.Sprintf("CALL refresh_continuous_aggregate('%s', '%s', '%s')", agg, yesterday, tomorrow)
+			err := db.Exec(query).Error
+
+			if err != nil {
+				fmt.Println("error refreshing aggregate ", agg)
+				continue
+			}
+		}
+
+		ls.IsLive = false
+		fmt.Println("succesfully refreshed aggregates")
+
+	}
+}
 
 func main() {
 
@@ -64,8 +94,6 @@ func main() {
 			return
 		}
 	}
-
-	db.AutoMigrate(&RefreshTokenStore{})
 
 	if err != nil {
 		fmt.Println(err)
@@ -553,7 +581,7 @@ func persistCountsIfLive(
 
 	if clipResult.clipID != "" {
 
-		liveStatus.IsLive = true
+		liveStatus.setLiveStatus(true, db)
 		countsWithClipIDs := make([]EmoteCount, 0, len(counts))
 
 		for _, count := range counts {
@@ -570,7 +598,7 @@ func persistCountsIfLive(
 
 		if err != nil {
 			fmt.Println("Error creating clip: ", clipResult.error)
-			liveStatus.IsLive = false
+			liveStatus.setLiveStatus(false, db)
 		}
 
 		err = db.Create(&countsWithClipIDs).Error
@@ -593,7 +621,7 @@ func persistCountsIfLive(
 		}
 	} else {
 		fmt.Println("Error creating clip: ", clipResult.error)
-		liveStatus.IsLive = false
+		liveStatus.setLiveStatus(false, db)
 	}
 
 }
