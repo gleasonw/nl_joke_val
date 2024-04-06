@@ -47,7 +47,7 @@ export function EmotePerformanceCard({
       search={(prev) => ({ ...prev, focusedEmote: emotePerformance.EmoteID })}
     >
       <ArrowIcon
-        className={clsx("h-8 w-8 p-2 rounded", {
+        className={clsx("h-8 w-8 p-2 shrink-0 rounded", {
           "text-green-500": trend === "up",
           "bg-green-100": trend === "up",
           "text-red-500": trend === "down",
@@ -68,6 +68,25 @@ export function EmotePerformanceCard({
           {Count} / {grouping} ({Math.round(Average)})
         </span>
       </span>
+      <EmoteImage emotePerformance={emotePerformance} />
     </Link>
+  );
+}
+
+export interface EmoteImageProps {
+  emotePerformance: EmotePerformance;
+}
+
+export function EmoteImage(props: EmoteImageProps) {
+  const { emotePerformance } = props;
+
+  if (emotePerformance.Code === 'two'){
+    return <span className="w-8 h-8 text-center">Σ ± 2</span>
+  }
+  return (
+    <img
+      src={emotePerformance.EmoteURL}
+      className="object-scale-down w-8 h-8"
+    />
   );
 }

@@ -82,6 +82,7 @@ type LatestEmotePerformanceInput struct {
 }
 
 type EmoteFullRow struct {
+	EmoteURL          string
 	EmoteID           int
 	Code              string
 	Count             float64
@@ -138,8 +139,8 @@ func trendiestEmoteIDs(p LatestEmotePerformanceInput, db *gorm.DB) ([]int, error
 
 	trendiestEmotes := make([]int, 0, len(e.Body.Emotes))
 
-	for _, emote := range e.Body.Emotes {
-		trendiestEmotes = append(trendiestEmotes, emote.EmoteID)
+	for _, emoteRow := range e.Body.Emotes {
+		trendiestEmotes = append(trendiestEmotes, int(emoteRow.EmoteID))
 	}
 
 	return trendiestEmotes, nil
@@ -212,12 +213,12 @@ func selectGrowth(currentSumQuery sq.SelectBuilder, averageSumQuery sq.SelectBui
 			Suffix(") current_sum ON current_sum.emote_id = avg_series.emote_id"))
 
 	statQuery := statementBuilder().
-		Select("average", "sum", "code", "series.emote_id as emote_id", "sum - average as difference", "COALESCE((sum - average) / Nullif(average, 0) * 100, 0) as percent_difference").
+		Select("*", "series.emote_id as emote_id", "sum - average as difference", "COALESCE((sum - average) / Nullif(average, 0) * 100, 0) as percent_difference", "url as emote_url").
 		FromSelect(baseQuery, "series").
 		Join("emotes on emotes.id = series.emote_id")
 
 	weightedSortQuery, args, err := statementBuilder().
-		Select("average", "sum as count", "code", "emote_id", "difference", "percent_difference", "percent_difference * sum as weighted_percent_difference").
+		Select("*", "sum as count", "percent_difference * sum as weighted_percent_difference").
 		FromSelect(statQuery, "stat").
 		OrderBy("weighted_percent_difference DESC").
 		Limit(uint64(limit)).

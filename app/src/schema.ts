@@ -96,10 +96,12 @@ export interface components {
       /** Format: date-time */
       CreatedAt: string;
       DeletedAt: components["schemas"]["DeletedAt"];
+      HexColor: string;
       /** Format: int64 */
       ID: number;
       /** Format: date-time */
       UpdatedAt: string;
+      Url: string;
     };
     EmoteFullRow: {
       /** Format: double */
@@ -111,6 +113,7 @@ export interface components {
       Difference: number;
       /** Format: int64 */
       EmoteID: number;
+      EmoteURL: string;
       /** Format: double */
       PercentDifference: number;
     };
@@ -124,7 +127,7 @@ export interface components {
       Grouping: "hour" | "day";
       /**
        * Format: int64
-       * @default 10
+       * @default 20
        */
       Limit: number;
     };
