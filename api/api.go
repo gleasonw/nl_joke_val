@@ -44,8 +44,8 @@ const secondViewAggregate = "ten_second_sum"
 const minuteViewAggregate = "minute_sum"
 const hourlyViewAggregate = "hourly_sum"
 const dailyViewAggregate = "daily_sum"
-const averageDailyViewAggregate = "avg_daily_sum_three_months"
-const averageHourlyViewAggregate = "avg_hourly_sum_three_months"
+const averageDailyViewAggregate = "avg_daily_sum"
+const averageHourlyViewAggregate = "avg_hourly_sum"
 
 type LiveStatus struct {
 	IsLive bool
@@ -90,7 +90,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			initTimescaledb(db)
+			addURLsToEmotes(db)
 			return
 		}
 	}
@@ -107,7 +107,7 @@ func main() {
 		liveStatus,
 	)
 
-	validColumnSet, _ := getEmotes()
+	validColumnSet, _ := getChatCountEmotes()
 
 	router := chi.NewMux()
 
@@ -259,7 +259,7 @@ func main() {
 	}
 }
 
-func getEmotes() (map[string]bool, []string) {
+func getChatCountEmotes() (map[string]bool, []string) {
 	val := reflect.ValueOf(ChatCounts{})
 	validColumnSet := make(map[string]bool, val.NumField())
 	emotes := make([]string, 0, val.NumField())

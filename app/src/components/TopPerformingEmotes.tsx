@@ -13,7 +13,7 @@ export interface TopPerformingEmotesProps {
 export function TopGrowthEmotes() {
   const { data: emotePerformance } = useEmoteGrowth();
   return (
-    <div className="flex gap-5 justify-between w-full">
+    <div className="flex gap-5 justify-center w-full">
       {emotePerformance?.Emotes?.filter((e) => e.Difference != 0 && e.Count > 0)
         .slice(0, 5)
         .map((e) => (
