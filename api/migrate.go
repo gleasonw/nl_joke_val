@@ -20,6 +20,8 @@ type Emote struct {
 	ChannelId string
 	Code      string `gorm:"unique"`
 	BttvId    int64
+	Url       string
+	HexColor  string
 }
 
 func (e *Emote) String() string {
@@ -273,7 +275,7 @@ func migrateToNewModel() error {
 
 	emoteCounts := make([]EmoteCount, 0, len(oldChatCounts)*len(emotes))
 	clipsToInsert := make([]FetchedClip, 0, len(oldChatCounts))
-	columnNameSet, _ := getEmotes()
+	columnNameSet, _ := getChatCountEmotes()
 
 	for _, oldChatCount := range oldChatCounts {
 		oldCountReflect := reflect.ValueOf(oldChatCount)
@@ -402,6 +404,51 @@ func concurrentBatchInsert[Row EmoteCount | FetchedClip](db *gorm.DB, rows []Row
 	return nil
 }
 
+func addURLsToEmotes(db *gorm.DB) error {
+	db.AutoMigrate(&Emote{})
+
+	emotes, err := getEmotesInDB(db)
+
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	bttvEmotes, err := fetchNlEmotesFromBTTV()
+
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	codeToEmoteMap := make(map[string]BttvEmote)
+
+	for _, bttvEmote := range bttvEmotes.Emotes {
+		codeToEmoteMap[bttvEmote.Code] = bttvEmote
+	}
+
+	nonBttvEmotes := make([]Emote, 0, 20)
+
+	for _, emote := range emotes {
+		joinedBttv, ok := codeToEmoteMap[emote.Code]
+
+		if !ok {
+			nonBttvEmotes = append(nonBttvEmotes, emote)
+			continue
+		}
+
+		emote.Url = fmt.Sprintf("https://cdn.betterttv.net/emote/%s/2x.webp", joinedBttv.ID)
+
+		db.Save(&emote)
+
+	}
+
+	fmt.Println("non bttv emotes: ", len(nonBttvEmotes))
+
+	return nil
+
+}
+
 func initTimescaledb(db *gorm.DB) error {
 	err := db.Exec("CREATE extension if not exists timescaledb").Error
 
@@ -437,11 +484,7 @@ func initTimescaledb(db *gorm.DB) error {
 
 	minuteAggregateName := groupingToView["minute"]
 
-	err = createMaterializedView(db, secondAggregateName, "1 minute", minuteAggregateName, RefreshPolicy{
-		StartOffset:      "NULL",
-		EndOffset:        "NULL",
-		ScheduleInterval: "11 hours",
-	})
+	err = createMaterializedView(db, secondAggregateName, "1 minute", minuteAggregateName)
 
 	if err != nil {
 		fmt.Println("Error creating minute aggregate: ", err)
@@ -450,11 +493,7 @@ func initTimescaledb(db *gorm.DB) error {
 
 	hourlyAggregateName := groupingToView["hour"]
 
-	err = createMaterializedView(db, minuteAggregateName, "1 hour", hourlyAggregateName, RefreshPolicy{
-		StartOffset:      "NULL",
-		EndOffset:        "NULL",
-		ScheduleInterval: "12 hours",
-	})
+	err = createMaterializedView(db, minuteAggregateName, "1 hour", hourlyAggregateName)
 
 	if err != nil {
 		fmt.Println("Error creating hourly aggregate: ", err)
@@ -463,11 +502,7 @@ func initTimescaledb(db *gorm.DB) error {
 
 	dailyAggregateName := groupingToView["day"]
 
-	err = createMaterializedView(db, hourlyAggregateName, "1 day", dailyAggregateName, RefreshPolicy{
-		StartOffset:      "NULL",
-		EndOffset:        "NULL",
-		ScheduleInterval: "13 hours",
-	})
+	err = createMaterializedView(db, hourlyAggregateName, "1 day", dailyAggregateName)
 
 	if err != nil {
 		fmt.Println("Error creating daily aggregate: ", err)
@@ -477,7 +512,7 @@ func initTimescaledb(db *gorm.DB) error {
 	err = db.Exec(fmt.Sprintf(`
 			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS 
-			SELECT time_bucket('3 months'::interval, bucket) as bucket, 
+			SELECT time_bucket('1 week'::interval, bucket) as bucket, 
 				avg(sum) as average, 
 				emote_id
 			FROM %s
@@ -485,14 +520,14 @@ func initTimescaledb(db *gorm.DB) error {
 		averageDailyViewAggregate, dailyViewAggregate)).Error
 
 	if err != nil {
-		fmt.Println("Error creating avg_daily_sum_three_months view:", err)
+		fmt.Println("Error creating avg_daily_sum view:", err)
 		return err
 	}
 
 	err = db.Exec(fmt.Sprintf(`
 			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS 
-			SELECT time_bucket('3 months'::interval, bucket) as bucket, 
+			SELECT time_bucket('1 week'::interval, bucket) as bucket, 
 				avg(sum) as average, 
 				emote_id
 			FROM %s
@@ -500,7 +535,7 @@ func initTimescaledb(db *gorm.DB) error {
 		averageHourlyViewAggregate, hourlyViewAggregate)).Error
 
 	if err != nil {
-		fmt.Println("Error creating avg_hourly_sum_three_months view:", err)
+		fmt.Println("Error creating avg_hourly_sum view:", err)
 		return err
 	}
 
@@ -534,7 +569,7 @@ type RefreshPolicy struct {
 	ScheduleInterval string
 }
 
-func createMaterializedView(db *gorm.DB, from string, grouping string, aggregateName string, policy RefreshPolicy) error {
+func createMaterializedView(db *gorm.DB, from string, grouping string, aggregateName string) error {
 	err := db.Exec(fmt.Sprintf(`
 			CREATE MATERIALIZED VIEW IF NOT EXISTS %s
 			WITH (timescaledb.continuous) AS
