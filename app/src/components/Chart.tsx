@@ -7,6 +7,7 @@ import {
   useDashboardState,
   useTimeSeriesOptions as useTimeSeriesOptions,
   useSeriesParams,
+  useEmotes,
 } from "../hooks";
 import React from "react";
 import { SettingsDropLayout } from "./SettingsDropLayout";
@@ -28,6 +29,13 @@ export function Chart({
 }) {
   const navigate = useNavigate();
   const currentState = useDashboardState();
+  const {data: emotes} = useEmotes();
+
+  const codeColorMap = emotes?.reduce((acc, emote) => {
+    acc[emote.Code] = emote.HexColor
+    return acc
+  }, {} as {[key: string] : string})
+
   const { seriesParams } = currentState;
 
   const seriesParamsWithDefaults = useSeriesParams();
@@ -47,6 +55,7 @@ export function Chart({
     data:
       seriesToDisplay?.map((key) => ({
         name: key,
+        color: codeColorMap?.[key],
         data:
           data?.map((d) => [new Date(d.time).getTime(), d.series[key] ?? 0]) ??
           [],

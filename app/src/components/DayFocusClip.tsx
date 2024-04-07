@@ -1,4 +1,5 @@
 import { TopClip } from "@/components/TopClips";
+import { EmoteImage } from "@/components/TopPerformingEmotes";
 import { useEmoteGrowth } from "@/hooks";
 import { Route } from "@/routes/index.lazy";
 import { EmotePerformance } from "@/types";
@@ -48,7 +49,7 @@ export function FocusTitle({ emote }: { emote: EmotePerformance }) {
     return (
       <span className="flex gap-2 items-center">
         A strong past hour for
-        <span className="font-bold text-lg">{emoteCode}</span>!
+        <FocusEmoteImage Code={emoteCode} URL={emote.EmoteURL} />!
       </span>
     );
   }
@@ -56,7 +57,7 @@ export function FocusTitle({ emote }: { emote: EmotePerformance }) {
   if (isLatestHourView && !positive) {
     return (
       <span className="flex gap-2 items-center">
-        <span className="font-bold text-lg">{emoteCode}</span>
+        <FocusEmoteImage Code={emoteCode} URL={emote.EmoteURL} />
         is trending down in the past hour.
       </span>
     );
@@ -66,15 +67,29 @@ export function FocusTitle({ emote }: { emote: EmotePerformance }) {
     return (
       <span className="flex gap-2 items-center">
         Strong day for
-        <span className="font-bold text-lg">{emoteCode}</span>!
+        <FocusEmoteImage Code={emoteCode} URL={emote.EmoteURL} />!
       </span>
     );
   }
 
   return (
     <span className="flex gap-2 items-center">
-      <span className="font-bold text-lg">{emoteCode}</span> trended down on
+      <FocusEmoteImage Code={emoteCode} URL={emote.EmoteURL} /> trended down on
       this day.
+    </span>
+  );
+}
+
+export interface FocusEmoteImageProps {
+  Code: string;
+  URL: string;
+}
+
+export function FocusEmoteImage(props: FocusEmoteImageProps) {
+  return (
+    <span className="flex gap-2 items-center font-bold">
+      {props.Code}
+      <EmoteImage {...props} size="medium" />
     </span>
   );
 }

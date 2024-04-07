@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { CardTitle } from "@/components/ui/card";
 import { Link } from "@tanstack/react-router";
 import clsx from "clsx";
+import { EmoteImage } from "@/components/TopPerformingEmotes";
 
 export interface DataTableProps {
   children?: React.ReactNode;
@@ -34,6 +35,7 @@ const columns: ColumnDef<EmotePerformance>[] = [
   {
     header: "Emote",
     accessorKey: "Code",
+    cell: ({ row }) => <EmoteImage URL={row.original.EmoteURL} Code={row.original.Code} size="small" />,
   },
   {
     accessorKey: "Count",
@@ -48,7 +50,7 @@ const columns: ColumnDef<EmotePerformance>[] = [
     ),
   },
   {
-    header: "Average sum (three months)",
+    header: "Average sum (past week)",
     accessorKey: "Average",
   },
   {

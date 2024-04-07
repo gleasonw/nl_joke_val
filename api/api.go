@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -90,7 +91,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			// addURLsToEmotes(db)
+			updateEmotesWithColor(db)
 			return
 		}
 	}
@@ -417,7 +418,19 @@ func syncTrackingEmotes(db *gorm.DB, trackingEmotesOut chan<- map[int]Emote, ctx
 				if _, ok := currentTrackedCodes[bttvEmote.Code]; !ok {
 					fmt.Println("inserting new emote", bttvEmote.Code)
 
-					newEmote := Emote{Code: bttvEmote.Code}
+					randomHue := rand.Float64()
+
+					color := hsvToRGB(HSV{
+						Hue:        randomHue * 360,
+						Saturation: 0.6,
+						Value:      0.95,
+					})
+
+					newEmote := Emote{
+						Code:     bttvEmote.Code,
+						Url:      fmt.Sprintf("https://cdn.betterttv.net/emote/%s/2x.webp", bttvEmote.ID),
+						HexColor: fmt.Sprintf("#%02x%02x%02x", color.Red, color.Green, color.Blue),
+					}
 
 					err := db.Create(&newEmote).Error
 

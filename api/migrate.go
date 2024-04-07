@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"reflect"
 	"slices"
@@ -402,6 +403,106 @@ func concurrentBatchInsert[Row EmoteCount | FetchedClip](db *gorm.DB, rows []Row
 	}
 	wg.Wait()
 	return nil
+}
+
+type RGB struct {
+	Red   int
+	Blue  int
+	Green int
+}
+
+type HSV struct {
+	Hue        float64
+	Saturation float64
+	Value      float64
+}
+
+const GOLDEN_RATIO_CONJUGATE = 0.618033988749895
+
+func updateEmotesWithColor(db *gorm.DB) error {
+	randomHue := rand.Float64()
+
+	emotes, err := getEmotesInDB(db)
+
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	for _, emote := range emotes {
+		randomHue += GOLDEN_RATIO_CONJUGATE
+
+		randomHue = randomHue - float64(int(randomHue))
+
+		color := hsvToRGB(HSV{
+			Hue:        randomHue * 360,
+			Saturation: 0.6,
+			Value:      0.95,
+		})
+
+		hex := fmt.Sprintf("#%02x%02x%02x", color.Red, color.Green, color.Blue)
+
+		emote.HexColor = hex
+
+		db.Save(&emote)
+	}
+
+	return nil
+
+}
+
+func hsvToRGB(hsv HSV) RGB {
+	var r, g, b float64
+
+	h := hsv.Hue
+	s := hsv.Saturation
+	v := hsv.Value
+
+	if s == 0 {
+		return scaleRgb(v, v, v)
+	}
+
+	var i int
+	var f, p, q, t float64
+
+	h /= 60 // sector 0 to 5
+	i = int(h)
+	f = h - float64(i) // factorial part of h
+	p = v * (1 - s)
+	q = v * (1 - s*f)
+	t = v * (1 - s*(1-f))
+
+	switch i {
+	case 0:
+		r = v
+		g = t
+		b = p
+	case 1:
+		r = q
+		g = v
+		b = p
+	case 2:
+		r = p
+		g = v
+		b = t
+	case 3:
+		r = p
+		g = q
+		b = v
+	case 4:
+		r = t
+		g = p
+		b = v
+	case 5:
+		r = v
+		g = p
+		b = q
+	}
+	return scaleRgb(r, g, b)
+}
+
+func scaleRgb(r, g, b float64) RGB {
+	return RGB{Red: int(r * 255), Green: int(g * 255), Blue: int(b * 255)}
 }
 
 func addURLsToEmotes(db *gorm.DB) error {

@@ -68,25 +68,38 @@ export function EmotePerformanceCard({
           {Count} / {grouping} ({Math.round(Average)})
         </span>
       </span>
-      <EmoteImage emotePerformance={emotePerformance} />
+      <EmoteImage
+        size="small"
+        Code={emotePerformance.Code}
+        URL={emotePerformance.EmoteURL}
+      />
     </Link>
   );
 }
 
 export interface EmoteImageProps {
-  emotePerformance: EmotePerformance;
+  Code: string;
+  URL: string;
+  size: "small" | "medium" | "large";
 }
 
 export function EmoteImage(props: EmoteImageProps) {
-  const { emotePerformance } = props;
+  const { Code, URL, size="small" } = props;
 
-  if (emotePerformance.Code === 'two'){
-    return <span className="w-8 h-8 text-center">Σ ± 2</span>
+  const className = clsx({
+    "size-8": size === "small",
+    "size-12": size === "medium",
+    "size-16": size === "large",
+  });
+
+  if (Code === "two") {
+    return <span className={clsx(className, "text-center")}>Σ ± 2</span>;
   }
   return (
     <img
-      src={emotePerformance.EmoteURL}
-      className="object-scale-down w-8 h-8"
+      aria-label={`The ${Code} emote`}
+      src={URL}
+      className={clsx(className, "object-scale-down")}
     />
   );
 }
