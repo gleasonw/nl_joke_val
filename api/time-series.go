@@ -40,7 +40,7 @@ type SeriesInputForEmotes struct {
 	RollingAverage int       `query:"rollingAverage"`
 	From           time.Time `query:"from"`
 	To             time.Time `query:"to"`
-	EmoteIDs       []int
+	EmoteIDs       []int     `query:"emote_ids"`
 }
 
 func selectLatestGreatestTimeSeries(p SeriesInputForEmotes, db *gorm.DB) (*TimeSeriesOutput, error) {
@@ -255,7 +255,7 @@ func queryGroupAndSort(builder sq.SelectBuilder, db *gorm.DB) (*TimeSeriesOutput
 		return &TimeSeriesOutput{}, nil
 	}
 
-	result := []TimeSeriesRow{}
+	result := make([]TimeSeriesRow, 0, 2000)
 
 	dbError := db.Raw(sql, args...).Scan(&result).Error
 

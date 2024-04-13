@@ -119,6 +119,7 @@ func main() {
 	})
 
 	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {
+		fmt.Println(input.EmoteIDs)
 		return selectSeries(*input, db)
 	})
 

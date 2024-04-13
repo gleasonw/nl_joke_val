@@ -4,13 +4,7 @@ import { useDashboardState, useEmotes } from "@/hooks";
 import React from "react";
 
 export function HistoricalClipHeroes() {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <DayFocusClip />
-      <HistoricalPlusTwoClip />
-      <HistoricalMinusTwoClip />
-    </div>
-  );
+  return <div className="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>;
 }
 
 export function HistoricalPlusTwoClip() {

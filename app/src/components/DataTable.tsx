@@ -1,4 +1,4 @@
-import { useEmoteGrowth, useLiveStatus } from "@/hooks";
+import { useEmoteGrowth } from "@/hooks";
 import React from "react";
 import { EmotePerformance } from "@/types";
 import {
@@ -21,10 +21,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CardTitle } from "@/components/ui/card";
 import { Link } from "@tanstack/react-router";
 import clsx from "clsx";
 import { EmoteImage } from "@/components/TopPerformingEmotes";
+import { DayFocusClip } from "@/components/DayFocusClip";
 
 export interface DataTableProps {
   children?: React.ReactNode;
@@ -37,8 +37,10 @@ const columns: ColumnDef<EmotePerformance>[] = [
     accessorKey: "Code",
     cell: ({ row }) => (
       <EmoteImage
-        URL={row.original.EmoteURL}
-        Code={row.original.Code}
+        emote={{
+          Url: row.original.EmoteURL,
+          Code: row.original.Code,
+        }}
         size="small"
       />
     ),
@@ -113,7 +115,7 @@ export function HistoricalDataTable() {
 
   return (
     <div className="rounded-md border">
-      <DataTableTitle />
+      <DayFocusClip />
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -125,7 +127,7 @@ export function HistoricalDataTable() {
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 );
@@ -151,7 +153,7 @@ export function HistoricalDataTable() {
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
-                        cell.getContext()
+                        cell.getContext(),
                       )}
                     </Link>
                   </TableCell>
@@ -187,25 +189,4 @@ export function HistoricalDataTable() {
       </div>
     </div>
   );
-}
-
-export function DataTableTitle() {
-  const { data } = useEmoteGrowth();
-  const grouping = data?.Input?.Grouping;
-  const { data: isNlLive } = useLiveStatus();
-
-  if (data?.Input && "Date" in data.Input) {
-    return (
-      <CardTitle className="p-4">
-        {new Date(data?.Input?.Date).toLocaleDateString()}
-        <span className="ml-2 text-xs"> binned by {grouping}</span>
-      </CardTitle>
-    );
-  }
-
-  if (isNlLive) {
-    return <CardTitle>Live counts grouped by {grouping}</CardTitle>;
-  }
-
-  return <CardTitle>binned by {data?.Input?.Grouping}</CardTitle>;
 }

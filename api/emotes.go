@@ -265,10 +265,12 @@ type LatestEmoteSumInput struct {
 }
 
 type EmoteSum struct {
-	EmoteID int
-	Code    string
-	Percent float64
-	Sum     int
+	EmoteID  int
+	Code     string
+	Percent  float64
+	Sum      int
+	EmoteURL string
+	HexColor string
 }
 
 type EmoteSumReport struct {
@@ -345,7 +347,7 @@ func queryEmoteSums(db *gorm.DB, filteredEmoteSums sq.SelectBuilder, p EmoteSumI
 		return &EmoteSumOutput{}, err
 	}
 
-	baseQuery := statementBuilder().Select("emote_id, code, COALESCE((sum / NULLIF(total_count, 0)), 0) * 100 AS percent, sum").
+	baseQuery := statementBuilder().Select("emote_id, code, COALESCE((sum / NULLIF(total_count, 0)), 0) * 100 AS percent, sum, url as emote_url, hex_color").
 		FromSelect(filteredEmoteSums, "count_rows").
 		OrderBy("percent DESC").
 		Limit(uint64(p.Limit))

@@ -4,7 +4,12 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { Route } from "./routes/index.lazy";
-import { EmoteGrowthParams, LatestEmoteGrowthParams } from "./types";
+import {
+  Emote,
+  EmoteGrowthParams,
+  EmoteSumParams,
+  LatestEmoteGrowthParams,
+} from "./types";
 import {
   getEmoteGrowth,
   getEmoteSums,
@@ -16,6 +21,7 @@ import {
   getLiveStatus,
   getNextStreamDate,
   getPreviousStreamDate,
+  getSeries,
   getSeriesGreatest,
 } from "./api";
 import { useCallback, useMemo } from "react";
@@ -36,11 +42,11 @@ export function useEmotes() {
   });
 }
 
-export function useEmoteSums() {
+export function useEmoteSums(p?: EmoteSumParams) {
   const { from } = Route.useSearch();
   const { seriesParams } = useDashboardState();
   return useQuery({
-    queryFn: () => getEmoteSums({ from }),
+    queryFn: () => getEmoteSums({ ...p, from }),
     queryKey: ["emoteDensity", seriesParams, from],
     placeholderData: keepPreviousData,
   });
@@ -98,7 +104,7 @@ export function useDashboardNavigate() {
         },
       });
     },
-    [currentState, navigate]
+    [currentState, navigate],
   );
 }
 
@@ -107,22 +113,22 @@ export function useSeriesState() {
   const handleUpdateUrl = useDashboardNavigate();
 
   const handleUpdateSeries = useCallback(
-    (newSeries: string) => {
+    (emoteID: number) => {
       let updatedSeries = [];
 
       if (!currentSeries) {
-        updatedSeries = [newSeries];
-      } else if (currentSeries?.includes(newSeries)) {
-        updatedSeries = currentSeries.filter((series) => series !== newSeries);
+        updatedSeries = [emoteID];
+      } else if (currentSeries?.includes(emoteID)) {
+        updatedSeries = currentSeries.filter((series) => series !== emoteID);
       } else {
-        updatedSeries = [...currentSeries, newSeries];
+        updatedSeries = [...currentSeries, emoteID];
       }
 
       handleUpdateUrl({
         series: updatedSeries,
       });
     },
-    [currentSeries, handleUpdateUrl]
+    [currentSeries, handleUpdateUrl],
   );
 
   return [currentSeries, handleUpdateSeries] as const;
@@ -150,15 +156,75 @@ export function useLiveTimeSeries() {
   });
 }
 
-export function useTimeSeries() {
+export function useGreatestTimeSeries() {
   const { from } = useDashboardState();
   const seriesParams = useSeriesParams();
 
   return useQuery({
     queryFn: () => getSeriesGreatest({ ...seriesParams, from }),
-    queryKey: ["series", seriesParams, from],
+    queryKey: ["greatestSeries", seriesParams, from],
     placeholderData: keepPreviousData,
   });
+}
+
+export function useTimeSeries(p?: { emote_ids?: number[] }) {
+  const emote_ids = p ? p.emote_ids : [];
+  const { from } = useDashboardState();
+  const seriesParams = useSeriesParams();
+
+  const params = { ...seriesParams, from, emote_ids } as const;
+
+  return useQuery({
+    queryFn: () => getSeries(params),
+    queryKey: ["series", params],
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePlottedEmotes(): Pick<
+  Emote,
+  "Url" | "Code" | "HexColor" | "ID"
+>[] {
+  const { series } = useDashboardState();
+  const { data: topFive } = useEmoteSums({ limit: 5 });
+  const { data: emotes } = useEmotes();
+
+  if (!topFive?.Emotes) {
+    return [];
+  }
+
+  if (!series || series.length === 0) {
+    return topFive.Emotes.map((e) => ({
+      Url: e.EmoteURL,
+      Code: e.Code,
+      HexColor: e.HexColor,
+      ID: e.EmoteID,
+    }));
+  }
+
+  // we have to do some weirdness. If the user has selected a top five emote, we should no longer display it,
+  // since the default is already displayed.
+  // this is the most intuitive ux. not the most intuitive dx, for sure. Probably a better way.
+
+  const defaultIds = topFive.Emotes.map((e) => e.EmoteID);
+
+  const defaultSet = new Set(defaultIds);
+  const userSelectedSet = new Set(series);
+
+  const userSeriesToDisplay = series.filter(
+    (emoteID) => !defaultSet.has(emoteID),
+  );
+
+  const defaultSeriesToDisplay = defaultIds.filter(
+    (id) => !userSelectedSet.has(id),
+  );
+
+  const mergedSeriesSet = new Set([
+    ...userSeriesToDisplay,
+    ...defaultSeriesToDisplay,
+  ]);
+
+  return emotes?.filter((e) => mergedSeriesSet.has(e.ID)) ?? [];
 }
 
 export function useSeriesParams(): DashboardURLState["seriesParams"] {
@@ -263,6 +329,6 @@ export function useTimeSeriesOptions(args: HighchartsInputs) {
       },
       series: data,
     }),
-    [currentState, data, navigate, chartType, seriesParams]
+    [currentState, data, navigate, chartType, seriesParams],
   );
 }

@@ -4,11 +4,14 @@ import {
   useLiveStatus,
   useLiveTrendyTimeSeries,
   useNextStreamDate,
+  usePlottedEmotes,
   usePreviousStreamDate,
+  useSeriesState,
+  useGreatestTimeSeries,
   useTimeSeries,
 } from "../hooks";
 import React, { Suspense } from "react";
-import { Chart } from "../components/Chart";
+import { Chart, ChartOptions } from "../components/Chart";
 import { ClipAtTime } from "@/components/ClipAtTime";
 import { DatePicker } from "@/components/DatePicker";
 import { HistoricalDataTable } from "@/components/DataTable";
@@ -16,7 +19,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { LiveTopPerformingEmotes } from "@/components/LiveTopPerformingEmotes";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { HistoricalClipHeroes } from "@/components/HistoricalClipHeroes";
+import {
+  HistoricalMinusTwoClip,
+  HistoricalPlusTwoClip,
+} from "@/components/HistoricalClipHeroes";
+import { EmoteImage } from "@/components/TopPerformingEmotes";
+import { EmoteInput } from "@/components/EmoteInput";
 
 const loadingPhrases = [
   "Reticulating splines...",
@@ -51,7 +59,7 @@ function Index() {
     <AnimatePresence>
       <Suspense
         fallback={
-          <div className="flex items-center justify-center h-32">
+          <div className="flex h-32 items-center justify-center">
             {loadingStatement()}
           </div>
         }
@@ -79,11 +87,16 @@ function LiveView() {
 }
 
 function HistoricalView() {
-  const { data: localFetchedSeries, isLoading } = useTimeSeries();
+  const plottedEmotes = usePlottedEmotes();
+
+  const { data: seriesData, isLoading } = useTimeSeries({
+    emote_ids: plottedEmotes.map((e) => e.ID),
+  });
+
   const { from } = useDashboardState();
 
-  return localFetchedSeries?.length === 0 && from ? (
-    <div className="flex flex-col gap-5 items-center p-10">
+  return seriesData?.length === 0 && from ? (
+    <div className="flex flex-col items-center gap-5 p-10">
       No stream data for {new Date(from).toLocaleString()}
       <Link to="/">
         <Button>Return to latest stream data</Button>
@@ -96,25 +109,57 @@ function HistoricalView() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <section className="flex flex-col gap-2 w-full p-2">
-        <DateDisplay />
-        <HistoricalClipHeroes />
-      </section>
-      <section className="p-4 bg-white shadow-lg rounded-lg flex flex-col gap-4">
-        <div className="  grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div>
-            <Chart data={localFetchedSeries} isLoading={isLoading} />
+      <DateDisplay />
+      <section className="flex flex-col gap-4 rounded-lg bg-white shadow-lg lg:p-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <HistoricalPlusTwoClip />
+          <HistoricalMinusTwoClip />
+          <div className="lg:row-span-2">
+            <HistoricalDataTable />
+          </div>
+          <div className="lg:col-span-2">
+            <section className="border-rounded border border-gray-300 p-1 shadow-sm">
+              <span className="flex flex-wrap items-center gap-2">
+                <p>top emote usage over time</p>
+                <PlottedEmotes />
+                <EmoteInput />
+              </span>
+              <Chart data={seriesData} isLoading={isLoading} />
+              <section className="flex items-end gap-3">
+                <ChartOptions />
+              </section>
+            </section>
             <ClipAtTime />
           </div>
-          <HistoricalDataTable />
         </div>
       </section>
     </motion.div>
   );
 }
 
+export function PlottedEmotes() {
+  const topFive = usePlottedEmotes();
+  const [, handleUpdateSeries] = useSeriesState();
+
+  return (
+    <span className="flex flex-wrap gap-1">
+      {topFive?.map((e) => (
+        <Button
+          onClick={() => handleUpdateSeries(e.ID)}
+          variant="ghost"
+          key={e.Code}
+          style={{ background: e.HexColor }}
+          className="rounded-md p-1"
+        >
+          <EmoteImage emote={e} />
+        </Button>
+      ))}
+    </span>
+  );
+}
+
 export function DateDisplay() {
-  const { data: localFetchedSeries } = useTimeSeries();
+  const { data: localFetchedSeries } = useGreatestTimeSeries();
   const { from } = useDashboardState();
   let timeRangeString = "";
 
@@ -131,9 +176,9 @@ export function DateDisplay() {
     timeRangeString = `${lowestDate.toLocaleString()} - ${highestDate.toLocaleTimeString()}`;
   }
   return (
-    <div className="flex items-center justify-center flex-wrap">
+    <div className="flex flex-wrap items-center justify-center">
       <PreviousDayButton />
-      <div className="flex gap-4 items-left my-4 items-center p-2">
+      <div className="items-left my-4 flex items-center gap-4 p-2">
         <DatePicker />
         {!from ? (
           <span className=" text-gray-800">

@@ -144,6 +144,8 @@ export interface components {
       Code: string;
       /** Format: int64 */
       EmoteID: number;
+      EmoteURL: string;
+      HexColor: string;
       /** Format: double */
       Percent: number;
       /** Format: int64 */
@@ -443,6 +445,7 @@ export interface operations {
         rollingAverage?: number;
         from?: string;
         to?: string;
+        emote_ids?: number[];
       };
     };
     responses: {
@@ -469,6 +472,7 @@ export interface operations {
         rollingAverage?: number;
         from?: string;
         to?: string;
+        emote_ids?: number[];
       };
     };
     responses: {
@@ -495,6 +499,7 @@ export interface operations {
         rollingAverage?: number;
         from?: string;
         to?: string;
+        emote_ids?: number[];
       };
     };
     responses: {
@@ -565,6 +570,7 @@ export interface operations {
         rollingAverage?: number;
         from?: string;
         to?: string;
+        emote_ids?: number[];
       };
     };
     responses: {

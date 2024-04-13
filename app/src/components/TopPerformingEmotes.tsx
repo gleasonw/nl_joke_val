@@ -13,7 +13,7 @@ export interface TopPerformingEmotesProps {
 export function TopGrowthEmotes() {
   const { data: emotePerformance } = useEmoteGrowth();
   return (
-    <div className="flex gap-5 justify-center w-full">
+    <div className="flex w-full justify-center gap-5">
       {emotePerformance?.Emotes?.filter((e) => e.Difference != 0 && e.Count > 0)
         .slice(0, 5)
         .map((e) => (
@@ -42,12 +42,12 @@ export function EmotePerformanceCard({
 
   return (
     <Link
-      className="flex items-center gap-2 rounded-lg bg-white text-xs flex-col sm:flex-row hover:bg-gray-100"
+      className="flex flex-col items-center gap-2 rounded-lg bg-white text-xs hover:bg-gray-100 sm:flex-row"
       to={"/"}
       search={(prev) => ({ ...prev, focusedEmote: emotePerformance.EmoteID })}
     >
       <ArrowIcon
-        className={clsx("h-8 w-8 p-2 shrink-0 rounded", {
+        className={clsx("h-8 w-8 shrink-0 rounded p-2", {
           "text-green-500": trend === "up",
           "bg-green-100": trend === "up",
           "text-red-500": trend === "down",
@@ -55,11 +55,11 @@ export function EmotePerformanceCard({
         })}
       />
       <span className="flex flex-col gap-1">
-        <span className="flex gap-1 flex-col sm:flex-row">
+        <span className="flex flex-col gap-1 sm:flex-row">
           <span className="font-bold">{Code}</span>
           <span
             data-trend={trend}
-            className="data-[trend=up]:text-green-600 data-[trend=down]:text-red-600"
+            className="data-[trend=down]:text-red-600 data-[trend=up]:text-green-600"
           >
             {Math.round(PercentDifference)}%
           </span>
@@ -70,21 +70,25 @@ export function EmotePerformanceCard({
       </span>
       <EmoteImage
         size="small"
-        Code={emotePerformance.Code}
-        URL={emotePerformance.EmoteURL}
+        emote={{ Url: emotePerformance.EmoteURL, Code: emotePerformance.Code }}
       />
     </Link>
   );
 }
 
 export interface EmoteImageProps {
-  Code: string;
-  URL: string;
-  size: "small" | "medium" | "large";
+  emote: {
+    Url: string;
+    Code: string;
+  };
+  size?: "small" | "medium" | "large";
 }
 
 export function EmoteImage(props: EmoteImageProps) {
-  const { Code, URL, size="small" } = props;
+  const {
+    emote: { Code, Url },
+    size = "small",
+  } = props;
 
   const className = clsx({
     "size-8": size === "small",
@@ -98,7 +102,7 @@ export function EmoteImage(props: EmoteImageProps) {
   return (
     <img
       aria-label={`The ${Code} emote`}
-      src={URL}
+      src={Url}
       className={clsx(className, "object-scale-down")}
     />
   );

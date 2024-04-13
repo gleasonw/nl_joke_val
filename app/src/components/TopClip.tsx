@@ -1,9 +1,10 @@
 import { getClips } from "../api";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
-import { ClipClicker } from "./ClipClicker";
 import { Route } from "@/routes/index.lazy";
 import { ClipParams } from "@/types";
+import { Button } from "@/components/ui/button";
+import { TwitchClip } from "@/components/TwitchClip";
 
 export interface TopClipProps {
   clipParams: ClipParams;
@@ -24,8 +25,12 @@ export function TopClip({ clipParams, title }: TopClipProps) {
 
   if (isLoading) {
     return (
-      <span className="w-full aspect-video bg-gray-200 flex flex-col justify-center items-center animate-pulse" />
+      <span className="flex aspect-video w-full animate-pulse flex-col items-center justify-center bg-gray-200" />
     );
+  }
+
+  if (!currentClip || !fetchedClips) {
+    return <div>No clips.</div>;
   }
 
   return (
@@ -35,12 +40,22 @@ export function TopClip({ clipParams, title }: TopClipProps) {
         <span className="pl-4 text-opacity-90">
           ({currentClip?.count} in {clipParams?.grouping})
         </span>
+        <Button
+          onClick={() => setIndex(index - 1)}
+          disabled={index === 0}
+          variant="ghost"
+        >
+          Previous
+        </Button>
+        <Button
+          onClick={() => setIndex(index + 1)}
+          disabled={index === fetchedClips?.length - 1}
+          variant="ghost"
+        >
+          Next
+        </Button>
       </div>
-      <ClipClicker
-        clips={fetchedClips ?? []}
-        index={index}
-        setIndex={(index) => setIndex(index)}
-      />
+      <TwitchClip clip_id={currentClip.clip_id} />
     </div>
   );
 }

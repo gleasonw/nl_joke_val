@@ -40,3 +40,5 @@ export type EmotePerformance =
 
 export type EmoteSum =
   components["schemas"]["EmoteSumReport"]["Emotes"][number];
+
+export type Emote = components["schemas"]["Emote"];

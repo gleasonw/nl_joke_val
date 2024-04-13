@@ -7,7 +7,7 @@ import {
   useDashboardState,
   useTimeSeriesOptions as useTimeSeriesOptions,
   useSeriesParams,
-  useEmotes,
+  usePlottedEmotes,
 } from "../hooks";
 import React from "react";
 import { SettingsDropLayout } from "./SettingsDropLayout";
@@ -23,32 +23,26 @@ import { Button } from "@/components/ui/button";
 export function Chart({
   data,
   isLoading,
+  className,
 }: {
   data?: TimeSeries[];
   isLoading: boolean;
+  className?: string;
 }) {
   const navigate = useNavigate();
   const currentState = useDashboardState();
-  const { data: emotes } = useEmotes();
-
-  const codeColorMap = emotes?.reduce(
-    (acc, emote) => {
-      acc[emote.Code] = emote.HexColor;
-      return acc;
-    },
-    {} as { [key: string]: string }
-  );
-
-  const seriesToDisplay = Object.keys(data?.at(0)?.series ?? {});
+  const plottedEmotes = usePlottedEmotes();
 
   const highChartsOptions = useTimeSeriesOptions({
     data:
-      seriesToDisplay?.map((key) => ({
-        name: key,
-        color: codeColorMap?.[key],
+      plottedEmotes?.map((e) => ({
+        name: e.Code,
+        color: e.HexColor,
         data:
-          data?.map((d) => [new Date(d.time).getTime(), d.series[key] ?? 0]) ??
-          [],
+          data?.map((d) => [
+            new Date(d.time).getTime(),
+            d.series[e.Code] ?? 0,
+          ]) ?? [],
         events: {
           click: function (e) {
             navigate({
@@ -62,9 +56,9 @@ export function Chart({
   });
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={className}>
       {isLoading ? (
-        <div className="aspect-video bg-gray-100 animate-pulse" />
+        <div className="aspect-video animate-pulse bg-gray-100" />
       ) : (
         <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
       )}

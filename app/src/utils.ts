@@ -11,7 +11,7 @@ import { paths } from "./schema";
 export type DashboardURLState = {
   seriesParams?: SeriesParams;
   clickedUnixSeconds?: number;
-  series?: string[];
+  series?: number[];
   from?: string;
   focusedEmote?: number;
 };
@@ -31,7 +31,7 @@ const seriesParamsSchema = z.object({
 export const dashboardURLStateSchema: z.ZodType<DashboardURLState> = z.object({
   seriesParams: seriesParamsSchema.optional(),
   clickedUnixSeconds: z.number().optional(),
-  series: z.array(z.string()).optional(),
+  series: z.array(z.coerce.number()).optional(),
   from: z.string().optional(),
   focusedEmote: z.coerce.number().optional(),
 });
@@ -68,4 +68,7 @@ export { apiURL };
 
 export const { GET } = createClient<paths>({
   baseUrl: apiURL,
+  querySerializer: {
+    array: { style: "form", explode: false },
+  },
 });
