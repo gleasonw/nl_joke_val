@@ -2,7 +2,6 @@ import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import {
   useDashboardState,
   useLiveStatus,
-  useLiveTimeSeries,
   useLiveTrendyTimeSeries,
   useNextStreamDate,
   usePreviousStreamDate,
@@ -10,15 +9,14 @@ import {
 } from "../hooks";
 import React, { Suspense } from "react";
 import { Chart } from "../components/Chart";
-import { TopGrowthEmotes } from "@/components/TopPerformingEmotes";
 import { ClipAtTime } from "@/components/ClipAtTime";
 import { DatePicker } from "@/components/DatePicker";
-import { DataTable } from "@/components/DataTable";
-import { DayFocusClip } from "@/components/DayFocusClip";
+import { HistoricalDataTable } from "@/components/DataTable";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { LiveTopPerformingEmotes } from "@/components/LiveTopPerformingEmotes";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+import { HistoricalClipHeroes } from "@/components/HistoricalClipHeroes";
 
 const loadingPhrases = [
   "Reticulating splines...",
@@ -71,10 +69,11 @@ function LiveView() {
     <div className="flex flex-col gap-5">
       <DateDisplay />
       <LiveTopPerformingEmotes />
-      {/* <LivePlusTwos />
-        <LiveMinusTwos /> */}
-      <Chart data={localFetchedSeries} isLoading={isLoading} />
-      <ClipAtTime />
+      <div>
+        <Chart data={localFetchedSeries} isLoading={isLoading} />
+        <ClipAtTime />
+      </div>
+      <HistoricalDataTable />
     </div>
   );
 }
@@ -97,21 +96,18 @@ function HistoricalView() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <section className="flex flex-col gap-2 w-full">
+      <section className="flex flex-col gap-2 w-full p-2">
         <DateDisplay />
-        <TopGrowthEmotes />
+        <HistoricalClipHeroes />
       </section>
       <section className="p-4 bg-white shadow-lg rounded-lg flex flex-col gap-4">
         <div className="  grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
+          <div>
             <Chart data={localFetchedSeries} isLoading={isLoading} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <DayFocusClip />
             <ClipAtTime />
           </div>
+          <HistoricalDataTable />
         </div>
-        <DataTable />
       </section>
     </motion.div>
   );
@@ -135,10 +131,9 @@ export function DateDisplay() {
     timeRangeString = `${lowestDate.toLocaleString()} - ${highestDate.toLocaleTimeString()}`;
   }
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-center flex-wrap">
       <PreviousDayButton />
-
-      <div className="flex gap-4 items-left w-full my-4 items-center p-2">
+      <div className="flex gap-4 items-left my-4 items-center p-2">
         <DatePicker />
         {!from ? (
           <span className=" text-gray-800">
@@ -148,7 +143,6 @@ export function DateDisplay() {
           <span className="text-xs text-gray-800">{timeRangeString}</span>
         )}
       </div>
-
       <NextDayButton />
     </div>
   );

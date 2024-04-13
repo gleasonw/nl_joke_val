@@ -120,6 +120,15 @@ func recentAverage(averageAggregate string) sq.SelectBuilder {
 
 }
 
+func averageNearestToDate(averageAggregate string, date time.Time) sq.SelectBuilder {
+	return statementBuilder().
+		Select("DISTINCT ON (emote_id) emote_id, average").
+		From(averageAggregate).
+		Where(sq.LtOrEq{"bucket": date}).
+		OrderBy("emote_id, bucket DESC")
+
+}
+
 type LatestEmoteReport struct {
 	Emotes []EmoteFullRow
 	Input  LatestEmotePerformanceInput
@@ -183,18 +192,20 @@ func selectLatestPercentGrowth(p LatestEmotePerformanceInput, db *gorm.DB) (*Lat
 
 func selectPercentGrowthDay(p EmotePerformanceInput, db *gorm.DB) (*TopPerformingEmotesOutput, error) {
 
-	avgSeriesLatestPeriod := recentDailyAverage()
+	var avgSeries sq.SelectBuilder
 	currentSumQuery := statementBuilder().
 		Select("sum", "bucket", "emote_id").
 		From(dailyViewAggregate)
 
 	if !p.Date.IsZero() {
+		avgSeries = averageNearestToDate(averageDailyViewAggregate, p.Date)
 		currentSumQuery = filterBucketByDay(currentSumQuery, p.Date)
 	} else {
+		avgSeries = recentDailyAverage()
 		currentSumQuery = currentSumQuery.Where(fmt.Sprintf("bucket = (SELECT MAX(bucket) FROM %s)", dailyViewAggregate))
 	}
 
-	result, err := selectGrowth(currentSumQuery, avgSeriesLatestPeriod, p.Limit, db)
+	result, err := selectGrowth(currentSumQuery, avgSeries, p.Limit, db)
 
 	if err != nil {
 		return &TopPerformingEmotesOutput{}, err

@@ -32,11 +32,7 @@ type ClipCountsOutput struct {
 // the solution is to filter rows within the likelyBitLength window
 const likelyBitLength = "1 minutes"
 
-// TODO: gross view
-// TODO: lower shared buffer size
-// TODO: limit the amount of data we return
-// TODO: rewrite with squirrel.
-func selectClipsFromEmotePeaks(p ClipCountsInput, db *gorm.DB, validColumnSet map[string]bool) (*ClipCountsOutput, error) {
+func selectClipsFromEmotePeaks(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
 
 	var query string
 

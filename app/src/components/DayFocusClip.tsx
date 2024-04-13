@@ -1,6 +1,5 @@
-import { TopClip } from "@/components/TopClips";
-import { EmoteImage } from "@/components/TopPerformingEmotes";
-import { useEmoteGrowth } from "@/hooks";
+import { TopClip } from "./TopClip";
+import { useDashboardState, useEmoteGrowth } from "@/hooks";
 import { Route } from "@/routes/index.lazy";
 import { EmotePerformance } from "@/types";
 import React from "react";
@@ -9,6 +8,7 @@ export interface DayFocusClipProps {}
 
 export function DayFocusClip() {
   const { focusedEmote } = Route.useSearch();
+  const { from } = useDashboardState();
 
   const { data: emotePerformance } = useEmoteGrowth();
 
@@ -26,8 +26,15 @@ export function DayFocusClip() {
 
   return (
     <section className="flex flex-col gap-2">
-      <FocusTitle emote={emoteData} />
-      <TopClip emoteId={emoteData.EmoteID} />
+      <TopClip
+        title={<FocusTitle emote={emoteData} />}
+        clipParams={{
+          emote_id: emoteData.EmoteID,
+          from,
+          grouping: "25 seconds",
+          limit: 5,
+        }}
+      />
     </section>
   );
 }

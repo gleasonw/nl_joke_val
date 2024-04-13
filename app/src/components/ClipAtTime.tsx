@@ -38,10 +38,5 @@ export function ClipAtTime() {
     );
   }
 
-  return (
-    <TwitchClip
-      clip_id={clip.clip_id}
-      time={new Date(clickedUnixSeconds * 1000).toLocaleString()}
-    />
-  );
+  return <TwitchClip clip_id={clip.clip_id} />;
 }

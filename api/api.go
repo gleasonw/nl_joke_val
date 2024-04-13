@@ -108,8 +108,6 @@ func main() {
 		liveStatus,
 	)
 
-	validColumnSet, _ := getChatCountEmotes()
-
 	router := chi.NewMux()
 
 	router.Use(cors.Default().Handler)
@@ -117,7 +115,7 @@ func main() {
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
 	huma.Get(api, "/api/clip_counts", func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
-		return selectClipsFromEmotePeaks(*input, db, validColumnSet)
+		return selectClipsFromEmotePeaks(*input, db)
 	})
 
 	huma.Get(api, "/api/series", func(ctx context.Context, input *SeriesInputForEmotes) (*TimeSeriesOutput, error) {

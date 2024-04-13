@@ -29,25 +29,15 @@ export function Chart({
 }) {
   const navigate = useNavigate();
   const currentState = useDashboardState();
-  const {data: emotes} = useEmotes();
+  const { data: emotes } = useEmotes();
 
-  const codeColorMap = emotes?.reduce((acc, emote) => {
-    acc[emote.Code] = emote.HexColor
-    return acc
-  }, {} as {[key: string] : string})
-
-  const { seriesParams } = currentState;
-
-  const seriesParamsWithDefaults = useSeriesParams();
-
-  function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
-    navigate({
-      search: {
-        ...currentState,
-        seriesParams: { ...seriesParams, ...newParams },
-      },
-    });
-  }
+  const codeColorMap = emotes?.reduce(
+    (acc, emote) => {
+      acc[emote.Code] = emote.HexColor;
+      return acc;
+    },
+    {} as { [key: string]: string }
+  );
 
   const seriesToDisplay = Object.keys(data?.at(0)?.series ?? {});
 
@@ -73,6 +63,33 @@ export function Chart({
 
   return (
     <div className="flex flex-col gap-2">
+      {isLoading ? (
+        <div className="aspect-video bg-gray-100 animate-pulse" />
+      ) : (
+        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
+      )}
+    </div>
+  );
+}
+
+export function ChartOptions() {
+  const navigate = useNavigate();
+  const currentState = useDashboardState();
+  const { seriesParams } = currentState;
+
+  const seriesParamsWithDefaults = useSeriesParams();
+
+  function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
+    navigate({
+      search: {
+        ...currentState,
+        seriesParams: { ...seriesParams, ...newParams },
+      },
+    });
+  }
+
+  return (
+    <>
       <ChartSpanOptions />
       <SettingsDropLayout>
         <label>
@@ -120,12 +137,7 @@ export function Chart({
           </Select>
         </label>
       </SettingsDropLayout>
-      {isLoading ? (
-        <div className="aspect-video bg-gray-100 animate-pulse" />
-      ) : (
-        <HighchartsReact highcharts={Highcharts} options={highChartsOptions} />
-      )}
-    </div>
+    </>
   );
 }
 

@@ -35,7 +35,13 @@ const columns: ColumnDef<EmotePerformance>[] = [
   {
     header: "Emote",
     accessorKey: "Code",
-    cell: ({ row }) => <EmoteImage URL={row.original.EmoteURL} Code={row.original.Code} size="small" />,
+    cell: ({ row }) => (
+      <EmoteImage
+        URL={row.original.EmoteURL}
+        Code={row.original.Code}
+        size="small"
+      />
+    ),
   },
   {
     accessorKey: "Count",
@@ -50,7 +56,7 @@ const columns: ColumnDef<EmotePerformance>[] = [
     ),
   },
   {
-    header: "Average sum (past week)",
+    header: "Average daily sum (week)",
     accessorKey: "Average",
   },
   {
@@ -90,7 +96,7 @@ const columns: ColumnDef<EmotePerformance>[] = [
 // causing react to explode
 const emptyArray = [] as EmotePerformance[];
 
-export function DataTable() {
+export function HistoricalDataTable() {
   const { data } = useEmoteGrowth();
   const [sortingState, setSortingState] = React.useState<SortingState>([]);
   const table = useReactTable({
@@ -190,7 +196,7 @@ export function DataTableTitle() {
 
   if (data?.Input && "Date" in data.Input) {
     return (
-      <CardTitle>
+      <CardTitle className="p-4">
         {new Date(data?.Input?.Date).toLocaleDateString()}
         <span className="ml-2 text-xs"> binned by {grouping}</span>
       </CardTitle>

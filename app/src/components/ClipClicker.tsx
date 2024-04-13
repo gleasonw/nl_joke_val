@@ -23,11 +23,7 @@ export function ClipClicker({ clips, index, setIndex }: ClipClickerProps) {
 
   return (
     <div className={`flex flex-col gap-5 `}>
-      <div>
-        <span className={"text-3xl"}>#{index + 1}</span>
-        <span className="pl-2 text-xl">({clip.count})</span>
-        <TwitchClip clip_id={clip.clip_id!} time={clip.time} />
-      </div>
+      <TwitchClip clip_id={clip.clip_id!} />
       <div className="flex gap-2">
         <Button onClick={() => setIndex(index - 1)} disabled={index === 0}>
           Previous
