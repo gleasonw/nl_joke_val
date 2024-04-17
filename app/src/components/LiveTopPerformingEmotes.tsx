@@ -1,16 +1,13 @@
 import { EmotePerformanceCard } from "@/components/TopPerformingEmotes";
-import { useLatestEmoteGrowth, useLatestEmoteSums } from "@/hooks";
-import { EmoteSum } from "@/types";
-import { Link } from "@tanstack/react-router";
+import { useLatestEmoteGrowth } from "@/hooks";
 import React from "react";
 
 export function LiveTopPerformingEmotes() {
-  const { data: emotePerformance } = useLatestEmoteSums();
   const { data: emoteGrowth } = useLatestEmoteGrowth();
 
   return (
     <div className="flex flex-col gap-10">
-      <section className="flex gap-10 justify-center">
+      <section className="flex justify-center gap-10">
         {emoteGrowth?.Emotes?.filter((e) => e.Difference != 0 && e.Count > 0)
           .slice(0, 5)
           .map((e) => (
@@ -21,32 +18,6 @@ export function LiveTopPerformingEmotes() {
             />
           ))}
       </section>
-      <section>
-        <div className="flex gap-10 justify-center">
-          {emotePerformance?.Emotes.map((e) => (
-            <LiveEmotePerformanceCard emotePerformance={e} key={e.Code} />
-          ))}
-        </div>
-      </section>
     </div>
-  );
-}
-
-function LiveEmotePerformanceCard({
-  emotePerformance,
-}: {
-  emotePerformance: EmoteSum;
-}) {
-  const { Code, Sum } = emotePerformance;
-
-  return (
-    <Link className="flex items-center gap-2 rounded-lg bg-white text-xs flex-col sm:flex-row hover:bg-gray-100">
-      <span className="flex flex-col gap-1">
-        <span className="flex gap-1 flex-col sm:flex-row">
-          <span className="font-bold">{Code}</span>
-          <span>{Sum}</span>
-        </span>
-      </span>
-    </Link>
   );
 }

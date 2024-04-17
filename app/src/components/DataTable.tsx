@@ -1,4 +1,4 @@
-import { useEmoteGrowth } from "@/hooks";
+import { useEmoteGrowth, useLatestEmoteGrowth } from "@/hooks";
 import React from "react";
 import { EmotePerformance } from "@/types";
 import {
@@ -25,6 +25,7 @@ import { Link } from "@tanstack/react-router";
 import clsx from "clsx";
 import { EmoteImage } from "@/components/TopPerformingEmotes";
 import { DayFocusClip } from "@/components/DayFocusClip";
+import { LiveFocusClip } from "@/components/LiveFocusClip";
 
 export interface DataTableProps {
   children?: React.ReactNode;
@@ -98,11 +99,32 @@ const columns: ColumnDef<EmotePerformance>[] = [
 // causing react to explode
 const emptyArray = [] as EmotePerformance[];
 
+export function LiveDataTable() {
+  const { data } = useLatestEmoteGrowth();
+
+  return (
+    <DataTable data={data?.Emotes ?? emptyArray} header={<LiveFocusClip />} />
+  );
+}
+
 export function HistoricalDataTable() {
   const { data } = useEmoteGrowth();
+
+  return (
+    <DataTable data={data?.Emotes ?? emptyArray} header={<DayFocusClip />} />
+  );
+}
+
+function DataTable({
+  data,
+  header,
+}: {
+  data: EmotePerformance[];
+  header?: React.ReactNode;
+}) {
   const [sortingState, setSortingState] = React.useState<SortingState>([]);
   const table = useReactTable({
-    data: data?.Emotes ?? emptyArray,
+    data: data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -115,7 +137,7 @@ export function HistoricalDataTable() {
 
   return (
     <div className="rounded-md border">
-      <DayFocusClip />
+      {header}
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (

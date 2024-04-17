@@ -91,7 +91,15 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			updateEmotesWithColor(db)
+			randomHue := rand.Float64()
+
+			color := hsvToRGB(HSV{
+				Hue:        randomHue * 360,
+				Saturation: 0.6,
+				Value:      0.95,
+			})
+			fmt.Printf("#%02x%02x%02x", color.Red, color.Green, color.Blue)
+
 			return
 		}
 	}

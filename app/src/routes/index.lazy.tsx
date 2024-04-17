@@ -9,12 +9,13 @@ import {
   useSeriesState,
   useGreatestTimeSeries,
   useTimeSeries,
+  useLiveTimeSeries,
 } from "../hooks";
 import React, { Suspense } from "react";
 import { Chart, ChartOptions } from "../components/Chart";
 import { ClipAtTime } from "@/components/ClipAtTime";
 import { DatePicker } from "@/components/DatePicker";
-import { HistoricalDataTable } from "@/components/DataTable";
+import { HistoricalDataTable, LiveDataTable } from "@/components/DataTable";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { LiveTopPerformingEmotes } from "@/components/LiveTopPerformingEmotes";
@@ -25,6 +26,7 @@ import {
 } from "@/components/HistoricalClipHeroes";
 import { EmoteImage } from "@/components/TopPerformingEmotes";
 import { EmoteInput } from "@/components/EmoteInput";
+import { LiveChart } from "@/components/LiveChart";
 
 const loadingPhrases = [
   "Reticulating splines...",
@@ -71,17 +73,20 @@ function Index() {
 }
 
 function LiveView() {
-  const { data: localFetchedSeries, isLoading } = useLiveTrendyTimeSeries();
+  // todo: the route we fetch this data from is coupled to usePlottedEmotes. We should really return the plotted
+  // emotes from this hook
+  const { data: localFetchedSeries, isLoading } = useLiveTimeSeries();
 
   return (
     <div className="flex flex-col gap-5">
       <DateDisplay />
-      <LiveTopPerformingEmotes />
-      <div>
-        <Chart data={localFetchedSeries} isLoading={isLoading} />
-        <ClipAtTime />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <LiveChart data={localFetchedSeries} isLoading={isLoading} />
+          <ClipAtTime />
+        </div>
+        <LiveDataTable />
       </div>
-      <HistoricalDataTable />
     </div>
   );
 }

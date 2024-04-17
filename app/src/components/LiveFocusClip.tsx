@@ -1,16 +1,14 @@
 import { TopClip } from "./TopClip";
-import { useDashboardState, useEmoteGrowth } from "@/hooks";
+import { useDashboardState, useLatestEmoteGrowth } from "@/hooks";
 import { Route } from "@/routes/index.lazy";
 import { EmotePerformance } from "@/types";
 import React from "react";
 
-export interface DayFocusClipProps {}
-
-export function DayFocusClip() {
+export function LiveFocusClip() {
   const { focusedEmote } = Route.useSearch();
   const { from } = useDashboardState();
 
-  const { data: emotePerformance } = useEmoteGrowth();
+  const { data: emotePerformance } = useLatestEmoteGrowth();
 
   // days with 0 difference are not interesting
   const emotes = emotePerformance?.Emotes.filter(
@@ -27,7 +25,7 @@ export function DayFocusClip() {
   return (
     <section className="flex flex-col gap-2">
       <TopClip
-        title={<FocusTitle emote={emoteData} />}
+        title={<LiveFocusTitle emote={emoteData} />}
         clipParams={{
           emote_id: emoteData.EmoteID,
           from,
@@ -39,7 +37,7 @@ export function DayFocusClip() {
   );
 }
 
-export function FocusTitle({ emote }: { emote: EmotePerformance }) {
+function LiveFocusTitle({ emote }: { emote: EmotePerformance }) {
   if (!emote) {
     return <div>No data</div>;
   }
@@ -50,7 +48,7 @@ export function FocusTitle({ emote }: { emote: EmotePerformance }) {
   if (positive) {
     return (
       <span className="flex items-center gap-2">
-        Strong day for
+        A strong past hour for
         <span className="text-lg font-bold">{emoteCode}</span>!
       </span>
     );
@@ -58,8 +56,8 @@ export function FocusTitle({ emote }: { emote: EmotePerformance }) {
 
   return (
     <span className="flex items-center gap-2">
-      <span className="text-lg font-bold">{emoteCode}</span> trended down on
-      this day.
+      <span className="text-lg font-bold">{emoteCode}</span>
+      is trending down in the past hour.
     </span>
   );
 }

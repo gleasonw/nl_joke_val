@@ -7,6 +7,8 @@ import { Route } from "./routes/index.lazy";
 import {
   Emote,
   EmoteGrowthParams,
+  EmotePerformance,
+  EmoteSum,
   EmoteSumParams,
   LatestEmoteGrowthParams,
 } from "./types";
@@ -52,10 +54,10 @@ export function useEmoteSums(p?: EmoteSumParams) {
   });
 }
 
-export function useLatestEmoteSums() {
+export function useLatestEmoteSums(p?: EmoteSumParams) {
   const { seriesParams } = useDashboardState();
   return useQuery({
-    queryFn: () => getLatestEmoteSums({ span: "30 minutes" }),
+    queryFn: () => getLatestEmoteSums({ span: "30 minutes", limit: p?.limit }),
     queryKey: ["latestEmoteSums", seriesParams],
     refetchInterval: 1000 * 10,
     placeholderData: keepPreviousData,
@@ -181,20 +183,28 @@ export function useTimeSeries(p?: { emote_ids?: number[] }) {
   });
 }
 
-export function usePlottedEmotes(): Pick<
-  Emote,
-  "Url" | "Code" | "HexColor" | "ID"
->[] {
-  const { series } = useDashboardState();
+export function useLivePlottedEmotes() {
+  const { data: topFive } = useLatestEmoteSums({ limit: 5 });
+  return useSeriesPicker(topFive?.Emotes);
+}
+
+export function usePlottedEmotes() {
   const { data: topFive } = useEmoteSums({ limit: 5 });
+  return useSeriesPicker(topFive?.Emotes);
+}
+
+function useSeriesPicker(
+  topFive?: EmoteSum[],
+): Pick<Emote, "Url" | "Code" | "HexColor" | "ID">[] {
+  const { series } = useDashboardState();
   const { data: emotes } = useEmotes();
 
-  if (!topFive?.Emotes) {
+  if (!topFive) {
     return [];
   }
 
   if (!series || series.length === 0) {
-    return topFive.Emotes.map((e) => ({
+    return topFive.map((e) => ({
       Url: e.EmoteURL,
       Code: e.Code,
       HexColor: e.HexColor,
@@ -206,7 +216,7 @@ export function usePlottedEmotes(): Pick<
   // since the default is already displayed.
   // this is the most intuitive ux. not the most intuitive dx, for sure. Probably a better way.
 
-  const defaultIds = topFive.Emotes.map((e) => e.EmoteID);
+  const defaultIds = topFive.map((e) => e.EmoteID);
 
   const defaultSet = new Set(defaultIds);
   const userSelectedSet = new Set(series);

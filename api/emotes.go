@@ -333,7 +333,7 @@ func selectLatestSums(p LatestEmoteSumInput, db *gorm.DB) (*EmoteSumOutput, erro
 
 	filteredCountRows = addFilterCreatedAtSpan(filteredCountRows, p.Span)
 
-	return queryEmoteSums(db, filteredCountRows, EmoteSumInput{Span: p.Span, Limit: 10})
+	return queryEmoteSums(db, filteredCountRows, EmoteSumInput{Span: p.Span, Limit: p.Limit})
 }
 
 func queryEmoteSums(db *gorm.DB, filteredEmoteSums sq.SelectBuilder, p EmoteSumInput) (*EmoteSumOutput, error) {
