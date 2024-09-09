@@ -2,7 +2,6 @@ import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import {
   useDashboardState,
   useLiveStatus,
-  useLiveTrendyTimeSeries,
   useNextStreamDate,
   usePlottedEmotes,
   usePreviousStreamDate,
@@ -18,7 +17,6 @@ import { DatePicker } from "@/components/DatePicker";
 import { HistoricalDataTable, LiveDataTable } from "@/components/DataTable";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { LiveTopPerformingEmotes } from "@/components/LiveTopPerformingEmotes";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import {
   HistoricalMinusTwoClip,

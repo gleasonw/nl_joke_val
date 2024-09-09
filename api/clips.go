@@ -9,9 +9,10 @@ import (
 )
 
 type Clip struct {
-	ClipID string    `json:"clip_id"`
-	Count  int       `json:"count"`
-	Time   time.Time `json:"time"`
+	ClipID    string    `json:"clip_id"`
+	Count     int       `json:"count"`
+	Time      time.Time `json:"time"`
+	Thumbnail string    `json:"thumbnail"`
 }
 
 type ClipCountsInput struct {
@@ -158,5 +159,66 @@ func selectNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, err
 	}
 
 	return &NearestClipOutput{clip}, nil
+
+}
+
+type AllTimeClipsInput struct {
+	Limit  int `query:"limit"`
+	Cursor int `query:"cursor"`
+}
+
+type EmoteAllTime struct {
+	EmoteID  int
+	EmoteURL string
+	Code     string
+	Clips    []Clip
+}
+
+type AllTimeClipsOutput struct {
+	Body []EmoteAllTime
+}
+
+// todo: allow for a slice of emote ids in clip counts, to sum
+// todo: this function should be cached by args, refreshed daily.
+func selectAllTimeClips(p *AllTimeClipsInput, db *gorm.DB) (*AllTimeClipsOutput, error) {
+
+	topTwentyEmotesPastMonth, err := selectSums(db, EmoteSumInput{
+		From:     time.Now().AddDate(0, -1, 0),
+		Limit:    20,
+		Grouping: "day",
+	})
+
+	if err != nil {
+		fmt.Println(err)
+		return &AllTimeClipsOutput{}, err
+	}
+
+	topClipsForEmotes := make([]EmoteAllTime, 0, len(topTwentyEmotesPastMonth.Body.Emotes))
+
+	// todo start 20 buffered goroutines and a wait group
+	// fetch thumbnails for top clips that don't have them
+
+	for _, emote := range topTwentyEmotesPastMonth.Body.Emotes {
+		clips, err := selectClipsFromEmotePeaks(ClipCountsInput{
+			EmoteID:  emote.EmoteID,
+			Grouping: "25 seconds",
+			Limit:    10,
+			Order:    "DESC",
+		}, db)
+
+		if err != nil {
+			fmt.Println("Error fetching clips for emote", err)
+			continue
+		}
+
+		topClipsForEmotes = append(topClipsForEmotes, EmoteAllTime{
+			EmoteID:  emote.EmoteID,
+			EmoteURL: emote.EmoteURL,
+			Code:     emote.Code,
+			Clips:    clips.Body,
+		})
+	}
+
+	return &AllTimeClipsOutput{Body: topClipsForEmotes}, nil
 
 }

@@ -182,11 +182,6 @@ type ChatCounts struct {
 	Life         float64   `json:"life"`
 }
 
-// moves data in chat_counts to the new data model, more decoupled.
-// also sets up timescaledb for the new model
-
-// todo: set jit off
-// todo: set up refresh settings
 func migrateToNewModel() error {
 
 	godotenv.Load()

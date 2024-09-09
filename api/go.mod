@@ -2,6 +2,8 @@ module api
 
 go 1.21
 
+toolchain go1.23.0
+
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/danielgtaylor/huma/v2 v2.10.0

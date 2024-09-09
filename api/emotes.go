@@ -253,7 +253,7 @@ func selectGrowth(currentSumQuery sq.SelectBuilder, averageSumQuery sq.SelectBui
 }
 
 type EmoteSumInput struct {
-	Span     string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours,custom" default:"9 hours"`
+	Span     string    `query:"span" enum:"1 minute,30 minutes,1 hour,9 hours" default:"9 hours"`
 	Limit    int       `query:"limit" default:"10" minimum:"1"`
 	From     time.Time `query:"from"`
 	Grouping string    `query:"grouping" enum:"second,minute,hour,day" default:"minute"`

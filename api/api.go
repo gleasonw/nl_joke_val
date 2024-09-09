@@ -111,16 +111,20 @@ func main() {
 
 	liveStatus := &LiveStatus{IsLive: false}
 
-	go connectToTwitchChat(
-		db,
-		liveStatus,
-	)
+	// go connectToTwitchChat(
+	// 	db,
+	// 	liveStatus,
+	// )
 
 	router := chi.NewMux()
 
 	router.Use(cors.Default().Handler)
 
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
+
+	huma.Get(api, "/api/all_time_clips", func(ctx context.Context, input *AllTimeClipsInput) (*AllTimeClipsOutput, error) {
+		return selectAllTimeClips(input, db)
+	})
 
 	huma.Get(api, "/api/clip_counts", func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
 		return selectClipsFromEmotePeaks(*input, db)
