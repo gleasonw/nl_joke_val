@@ -99,7 +99,7 @@ function LiveView() {
         },
       },
       title: {
-        text: undefined,
+        text: "Top emotes last 30 minutes",
       },
       series: [
         {
