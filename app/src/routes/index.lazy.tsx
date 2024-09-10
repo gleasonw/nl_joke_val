@@ -9,9 +9,9 @@ import {
   useSeriesState,
   useGreatestTimeSeries,
   useTimeSeries,
-  useLiveTimeSeries,
+  useLatestEmoteSums,
 } from "../hooks";
-import React, { Suspense } from "react";
+import React, { Suspense, useMemo } from "react";
 import { Chart, ChartOptions } from "../components/Chart";
 import { ClipAtTime } from "@/components/ClipAtTime";
 import { DatePicker } from "@/components/DatePicker";
@@ -26,7 +26,8 @@ import {
 } from "@/components/HistoricalClipHeroes";
 import { EmoteImage } from "@/components/TopPerformingEmotes";
 import { EmoteInput } from "@/components/EmoteInput";
-import { LiveChart } from "@/components/LiveChart";
+import HighchartsReact from "highcharts-react-official";
+import Highcharts from "highcharts";
 
 const loadingPhrases = [
   "Reticulating splines...",
@@ -75,14 +76,83 @@ function Index() {
 function LiveView() {
   // todo: the route we fetch this data from is coupled to usePlottedEmotes. We should really return the plotted
   // emotes from this hook
-  const { data: localFetchedSeries, isLoading } = useLiveTimeSeries();
+  const { data } = useLatestEmoteSums({ limit: 10, span: "30 minutes" });
+
+  const emotes = data?.Emotes;
+
+  const highChartsOptions = useMemo<Highcharts.Options>(
+    () => ({
+      chart: {
+        type: "bar",
+        height: 600,
+      },
+      xAxis: {
+        categories: emotes?.map((e) => e.Code) ?? [],
+        title: {
+          text: "Emotes",
+        },
+      },
+      yAxis: {
+        min: 0,
+        title: {
+          text: "Sum",
+        },
+      },
+      title: {
+        text: undefined,
+      },
+      series: [
+        {
+          name: "Emote Usage",
+          data:
+            emotes?.map((e) => ({
+              name: e.Code,
+              color: e.HexColor,
+              y: e.Sum,
+            })) ?? [],
+          type: "bar",
+        },
+      ],
+      tooltip: {
+        formatter() {
+          const emote = emotes?.find((e) => e.Code === this.key);
+          return `
+            <strong>${this.key}</strong><br/>
+            <img src="${emote?.EmoteURL}" width="20" height="20" /><br/>
+            Sum: ${emote?.Sum}<br/>
+            Percent: ${emote?.Percent.toFixed(2)}%
+          `;
+        },
+      },
+      plotOptions: {
+        series: {
+          dataLabels: {
+            enabled: true,
+            useHTML: true,
+            formatter() {
+              const emote = emotes?.find((e) => e.Code === this.key);
+              return `
+                <div style="text-align: center; width: 20px; height: 20px; border-radius: 50%;">
+                  <img src="${emote?.EmoteURL}" width="20" height="20" /><br/>
+                </div>
+              `;
+            },
+          },
+        },
+      },
+    }),
+    [emotes],
+  );
 
   return (
     <div className="flex flex-col gap-5">
       <DateDisplay />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <LiveChart data={localFetchedSeries} isLoading={isLoading} />
+        <div className="h-full lg:col-span-2">
+          <HighchartsReact
+            highcharts={Highcharts}
+            options={highChartsOptions}
+          />
           <ClipAtTime />
         </div>
         <LiveDataTable />
