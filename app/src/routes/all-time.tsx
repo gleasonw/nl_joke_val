@@ -1,9 +1,5 @@
 import { TwitchClip } from "@/components/TwitchClip";
-import {
-  useClipThumbnail,
-  useEmoteCountBarOptions,
-  useTopClipHero,
-} from "@/hooks";
+import { useClipThumbnail, useTopClipHero } from "@/hooks";
 import { EmoteClipResponse, TopClip } from "@/types";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import clsx from "clsx";
@@ -16,7 +12,7 @@ import { z } from "zod";
 const spans = ["9 hours", "1 week", "1 month", "1 year", "all"] as const;
 
 const allTimeSearchParams = z.object({
-  span: z.enum(spans).default("all"),
+  span: z.enum(spans).default("all").optional(),
 });
 
 export const Route = createFileRoute("/all-time")({
@@ -63,7 +59,7 @@ function AllTimeClips() {
         },
       },
       title: {
-        text: `Top emotes for ${spanToLabel.get(span)} (log scale)`,
+        text: `Top emotes for ${spanToLabel.get(span ?? "all")} (log scale)`,
       },
       series: [
         {

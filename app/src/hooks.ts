@@ -132,7 +132,7 @@ export function useEmoteSums(p?: EmoteSumParams) {
   const { seriesParams } = useDashboardState();
   return useQuery({
     queryFn: () => getEmoteSums({ ...p, from }),
-    queryKey: ["emoteDensity", seriesParams, from],
+    queryKey: ["emoteDensity", seriesParams, from, p],
     placeholderData: keepPreviousData,
   });
 }
@@ -183,6 +183,7 @@ export function useDashboardNavigate() {
   return useCallback(
     (newParams: DashboardURLState) => {
       navigate({
+        to: "/",
         search: {
           ...currentState,
           ...newParams,
@@ -272,7 +273,7 @@ export function useLivePlottedEmotes() {
 }
 
 export function usePlottedEmotes() {
-  const { data: topFive } = useEmoteSums({ limit: 5 });
+  const { data: topFive } = useEmoteSums({ limit: 3 });
   return useSeriesPicker(topFive?.Emotes);
 }
 
@@ -397,6 +398,7 @@ export function useTimeSeriesOptions(args: HighchartsInputs) {
             const xVal = e?.xAxis?.[0]?.value;
             if (xVal) {
               navigate({
+                to: "/",
                 search: {
                   ...currentState,
                   clickedUnixSeconds: new Date().getTime(),

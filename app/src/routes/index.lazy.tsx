@@ -10,6 +10,7 @@ import {
   useTimeSeries,
   useLatestEmoteSums,
   useEmoteCountBarOptions,
+  useEmoteSums,
 } from "../hooks";
 import React, { Suspense } from "react";
 import { Chart, ChartOptions } from "../components/Chart";
@@ -104,6 +105,8 @@ function HistoricalView() {
     emote_ids: plottedEmotes.map((e) => e.ID),
   });
 
+  const { data: topEmotes } = useEmoteSums({ limit: 10 });
+
   const { from } = useDashboardState();
 
   return seriesData?.length === 0 && from ? (
@@ -115,13 +118,22 @@ function HistoricalView() {
     </div>
   ) : (
     <motion.div
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-2"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <DateDisplay />
-      <section className="flex flex-col gap-4 rounded-lg bg-white shadow-lg lg:p-4">
+      <section className="flex flex-col gap-8 rounded-lg bg-white shadow-lg lg:px-4">
+        <div className="flex w-full flex-wrap items-center justify-center gap-10">
+          {topEmotes?.Emotes.map((e, i) => (
+            <EmoteImage
+              key={e.Code}
+              emote={{ Url: e.EmoteURL, Code: e.Code }}
+              size={i === 0 ? "large" : i === 1 ? "medium" : "small"}
+            />
+          ))}
+        </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <HistoricalPlusTwoClip />
           <HistoricalMinusTwoClip />

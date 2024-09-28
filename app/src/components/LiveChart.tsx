@@ -35,6 +35,7 @@ export function LiveChart({
         events: {
           click: function (e) {
             navigate({
+              to: '/',
               search: { ...currentState, clickedUnixSeconds: e.point.x / 1000 },
             });
           },
