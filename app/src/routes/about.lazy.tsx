@@ -12,10 +12,10 @@ function About() {
         <p>
           Imagine a world where a Twitch bot sits in NLs chat. The bot counts
           emotes. Every 10 seconds, the bot posts the tally to a database.
+          Whenever NL adds a new emote to BTTV, the bot starts tracking that.
         </p>
         <p className="text-balance">
-          This is our world. A database of emote counts since April 2023. What
-          will we do with it? Whatever will we do?
+          This is our world. A database of emote counts since April 2023. Fun!
         </p>
         <p className="text-balance">
           So far,{" "}

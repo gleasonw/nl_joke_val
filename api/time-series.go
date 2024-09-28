@@ -208,6 +208,23 @@ func filterBucketBySpan(query sq.SelectBuilder, span string) sq.SelectBuilder {
 			From(hourlyViewAggregate).
 			Prefix("bucket >= (").
 			Suffix(")"))
+	case "1 week":
+		return query.Where(statementBuilder().Select("MAX(bucket) - '1 week'::interval").
+			From(dailyViewAggregate).
+			Prefix("bucket >= (").
+			Suffix(")"))
+	case "1 month":
+		return query.Where(statementBuilder().Select("MAX(bucket) - '1 month'::interval").
+			From(dailyViewAggregate).
+			Prefix("bucket >= (").
+			Suffix(")"))
+	case "1 year":
+		return query.Where(statementBuilder().Select("MAX(bucket) - '1 year'::interval").
+			From(dailyViewAggregate).
+			Prefix("bucket >= (").
+			Suffix(")"))
+	case "all":
+		return query
 	default:
 		panic("unknown span while trying to filter; huma should have caught this: " + span)
 	}

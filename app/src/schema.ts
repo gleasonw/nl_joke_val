@@ -25,6 +25,14 @@ export interface paths {
     /** List API emotes */
     get: operations["list-api-emotes"];
   };
+  "/api/hero_all_time_clips": {
+    /** List API hero all time clips */
+    get: operations["list-api-hero-all-time-clips"];
+  };
+  "/api/initialize_top_clips": {
+    /** Get API initialize top clips */
+    get: operations["get-api-initialize-top-clips"];
+  };
   "/api/is_live": {
     /** Get API is live */
     get: operations["get-api-is-live"];
@@ -57,6 +65,10 @@ export interface paths {
     /** Get API previous stream date */
     get: operations["get-api-previous-stream-date"];
   };
+  "/api/refresh_top_clips_store": {
+    /** Put API refresh top clips store */
+    put: operations["put-api-refresh-top-clips-store"];
+  };
   "/api/series": {
     /** List API series */
     get: operations["list-api-series"];
@@ -64,6 +76,10 @@ export interface paths {
   "/api/series_greatest": {
     /** List API series greatest */
     get: operations["list-api-series-greatest"];
+  };
+  "/api/thumbnail": {
+    /** Get API thumbnail */
+    get: operations["get-api-thumbnail"];
   };
 }
 
@@ -80,6 +96,7 @@ export interface components {
       clip_id: string;
       /** Format: int64 */
       count: number;
+      thumbnail: string;
       /** Format: date-time */
       time: string;
     };
@@ -99,6 +116,7 @@ export interface components {
       HexColor: string;
       /** Format: int64 */
       ID: number;
+      TopClips: components["schemas"]["TopClip"][];
       /** Format: date-time */
       UpdatedAt: string;
       Url: string;
@@ -168,7 +186,9 @@ export interface components {
        * @default 9 hours
        * @enum {string}
        */
-      Span: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+      Span: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
+      /** Format: date-time */
+      To: string;
     };
     EmoteSumReport: {
       /**
@@ -178,6 +198,16 @@ export interface components {
       $schema?: string;
       Emotes: components["schemas"]["EmoteSum"][];
       Input: components["schemas"]["EmoteSumInput"];
+    };
+    EmoteWithClips: {
+      clips: components["schemas"]["TopClip"][];
+      code: string;
+      /** Format: int64 */
+      emote_id: number;
+      emote_url: string;
+      span: string;
+      /** Format: int64 */
+      sum: number;
     };
     ErrorDetail: {
       /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
@@ -216,6 +246,14 @@ export interface components {
        */
       type?: string;
     };
+    FetchedClip: {
+      ClipID: string;
+      /** Format: date-time */
+      CreatedAt: string;
+      Thumbnail: string;
+      /** Format: int64 */
+      VodOffset: number;
+    };
     LatestEmotePerformanceInput: {
       /**
        * @default hour
@@ -243,6 +281,39 @@ export interface components {
       };
       /** Format: date-time */
       time: string;
+    };
+    TopClip: {
+      Clip: components["schemas"]["FetchedClip"];
+      ClipID: string;
+      /** Format: int64 */
+      Count: number;
+      /** Format: date-time */
+      CreatedAt: string;
+      DeletedAt: components["schemas"]["DeletedAt"];
+      Emote: components["schemas"]["Emote"];
+      /** Format: int64 */
+      EmoteID: number;
+      /** Format: int64 */
+      ID: number;
+      /** Format: int64 */
+      Rank: number;
+      Span: string;
+      /** Format: date-time */
+      UpdatedAt: string;
+    };
+    TwitchClip: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       */
+      $schema?: string;
+      broadcaster_id: string;
+      created_at: string;
+      /** Format: double */
+      duration: number;
+      id: string;
+      thumbnail_url: string;
+      video_id: string;
     };
   };
   responses: never;
@@ -285,7 +356,7 @@ export interface operations {
     parameters: {
       query?: {
         emote_id?: number;
-        span?: "30 minutes" | "1 hour" | "9 hours" | "1 week" | "1 month" | "1 year";
+        span?: "30 minutes" | "1 hour" | "9 hours" | "1 week" | "1 month" | "1 year" | "all";
         grouping?: "25 seconds" | "1 minute" | "5 minutes" | "15 minutes" | "1 hour" | "1 day";
         order?: "ASC" | "DESC";
         limit?: number;
@@ -335,9 +406,10 @@ export interface operations {
   "get-api-emote-sums": {
     parameters: {
       query?: {
-        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours" | "custom";
+        span?: "1 minute" | "30 minutes" | "1 hour" | "9 hours";
         limit?: number;
         from?: string;
+        to?: string;
         grouping?: "second" | "minute" | "hour" | "day";
       };
     };
@@ -363,6 +435,45 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["Emote"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** List API hero all time clips */
+  "list-api-hero-all-time-clips": {
+    parameters: {
+      query?: {
+        span?: "30 minutes" | "1 hour" | "9 hours" | "1 week" | "1 month" | "1 year" | "all";
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EmoteWithClips"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** Get API initialize top clips */
+  "get-api-initialize-top-clips": {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": boolean;
         };
       };
       /** @description Error */
@@ -561,6 +672,23 @@ export interface operations {
       };
     };
   };
+  /** Put API refresh top clips store */
+  "put-api-refresh-top-clips-store": {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": boolean;
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
   /** List API series */
   "list-api-series": {
     parameters: {
@@ -604,6 +732,28 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TimeSeries"][];
+        };
+      };
+      /** @description Error */
+      default: {
+        content: {
+          "application/problem+json": components["schemas"]["ErrorModel"];
+        };
+      };
+    };
+  };
+  /** Get API thumbnail */
+  "get-api-thumbnail": {
+    parameters: {
+      query?: {
+        clip_id?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TwitchClip"];
         };
       };
       /** @description Error */

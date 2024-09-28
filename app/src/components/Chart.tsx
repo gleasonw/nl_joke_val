@@ -46,6 +46,7 @@ export function Chart({
         events: {
           click: function (e) {
             navigate({
+              to: "/",
               search: { ...currentState, clickedUnixSeconds: e.point.x / 1000 },
             });
           },
@@ -75,6 +76,7 @@ export function ChartOptions() {
 
   function handleUpdateChart(newParams: DashboardURLState["seriesParams"]) {
     navigate({
+      to: "/",
       search: {
         ...currentState,
         seriesParams: { ...seriesParams, ...newParams },
@@ -142,7 +144,10 @@ export function ChartSpanOptions() {
 
   const span = seriesParams?.span;
 
-  function pushNewSpan(previous: DashboardURLState, span: string) {
+  function pushNewSpan(
+    previous: DashboardURLState,
+    span: NonNullable<DashboardURLState["seriesParams"]>["span"],
+  ) {
     return {
       ...previous,
       seriesParams: {

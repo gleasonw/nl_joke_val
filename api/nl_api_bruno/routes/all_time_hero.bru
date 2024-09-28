@@ -1,0 +1,15 @@
+meta {
+  name: all_time_hero
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/hero_all_time_clips?span=all
+  body: none
+  auth: none
+}
+
+params:query {
+  span: all
+}

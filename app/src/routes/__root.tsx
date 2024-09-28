@@ -2,24 +2,41 @@ import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { dashboardURLStateSchema } from "../utils";
 import React from "react";
-import { Info, LineChart } from "lucide-react";
+import { Info, LineChart, Trophy } from "lucide-react";
 import { useLiveStatus } from "@/hooks";
 
 export const Route = createRootRoute({
   validateSearch: dashboardURLStateSchema,
   component: () => (
     <>
-      <div className="flex gap-4 items-center p-2">
+      <div className="flex items-center gap-4 p-2">
         <h1 className="text-3xl font-semibold">The NL chat dashboard</h1>
         <LiveStatus />
-        <span className="flex gap-4 ml-auto">
-          <Link to="/">
+        <span className="flex gap-10">
+          <Link
+            to="/"
+            activeProps={{
+              style: { fontWeight: "bold", borderBottom: "2px solid" },
+            }}
+            className="flex gap-2"
+          >
+            <span>Stream data</span>
             <LineChart />
           </Link>
-          <Link to="/about">
-            <Info />
+          <Link
+            to="/all-time"
+            activeProps={{
+              style: { fontWeight: "bold", borderBottom: "2px solid" },
+            }}
+            className="flex gap-2"
+          >
+            <span>Hall of fame</span>
+            <Trophy />
           </Link>
         </span>
+        <Link to="/about" className="ml-auto">
+          <Info />
+        </Link>
       </div>
       <hr />
       <Outlet />
@@ -32,8 +49,8 @@ export function LiveStatus() {
   const { data: nlIsLive } = useLiveStatus();
   if (nlIsLive) {
     return (
-      <span className="flex text-2xl gap-2 items-center">
-        <span className="bg-green-500 rounded-full w-4 h-4" />
+      <span className="flex items-center gap-2 text-2xl">
+        <span className="h-4 w-4 rounded-full bg-green-500" />
         <a
           href="https://twitch.tv/northernlion"
           target="_blank"
@@ -45,5 +62,5 @@ export function LiveStatus() {
       </span>
     );
   }
-  return <span className="text-gray-500 text-2xl">Offline</span>;
+  return <span className="text-2xl text-gray-500">Offline</span>;
 }

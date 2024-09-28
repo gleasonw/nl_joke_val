@@ -2,7 +2,6 @@ import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import {
   useDashboardState,
   useLiveStatus,
-  useLiveTrendyTimeSeries,
   useNextStreamDate,
   usePlottedEmotes,
   usePreviousStreamDate,
@@ -10,15 +9,16 @@ import {
   useGreatestTimeSeries,
   useTimeSeries,
   useLatestEmoteSums,
+  useEmoteCountBarOptions,
+  useEmoteSums,
 } from "../hooks";
-import React, { Suspense, useMemo } from "react";
+import React, { Suspense } from "react";
 import { Chart, ChartOptions } from "../components/Chart";
 import { ClipAtTime } from "@/components/ClipAtTime";
 import { DatePicker } from "@/components/DatePicker";
 import { HistoricalDataTable, LiveDataTable } from "@/components/DataTable";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { LiveTopPerformingEmotes } from "@/components/LiveTopPerformingEmotes";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import {
   HistoricalMinusTwoClip,
@@ -78,72 +78,9 @@ function LiveView() {
   // emotes from this hook
   const { data } = useLatestEmoteSums({ limit: 10, span: "30 minutes" });
 
-  const emotes = data?.Emotes;
+  const emotes = data?.Emotes ?? [];
 
-  const highChartsOptions = useMemo<Highcharts.Options>(
-    () => ({
-      chart: {
-        type: "bar",
-        height: 600,
-      },
-      xAxis: {
-        categories: emotes?.map((e) => e.Code) ?? [],
-        title: {
-          text: "Emotes",
-        },
-      },
-      yAxis: {
-        min: 0,
-        title: {
-          text: "Sum",
-        },
-      },
-      title: {
-        text: "Top emotes last 30 minutes",
-      },
-      series: [
-        {
-          name: "Emote Usage",
-          data:
-            emotes?.map((e) => ({
-              name: e.Code,
-              color: e.HexColor,
-              y: e.Sum,
-            })) ?? [],
-          type: "bar",
-        },
-      ],
-      tooltip: {
-        formatter() {
-          const emote = emotes?.find((e) => e.Code === this.key);
-          return `
-            <strong>${this.key}</strong><br/>
-            <img src="${emote?.EmoteURL}" width="20" height="20" /><br/>
-            Sum: ${emote?.Sum}<br/>
-            Percent: ${emote?.Percent.toFixed(2)}%
-          `;
-        },
-      },
-      plotOptions: {
-        series: {
-          dataLabels: {
-            enabled: true,
-            useHTML: true,
-            formatter() {
-              const emote = emotes?.find((e) => e.Code === this.key);
-              return `
-                <div style="text-align: center; width: 20px; height: 20px; border-radius: 50%;">
-                  <img src="${emote?.EmoteURL}" width="20" height="20" /><br/>
-                </div>
-              `;
-            },
-          },
-        },
-      },
-    }),
-    [emotes],
-  );
-
+  const highChartsOptions = useEmoteCountBarOptions(emotes);
   return (
     <div className="flex flex-col gap-5">
       <DateDisplay />
@@ -168,6 +105,8 @@ function HistoricalView() {
     emote_ids: plottedEmotes.map((e) => e.ID),
   });
 
+  const { data: topEmotes } = useEmoteSums({ limit: 10 });
+
   const { from } = useDashboardState();
 
   return seriesData?.length === 0 && from ? (
@@ -179,13 +118,22 @@ function HistoricalView() {
     </div>
   ) : (
     <motion.div
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-2"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <DateDisplay />
-      <section className="flex flex-col gap-4 rounded-lg bg-white shadow-lg lg:p-4">
+      <section className="flex flex-col gap-8 rounded-lg bg-white shadow-lg lg:px-4">
+        <div className="flex w-full flex-wrap items-center justify-center gap-10">
+          {topEmotes?.Emotes.map((e, i) => (
+            <EmoteImage
+              key={e.Code}
+              emote={{ Url: e.EmoteURL, Code: e.Code }}
+              size={i === 0 ? "large" : i === 1 ? "medium" : "small"}
+            />
+          ))}
+        </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <HistoricalPlusTwoClip />
           <HistoricalMinusTwoClip />
