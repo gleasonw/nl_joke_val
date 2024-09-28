@@ -1,7 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -16,8 +22,8 @@ type Clip struct {
 }
 
 type ClipCountsInput struct {
-	EmoteID  int       `query:"emote_id" default:"2"`
-	Span     string    `query:"span" default:"9 hours" enum:"30 minutes,1 hour,9 hours,1 week,1 month,1 year"`
+	EmoteID int `query:"emote_id" default:"2"`
+	SpanQuery
 	Grouping string    `query:"grouping" default:"hour" enum:"25 seconds,1 minute,5 minutes,15 minutes,1 hour,1 day"`
 	Order    string    `query:"order" default:"DESC" enum:"ASC,DESC"`
 	Limit    int       `query:"limit" default:"10"`
@@ -34,10 +40,11 @@ type ClipCountsOutput struct {
 const likelyBitLength = "1 minutes"
 
 func selectClipsFromEmotePeaks(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutput, error) {
+	fmt.Println("fetching clips for input", p)
 
 	var query string
 
-	// we want just the x top bits, but some bit have many clips in the top rankings
+	// we want just the x top comedic segments, but some segments have many clips in the top rankings
 	// so we limit to a reasonable value.
 	limitMap := map[string]int{
 		"25 seconds": 100,
@@ -65,7 +72,7 @@ func selectClipsFromEmotePeaks(p ClipCountsInput, db *gorm.DB) (*ClipCountsOutpu
 			rollingSumQuery,
 			p.From.Format("2006-01-02 15:04:05"),
 			p.From.Add(time.Hour*24).Format("2006-01-02 15:04:05"))
-	} else if p.Span != "" {
+	} else if p.Span != "" && p.Span != AllTime {
 		rollingSumQuery = fmt.Sprintf(`
 			%s 
 			AND created_at >= (
@@ -163,8 +170,10 @@ func selectNearestClip(p NearestClipInput, db *gorm.DB) (*NearestClipOutput, err
 }
 
 type AllTimeClipsInput struct {
-	Limit  int `query:"limit"`
-	Cursor int `query:"cursor"`
+	Limit    int   `query:"limit"`
+	Cursor   int   `query:"cursor"`
+	EmoteIDs []int `query:"emote_ids"`
+	SpanQuery
 }
 
 type EmoteAllTime struct {
@@ -174,51 +183,446 @@ type EmoteAllTime struct {
 	Clips    []Clip
 }
 
-type AllTimeClipsOutput struct {
-	Body []EmoteAllTime
+type EmoteWithClips struct {
+	EmoteID  int       `json:"emote_id"`
+	EmoteUrl string    `json:"emote_url"`
+	Code     string    `json:"code"`
+	Span     TimeRange `json:"span"`
+	Sum      int       `json:"sum"`
+	Clips    []TopClip `json:"clips"`
 }
 
-// todo: allow for a slice of emote ids in clip counts, to sum
-// todo: this function should be cached by args, refreshed daily.
-func selectAllTimeClips(p *AllTimeClipsInput, db *gorm.DB) (*AllTimeClipsOutput, error) {
+type AllTimeClipsOutput struct {
+	Body []EmoteWithClips
+}
 
-	topTwentyEmotesPastMonth, err := selectSums(db, EmoteSumInput{
-		From:     time.Now().AddDate(0, -1, 0),
-		Limit:    20,
-		Grouping: "day",
-	})
+// Define a custom type for the union values
+type TimeRange string
 
-	if err != nil {
-		fmt.Println(err)
-		return &AllTimeClipsOutput{}, err
+const (
+	AllTime       TimeRange = "all"
+	Last30Minutes TimeRange = "30 minutes"
+	LastHour      TimeRange = "1 hour"
+	Last9Hours    TimeRange = "9 hours"
+	CurrentMonth  TimeRange = "1 month"
+	CurrentWeek   TimeRange = "1 week"
+	CurrentDay    TimeRange = "1 day"
+)
+
+type ClipUpdateResult struct {
+	out     *ClipCountsOutput
+	emoteID int
+	err     error
+}
+
+var timeSpanValidateArray = []TimeRange{
+	"30 minutes",
+	"1 hour",
+	"9 hours",
+	"1 week",
+	"1 month",
+	"1 year",
+	"all",
+}
+
+func topClipsToEmoteWithClips(topClips []TopClip, emoteIdToSpanSum map[int]EmoteSum) []EmoteWithClips {
+	emoteWithClipsMap := make(map[int]*EmoteWithClips)
+
+	for _, topClip := range topClips {
+		if _, ok := emoteWithClipsMap[topClip.EmoteID]; !ok {
+			emoteWithClipsMap[topClip.EmoteID] = &EmoteWithClips{
+				EmoteID:  topClip.EmoteID,
+				EmoteUrl: topClip.Emote.Url,
+				Code:     topClip.Emote.Code,
+				Span:     topClip.Span,
+				Clips:    []TopClip{},
+				Sum:      emoteIdToSpanSum[topClip.EmoteID].Sum,
+			}
+		}
+		emoteWithClipsMap[topClip.EmoteID].Clips = append(emoteWithClipsMap[topClip.EmoteID].Clips, topClip)
 	}
 
-	topClipsForEmotes := make([]EmoteAllTime, 0, len(topTwentyEmotesPastMonth.Body.Emotes))
+	var emoteWithClips []EmoteWithClips
 
-	// todo start 20 buffered goroutines and a wait group
-	// fetch thumbnails for top clips that don't have them
+	for _, emote := range emoteWithClipsMap {
+		emoteWithClips = append(emoteWithClips, *emote)
+	}
 
-	for _, emote := range topTwentyEmotesPastMonth.Body.Emotes {
-		clips, err := selectClipsFromEmotePeaks(ClipCountsInput{
-			EmoteID:  emote.EmoteID,
-			Grouping: "25 seconds",
-			Limit:    10,
-			Order:    "DESC",
-		}, db)
+	return emoteWithClips
+}
 
-		if err != nil {
-			fmt.Println("Error fetching clips for emote", err)
+func topClips(span TimeRange, emotes []Emote, db *gorm.DB) (chan ClipUpdateResult, error) {
+	if !slices.Contains(timeSpanValidateArray, span) {
+		return nil, fmt.Errorf("invalid time span, %s", span)
+	}
+
+	numQueries := len(emotes)
+	numWorkers := 10
+	jobs := make(chan ClipCountsInput, numQueries)
+	results := make(chan ClipUpdateResult, numQueries)
+	var wg sync.WaitGroup
+
+	for w := range numWorkers {
+		wg.Add(1)
+
+		go func(id int) {
+			defer wg.Done()
+			fmt.Printf("clip worker %d started\n", id)
+
+			for input := range jobs {
+				res, err := selectClipsFromEmotePeaks(input, db)
+
+				results <- ClipUpdateResult{
+					out:     res,
+					err:     err,
+					emoteID: input.EmoteID,
+				}
+			}
+		}(w)
+	}
+
+	limitForSpan := allTimeLimitForSpan(span)
+
+	for _, emoteToQuery := range emotes {
+		jobs <- ClipCountsInput{
+			EmoteID:   int(emoteToQuery.ID),
+			SpanQuery: SpanQuery{Span: span},
+			Grouping:  "25 seconds",
+			Limit:     limitForSpan,
+			Order:     "DESC",
+		}
+	}
+
+	close(jobs)
+
+	wg.Wait()
+
+	close(results)
+
+	return results, nil
+}
+
+func initializeTopClipsStore(timeSpan TimeRange, emotes []Emote, db *gorm.DB) error {
+	results, err := topClips(timeSpan, emotes, db)
+
+	if err != nil {
+		return err
+	}
+
+	clipBatches := make([]TopClip, 0, len(emotes)*allTimeLimitForSpan(timeSpan))
+
+	for res := range results {
+		if res.err != nil {
+			fmt.Println("error fetching clips for emote", res.err)
 			continue
 		}
 
-		topClipsForEmotes = append(topClipsForEmotes, EmoteAllTime{
-			EmoteID:  emote.EmoteID,
-			EmoteURL: emote.EmoteURL,
-			Code:     emote.Code,
-			Clips:    clips.Body,
-		})
+		for index, clip := range res.out.Body {
+			clipBatches = append(clipBatches, TopClip{
+				ClipID:  clip.ClipID,
+				EmoteID: res.emoteID,
+				Count:   clip.Count,
+				Span:    timeSpan,
+				Rank:    index + 1,
+			})
+		}
 	}
 
-	return &AllTimeClipsOutput{Body: topClipsForEmotes}, nil
+	fmt.Println("clips to insert: ", len(clipBatches))
 
+	concurrentBatchInsert(db, clipBatches)
+
+	return nil
+}
+
+func fetchClipData(clipID string, tokenManager TokenManager) (*TwitchClip, error) {
+	env := GetConfig()
+	var twitchClipResponse TwitchCipResponse
+
+	url := fmt.Sprintf("https://api.twitch.tv/helix/clips?id=%s", clipID)
+
+	request, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		fmt.Println("error creating request", err)
+		return nil, err
+	}
+
+	request.Header.Set("Client-ID", env.ClientId)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenManager.AccessToken))
+
+	resp, err := http.DefaultClient.Do(request)
+	if err != nil {
+		fmt.Println("error fetching clip data", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	fmt.Println(resp.Body)
+
+	if err := json.NewDecoder(resp.Body).Decode(&twitchClipResponse); err != nil {
+		return nil, fmt.Errorf("error decoding clip data: %w", err)
+	}
+
+	if len(twitchClipResponse.Data) == 0 {
+		return &TwitchClip{}, fmt.Errorf("no clip data found")
+	}
+
+	return &twitchClipResponse.Data[0], nil
+}
+
+func allTimeLimitForSpan(span TimeRange) int {
+	//the idea being, smaller time spans have fewer interesting segments, so why pull more...
+	switch span {
+	case "30 minutes":
+		return 10
+	case "1 hour":
+		return 10
+	case "9 hours":
+		return 10
+	case "1 week":
+		return 10
+	case "1 month":
+		return 20
+	case "1 year":
+		return 50
+	default:
+		return 10
+	}
+}
+
+var timeSpansToTrack = []TimeRange{
+	"9 hours",
+	"1 week",
+	"1 month",
+	"1 year",
+	AllTime,
+}
+
+func heroTopClips(input *SpanQuery, db *gorm.DB) (*AllTimeClipsOutput, error) {
+	grouping := "day"
+	if input.Span == Last9Hours {
+		grouping = "hour"
+	}
+	topTwentyEmotesPastSpan, err := selectSums(db, EmoteSumInput{
+		Span:     string(input.Span),
+		Limit:    20,
+		Grouping: grouping,
+	})
+	if err != nil {
+		fmt.Println("error fetching top 20 emotes", err)
+		return &AllTimeClipsOutput{}, err
+	}
+
+	emoteIds := make([]int, 0, len(topTwentyEmotesPastSpan.Body.Emotes))
+
+	for _, emote := range topTwentyEmotesPastSpan.Body.Emotes {
+		emoteIds = append(emoteIds, emote.EmoteID)
+	}
+	emoteIdToSpanSum := make(map[int]EmoteSum, len(topTwentyEmotesPastSpan.Body.Emotes))
+	for _, emote := range topTwentyEmotesPastSpan.Body.Emotes {
+		emoteIdToSpanSum[emote.EmoteID] = emote
+	}
+	fmt.Println(emoteIdToSpanSum)
+
+	results, err := storedTopClips(input.Span, emoteIds, db)
+	if err != nil {
+		fmt.Println("error fetching clips for emote", err)
+		return &AllTimeClipsOutput{}, err
+	}
+	emotesWithClips := topClipsToEmoteWithClips(results, emoteIdToSpanSum)
+
+	return &AllTimeClipsOutput{Body: emotesWithClips}, nil
+}
+
+func storedTopClips(span TimeRange, emoteIds []int, db *gorm.DB) ([]TopClip, error) {
+	var results []TopClip
+
+	err := db.Where("emote_id IN ?", emoteIds).
+		Where("span = ?", span).
+		Order("rank ASC").
+		Preload("Emote").
+		Preload("Clip").
+		Find(&results).Error
+	if err != nil {
+		fmt.Println("error fetching clips for emote", err)
+		return nil, err
+	}
+	return results, nil
+}
+
+func initializeTopClips(db *gorm.DB) error {
+	emotes, err := getEmotesInDB(db)
+	if err != nil {
+		return err
+	}
+
+	emotesToInit := make([]Emote, 0, len(emotes))
+
+	for _, value := range emotes {
+		emotesToInit = append(emotesToInit, value)
+	}
+
+	db.Exec("DELETE FROM top_clips")
+
+	for _, span := range timeSpansToTrack {
+		fmt.Println("====")
+		fmt.Printf("initializing top clips for %s\n", span)
+		fmt.Println("====")
+		err = initializeTopClipsStore(span, emotesToInit, db)
+	}
+	return nil
+}
+
+func emoteSpanKey(emoteID int, span TimeRange) string {
+	return fmt.Sprintf("%d-%s", emoteID, span)
+}
+
+func timeStringToDuration(timeString TimeRange) (time.Duration, error) {
+	switch timeString {
+	case "1 minute":
+		return time.Minute, nil
+	case "30 minutes":
+		return 30 * time.Minute, nil
+	case "1 hour":
+		return time.Hour, nil
+	case "9 hours":
+		return 9 * time.Hour, nil
+	case "1 week":
+		return 7 * 24 * time.Hour, nil
+	case "1 month":
+		return 30 * 24 * time.Hour, nil
+	case "1 year":
+		return 365 * 24 * time.Hour, nil
+	case "all":
+		return 0, nil
+	default:
+		return 0, fmt.Errorf("invalid time span, %s", timeString)
+	}
+}
+
+func refreshTopClipsCache(db *gorm.DB) error {
+
+	emoteMap, err := getEmotesInDB(db)
+	if err != nil {
+		return err
+	}
+
+	emotesToRefresh := make([]Emote, 0, len(emoteMap))
+	emoteIds := make([]int, 0, len(emoteMap))
+
+	for _, value := range emoteMap {
+		emotesToRefresh = append(emotesToRefresh, value)
+		emoteIds = append(emoteIds, int(value.ID))
+	}
+
+	clipsToPush := make([]TopClip, 0, len(emoteMap)*50)
+
+	// we run this function every time Nl logs off. the theory is to get the top daily clips,
+	// then compare to all time results, updating rankings based on counts, removing old clips.
+	// this should be more efficient than recomputing the entire rankings every time Nl logs off.
+	dailyResults, err := topClips("9 hours", emotesToRefresh, db)
+	if err != nil {
+		return fmt.Errorf("error fetching daily clips", err)
+	}
+	emoteSpanToClips := make(map[string][]Clip)
+	for result := range dailyResults {
+		for _, span := range timeSpansToTrack {
+			key := emoteSpanKey(result.emoteID, span)
+			emoteSpanToClips[key] = append(emoteSpanToClips[key], result.out.Body...)
+		}
+	}
+
+	for _, span := range timeSpansToTrack {
+		fmt.Println("====")
+		fmt.Printf("refreshing top clips for %s\n", span)
+		fmt.Println("====")
+
+		storedTopForSpan, err := storedTopClips(span, emoteIds, db)
+		if err != nil {
+			return fmt.Errorf("error fetching stored top clips", err)
+		}
+
+		duration, err := timeStringToDuration(span)
+		if err != nil {
+			return fmt.Errorf("error converting time span to duration", err)
+		}
+		lowerTimeLimit := time.Now().Add(-duration)
+		fmt.Println("time limt: ", lowerTimeLimit)
+
+		for _, result := range storedTopForSpan {
+			if span != "all" && result.Clip.CreatedAt.Before(lowerTimeLimit) {
+				// clip is too old, ignore it
+				continue
+			}
+			key := emoteSpanKey(result.EmoteID, span)
+			emoteSpanToClips[key] = append(emoteSpanToClips[key], Clip{
+				ClipID: result.ClipID,
+				Count:  result.Count,
+			})
+		}
+
+		fmt.Println("emote to clips: ", len(emoteSpanToClips))
+	}
+	for emoteSpan, clips := range emoteSpanToClips {
+		slices.SortFunc(clips, func(i, j Clip) int {
+			if i.Count > j.Count {
+				return -1
+			}
+			return 1
+		})
+		// ensure there's only one of each ClipID
+		filteredClips := make([]Clip, 0, len(clips))
+		seenClipIds := make(map[string]struct{})
+		for _, clip := range clips {
+			if _, ok := seenClipIds[clip.ClipID]; !ok {
+				filteredClips = append(filteredClips, clip)
+				seenClipIds[clip.ClipID] = struct{}{}
+			}
+		}
+
+		splitText := strings.Split(emoteSpan, "-")
+		emoteID, err := strconv.Atoi(splitText[0])
+		if err != nil {
+			return fmt.Errorf("error converting emote id to int", err)
+		}
+		span := splitText[1]
+		limitForSpan := allTimeLimitForSpan(TimeRange(span))
+		if limitForSpan > len(filteredClips) {
+			limitForSpan = len(filteredClips)
+		}
+		clipsToPushForEmote := (filteredClips)[:limitForSpan]
+		if len(clipsToPushForEmote) == 0 {
+			continue
+		}
+
+		for rank, clip := range clipsToPushForEmote {
+			clipsToPush = append(clipsToPush, TopClip{
+				ClipID:  clip.ClipID,
+				EmoteID: emoteID,
+				Rank:    rank + 1,
+				Count:   clip.Count,
+				Span:    TimeRange(span),
+			})
+		}
+
+	}
+	fmt.Println("clips to push: ", len(clipsToPush))
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("DELETE FROM top_clips").Error; err != nil {
+			return fmt.Errorf("error deleting old top clips: %v", err)
+		}
+
+		if err := tx.CreateInBatches(&clipsToPush, 1000).Error; err != nil {
+			return fmt.Errorf("error inserting new top clips: %v", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error refreshing top clips", err)
+	}
+	return nil
 }

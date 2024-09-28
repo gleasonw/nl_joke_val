@@ -52,6 +52,10 @@ type LiveStatus struct {
 	IsLive bool
 }
 
+type SpanQuery struct {
+	Span TimeRange `query:"span" default:"9 hours" enum:"30 minutes,1 hour,9 hours,1 week,1 month,1 year,all"`
+}
+
 func (ls *LiveStatus) setLiveStatus(liveStatusUpdate bool, db *gorm.DB) {
 	if !ls.IsLive && liveStatusUpdate {
 		// pog!
@@ -79,8 +83,19 @@ func (ls *LiveStatus) setLiveStatus(liveStatusUpdate bool, db *gorm.DB) {
 		ls.IsLive = false
 		fmt.Println("succesfully refreshed aggregates")
 
+		err := refreshTopClipsCache(db)
+
+		if err != nil {
+			fmt.Println("error refreshing top clips store", err)
+			return
+		}
+
 	}
 }
+
+// live scroller for emotes, via websocket client-sidep
+// add small peak chart to show the spike
+// :)
 
 func main() {
 
@@ -110,11 +125,13 @@ func main() {
 	}
 
 	liveStatus := &LiveStatus{IsLive: false}
+	tokenManager := getTokenManager(db)
 
-	// go connectToTwitchChat(
-	// 	db,
-	// 	liveStatus,
-	// )
+	go connectToTwitchChat(
+		tokenManager,
+		db,
+		liveStatus,
+	)
 
 	router := chi.NewMux()
 
@@ -122,8 +139,53 @@ func main() {
 
 	api := humachi.New(router, huma.DefaultConfig("NL chat dashboard API", "1.0.0"))
 
-	huma.Get(api, "/api/all_time_clips", func(ctx context.Context, input *AllTimeClipsInput) (*AllTimeClipsOutput, error) {
-		return selectAllTimeClips(input, db)
+	type ThumbnailInput struct {
+		ClipID string `query:"clip_id"`
+	}
+
+	huma.Get(api, "/api/thumbnail", func(ctx context.Context, input *ThumbnailInput) (*struct{ Body TwitchClip }, error) {
+		var clipInDb FetchedClip
+		fmt.Println("input clip id: ", input)
+		err := db.Where("clip_id = ?", input.ClipID).First(&clipInDb).Error
+		if err != nil {
+			fmt.Println("error getting clip from db", err)
+			return &struct{ Body TwitchClip }{Body: TwitchClip{}}, err
+		}
+		fmt.Println("clip in db: ", clipInDb)
+		if clipInDb.Thumbnail != "" {
+			return &struct{ Body TwitchClip }{Body: TwitchClip{ThumbnailURL: clipInDb.Thumbnail}}, nil
+		}
+
+		clip, err := fetchClipData(input.ClipID, *tokenManager)
+		if err != nil {
+			fmt.Println("error updating clip thumbnail", err)
+			return &struct{ Body TwitchClip }{Body: TwitchClip{}}, err
+		}
+		db.Model(&clipInDb).Select("thumbnail").Updates(map[string]interface{}{"thumbnail": clip.ThumbnailURL})
+		return &struct{ Body TwitchClip }{Body: *clip}, nil
+	})
+
+	huma.Get(api, "/api/initialize_top_clips", func(ctx context.Context, input *struct{}) (*struct{ Body bool }, error) {
+		err := initializeTopClips(db)
+
+		if err != nil {
+			fmt.Println("error initializing top clips", err)
+			return &struct{ Body bool }{Body: false}, err
+		}
+		return &struct{ Body bool }{Body: true}, nil
+	})
+
+	huma.Get(api, "/api/hero_all_time_clips", func(ctx context.Context, input *SpanQuery) (*AllTimeClipsOutput, error) {
+		return heroTopClips(input, db)
+	})
+
+	huma.Put(api, "/api/refresh_top_clips_store", func(ctx context.Context, input *struct{}) (*struct{ Body bool }, error) {
+		err := refreshTopClipsCache(db)
+		if err != nil {
+			fmt.Println("error refreshing top clips store", err)
+			return &struct{ Body bool }{Body: false}, err
+		}
+		return &struct{ Body bool }{Body: true}, nil
 	})
 
 	huma.Get(api, "/api/clip_counts", func(ctx context.Context, input *ClipCountsInput) (*ClipCountsOutput, error) {
@@ -319,10 +381,8 @@ func (t *TokenManager) RefreshToken(db *gorm.DB) error {
 	return nil
 }
 
-func connectToTwitchChat(db *gorm.DB, liveStatus *LiveStatus) {
+func connectToTwitchChat(tokenManager *TokenManager, db *gorm.DB, liveStatus *LiveStatus) {
 	env := GetConfig()
-
-	tokenManager := getTokenManager(db)
 
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -601,7 +661,7 @@ func persistCountsIfLive(
 		}
 	}
 
-	clipResult := getTwitchClip(tokenManager.AccessToken)
+	clipResult := makeClip(tokenManager.AccessToken)
 
 	if clipResult.clipID != "" {
 
@@ -674,7 +734,20 @@ type CreateClipResponse struct {
 	clipID string
 }
 
-func getTwitchClip(authToken string) CreateClipResponse {
+type TwitchCipResponse struct {
+	Data []TwitchClip `json:"data"`
+}
+
+type TwitchClip struct {
+	ID            string  `json:"id"`
+	BroadcasterID string  `json:"broadcaster_id"`
+	CreatedAt     string  `json:"created_at"`
+	Duration      float64 `json:"duration"`
+	ThumbnailURL  string  `json:"thumbnail_url"`
+	VideoID       string  `json:"video_id"`
+}
+
+func makeClip(authToken string) CreateClipResponse {
 	env := GetConfig()
 	requestBody := map[string]string{
 		"broadcaster_id": "14371185",

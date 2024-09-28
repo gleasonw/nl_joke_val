@@ -7,15 +7,17 @@ import { Route } from "./routes/index.lazy";
 import {
   Emote,
   EmoteGrowthParams,
-  EmotePerformance,
   EmoteSum,
   EmoteSumParams,
   LatestEmoteGrowthParams,
+  TopClipSpan,
 } from "./types";
 import {
+  getClipThumbnail,
   getEmoteGrowth,
   getEmoteSums,
   getEmotes,
+  getHeroAllTimeClips,
   getLatestEmoteGrowth as getLatestEmoteGrowth,
   getLatestEmoteSums,
   getLatestGreatestSeries,
@@ -29,6 +31,87 @@ import {
 import { useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { DashboardURLState } from "@/utils";
+
+export function useEmoteCountBarOptions(
+  emotes: Pick<EmoteSum, "Code" | "HexColor" | "Sum" | "EmoteURL">[],
+) {
+  return useMemo<Highcharts.Options>(
+    () => ({
+      chart: {
+        type: "bar",
+        height: 600,
+      },
+      xAxis: {
+        categories: emotes?.map((e) => e.Code) ?? [],
+        title: {
+          text: "Emotes",
+        },
+      },
+      yAxis: {
+        min: 0,
+        title: {
+          text: "Sum",
+        },
+      },
+      title: {
+        text: "Top emotes last 30 minutes",
+      },
+      series: [
+        {
+          name: "Emote Usage",
+          data:
+            emotes?.map((e) => ({
+              name: e.Code,
+              color: e.HexColor,
+              y: e.Sum,
+            })) ?? [],
+          type: "bar",
+        },
+      ],
+      tooltip: {
+        formatter() {
+          const emote = emotes?.find((e) => e.Code === this.key);
+          return `
+            <strong>${this.key}</strong><br/>
+            <img src="${emote?.EmoteURL}" width="20" height="20" /><br/>
+            Sum: ${emote?.Sum}<br/>
+          `;
+        },
+      },
+      plotOptions: {
+        series: {
+          dataLabels: {
+            enabled: true,
+            useHTML: true,
+            formatter() {
+              const emote = emotes?.find((e) => e.Code === this.key);
+              return `
+                <div style="text-align: center; width: 20px; height: 20px; border-radius: 50%;">
+                  <img src="${emote?.EmoteURL}" width="20" height="20" /><br/>
+                </div>
+              `;
+            },
+          },
+        },
+      },
+    }),
+    [emotes],
+  );
+}
+
+export function useClipThumbnail(clip_id: string) {
+  return useQuery({
+    queryFn: () => getClipThumbnail({ clip_id }),
+    queryKey: ["clipThumbnail", clip_id],
+  });
+}
+
+export function useTopClipHero(props?: { span?: TopClipSpan }) {
+  return useQuery({
+    queryFn: () => getHeroAllTimeClips({ span: props?.span ?? "all" }),
+    queryKey: ["topClipHero", props?.span],
+  });
+}
 
 export function useLiveStatus() {
   return useQuery({

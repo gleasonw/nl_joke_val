@@ -1,0 +1,18 @@
+meta {
+  name: clip_counts
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/clip_counts?span=all&grouping=25 seconds&emote_id=22&limit=10
+  body: none
+  auth: none
+}
+
+params:query {
+  span: all
+  grouping: 25 seconds
+  emote_id: 22
+  limit: 10
+}

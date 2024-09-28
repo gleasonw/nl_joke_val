@@ -1,0 +1,17 @@
+meta {
+  name: top_clips_cached
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/all_time_clips?emote_ids=22&emote_ids=99&span=1 year
+  body: none
+  auth: none
+}
+
+params:query {
+  emote_ids: 22
+  emote_ids: 99
+  span: 1 year
+}

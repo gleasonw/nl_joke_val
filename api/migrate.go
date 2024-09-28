@@ -16,6 +16,17 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+type TopClip struct {
+	gorm.Model
+	ClipID  string `gorm:"index"`
+	EmoteID int    `gorm:"index"`
+	Rank    int
+	Count   int
+	Span    TimeRange   `gorm:"index"`
+	Emote   Emote       `gorm:"foreignkey:EmoteID"`
+	Clip    FetchedClip `gorm:"references:ClipID"`
+}
+
 type Emote struct {
 	gorm.Model
 	ChannelId string
@@ -23,6 +34,7 @@ type Emote struct {
 	BttvId    int64
 	Url       string
 	HexColor  string
+	TopClips  []TopClip `gorm:"foreignkey:EmoteID"`
 }
 
 func (e *Emote) String() string {
@@ -47,6 +59,7 @@ type FetchedClip struct {
 	VodOffset int
 	ClipID    string    `gorm:"primary_key"`
 	CreatedAt time.Time `gorm:"index"`
+	Thumbnail string
 }
 
 const noClipSentinel = "no_clip"
@@ -375,9 +388,14 @@ func migrateToNewModel() error {
 
 }
 
-func concurrentBatchInsert[Row EmoteCount | FetchedClip](db *gorm.DB, rows []Row) error {
+func concurrentBatchInsert[Row EmoteCount | FetchedClip | TopClip](db *gorm.DB, rows []Row, workerCount ...int) error {
 	var wg sync.WaitGroup
-	numWorkers := 20
+	numWorkers := 0
+	if len(workerCount) > 0 && workerCount[0] > 0 {
+		numWorkers = workerCount[0]
+	} else {
+		numWorkers = 20
+	}
 	wg.Add(numWorkers)
 	numRowsPerWorker := len(rows) / numWorkers
 	for i := 0; i < numWorkers; i++ {

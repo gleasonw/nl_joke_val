@@ -15,7 +15,7 @@ function About() {
         </p>
         <p className="text-balance">
           This is our world. A database of emote counts since April 2023. What
-          will we do with it? Whatever will we do?
+          will we do with it? Whatever will we do? TEST
         </p>
         <p className="text-balance">
           So far,{" "}

@@ -42,3 +42,11 @@ export type EmoteSum =
   components["schemas"]["EmoteSumReport"]["Emotes"][number];
 
 export type Emote = components["schemas"]["Emote"];
+
+export type TopClipHeroInput =
+  paths["/api/hero_all_time_clips"]["get"]["parameters"]["query"];
+export type TopClip = components["schemas"]["TopClip"];
+export type EmoteClipResponse = components["schemas"]["EmoteWithClips"];
+export type TopClipSpan = NonNullable<
+  paths["/api/hero_all_time_clips"]["get"]["parameters"]["query"]
+>["span"];

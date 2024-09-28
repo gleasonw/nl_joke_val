@@ -4,6 +4,7 @@ import {
   EmoteGrowthParams,
   LatestEmoteGrowthParams,
   SeriesParams,
+  TopClipHeroInput,
 } from "./types";
 import { GET } from "./utils";
 
@@ -125,6 +126,34 @@ export async function getSeries(params: SeriesParams) {
 
   if (result.error) {
     throw new Error("Failed to fetch series");
+  }
+
+  return result.data;
+}
+
+export async function getClipThumbnail(params: { clip_id: string }) {
+  const result = await GET("/api/thumbnail", {
+    params: {
+      query: params,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch clip thumbnail");
+  }
+
+  return result.data;
+}
+
+export async function getHeroAllTimeClips(params: TopClipHeroInput) {
+  const result = await GET("/api/hero_all_time_clips", {
+    params: {
+      query: params,
+    },
+  });
+
+  if (result.error) {
+    throw new Error("Failed to fetch hero all time clips");
   }
 
   return result.data;

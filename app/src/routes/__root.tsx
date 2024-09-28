@@ -12,17 +12,31 @@ export const Route = createRootRoute({
       <div className="flex items-center gap-4 p-2">
         <h1 className="text-3xl font-semibold">The NL chat dashboard</h1>
         <LiveStatus />
-        <span className="ml-auto flex gap-4">
-          <Link to="/all-time">
-            <Trophy />
-          </Link>
-          <Link to="/">
+        <span className="flex gap-10">
+          <Link
+            to="/"
+            activeProps={{
+              style: { fontWeight: "bold", borderBottom: "2px solid" },
+            }}
+            className="flex gap-2"
+          >
+            <span>Stream data</span>
             <LineChart />
           </Link>
-          <Link to="/about">
-            <Info />
+          <Link
+            to="/all-time"
+            activeProps={{
+              style: { fontWeight: "bold", borderBottom: "2px solid" },
+            }}
+            className="flex gap-2"
+          >
+            <span>Hall of fame</span>
+            <Trophy />
           </Link>
         </span>
+        <Link to="/about" className="ml-auto">
+          <Info />
+        </Link>
       </div>
       <hr />
       <Outlet />
