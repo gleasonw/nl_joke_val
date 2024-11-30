@@ -127,6 +127,8 @@ func main() {
 	liveStatus := &LiveStatus{IsLive: false}
 	tokenManager := getTokenManager(db)
 
+	go doRegularBackup()
+
 	go connectToTwitchChat(
 		tokenManager,
 		db,

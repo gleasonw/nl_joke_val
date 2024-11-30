@@ -18,6 +18,7 @@ type AppConfig struct {
 	Nickname     string
 	DatabaseUrl  string
 	Debug        bool
+	S3Bucket     string
 }
 
 func LoadConfig() {
@@ -29,6 +30,7 @@ func LoadConfig() {
 			Nickname:     os.Getenv("NICK"),
 			DatabaseUrl:  os.Getenv("DATABASE_URL"),
 			Debug:        os.Getenv("DEBUG") == "true",
+			S3Bucket:     os.Getenv("AWS_S3_BUCKET"),
 		}
 	})
 }
