@@ -389,7 +389,7 @@ func connectToTwitchChat(tokenManager *TokenManager, db *gorm.DB, liveStatus *Li
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		conn, _, err := websocket.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
+		conn, _, err := websocket.DefaultDialer.Dial("wss://irc-ws.chat.twitch.tv:443", nil)
 		if err != nil {
 			fmt.Println("Error connecting to Twitch IRC:", err)
 			cancel()
