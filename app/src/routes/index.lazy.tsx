@@ -26,6 +26,7 @@ import {
 } from "@/components/HistoricalClipHeroes";
 import { EmoteImage } from "@/components/TopPerformingEmotes";
 import { EmoteInput } from "@/components/EmoteInput";
+import { TrendHighlights } from "@/components/TrendHighlights";
 import HighchartsReact from "highcharts-react-official";
 import Highcharts from "highcharts";
 
@@ -92,7 +93,10 @@ function LiveView() {
           />
           <ClipAtTime />
         </div>
-        <LiveDataTable />
+        <div className="flex flex-col gap-4 lg:col-start-3">
+          <TrendHighlights variant="live" />
+          <LiveDataTable />
+        </div>
       </div>
     </div>
   );
@@ -137,7 +141,8 @@ function HistoricalView() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <HistoricalPlusTwoClip />
           <HistoricalMinusTwoClip />
-          <div className="lg:row-span-2">
+          <div className="flex flex-col gap-4 lg:row-span-2">
+            <TrendHighlights variant="historical" />
             <HistoricalDataTable />
           </div>
           <div className="lg:col-span-2">
