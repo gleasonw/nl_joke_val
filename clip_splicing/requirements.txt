@@ -1,0 +1,6 @@
+python-dotenv
+psycopg[binary,pool]
+pydantic
+aiohttp
+moviepy
+yt-dlp

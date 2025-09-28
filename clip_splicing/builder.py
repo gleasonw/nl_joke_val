@@ -1,21 +1,20 @@
-import math
-import random
 from typing import Annotated, Any, List, Literal, Optional, Dict, Sequence, Tuple, Set
 from dotenv import load_dotenv
 import os
 from psycopg import AsyncConnection
 from psycopg.rows import class_row
-from pydantic import BaseModel, NaiveDatetime
+from pydantic import BaseModel
 from datetime import datetime, timedelta
 import asyncio
 import aiohttp
-from moviepy.editor import (
+from moviepy import (
     VideoFileClip,
     concatenate_videoclips,
     ColorClip,
     TextClip,
     CompositeVideoClip,
 )
+from twitch import download_clip, refresh_twitch_token, twitch_get
 import json
 
 os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
@@ -35,9 +34,10 @@ load_dotenv()
 
 BIT_WINDOW_SECONDS = 120
 TOTAL_CLIPS = 50
+SPAN="1 year"
 
 # change the model as well
-EMOTE = "lol"
+EMOTE = "ICANT"
 
 
 class ChatCount(BaseModel):
@@ -86,33 +86,24 @@ class ClipWithTwitchData(RollingChatCount):
     clip: Clip
 
 
-# def main():
-#     # start an event loop
-#     asyncio.run(build_compilation())
+def main():
+    # start an event loop
+    print('hello')
+    asyncio.run(build_compilation())
 
 
 missing_clips = set()
 
 
 async def build_compilation():
-    await create_clips_60_seconds()
-
-
-def merge_clips_from_json():
-    clips = load_clips_from_json_file()
-    merge_clips(clips)
-
-
-async def download_and_merge_clips_from_json():
-    clips = load_clips_from_json_file()
-    await download_all_clips(clips)
-    merge_clips(clips)
-
-
-async def download_and_merge_clips():
-    clips = await find_clips()
-    await download_all_clips(clips)
-    merge_clips(clips)
+    raw_twitch_clips = await find_clip_pairs(SPAN)
+    # filter out any clip pairs with a null clip. need to just find a new section, but for now let's just ignore it
+    twitch_clips = [pair for pair in raw_twitch_clips if len(pair) == 2 and pair[0] and pair[1]]
+    print(f"Found {len(twitch_clips)} clip pairs, here's the first 5:")
+    for clip in twitch_clips[:5]:
+        print(f"first clip: {clip[0].clip.id}, second clip: {clip[1].clip.id}")
+    # await download_all_clips(twitch_clips)
+    merge_clips(twitch_clips)
 
 
 def merge_clips(clips: List[List[ClipWithTwitchData]]):
@@ -123,14 +114,13 @@ def merge_clips(clips: List[List[ClipWithTwitchData]]):
         video_clips.extend(create_video_from_batch(batch, i + 1))
     final_clip = concatenate_videoclips(video_clips)
     final_clip.write_videofile(
-        f"{EMOTE} {TOTAL_CLIPS}.mp4", codec="libx264", audio_codec="aac"
-    )
-
-
-async def create_clips_60_seconds():
-    twitch_clips = await find_clip_pairs()
-    await download_all_clips(twitch_clips)
-    merge_clips(twitch_clips)
+	f"{EMOTE}_top_{TOTAL_CLIPS}_{SPAN}.mp4",
+	codec="h264_videotoolbox",   # macOS HW encoder
+	audio_codec="aac",
+	bitrate="8M",                 # set a target; HW enc ignores CRF/preset knobs
+	ffmpeg_params=["-pix_fmt", "yuv420p", "-movflags", "+faststart"]
+	# threads doesn’t matter for h264_videotoolbox
+)
 
 
 def create_video_from_batch_no_overlap(clip_batch: List[ClipWithTwitchData]):
@@ -152,19 +142,18 @@ def create_video_from_batch_no_overlap(clip_batch: List[ClipWithTwitchData]):
 
 def get_clip_title_text(clip: ClipWithTwitchData, place: int):
     text = TextClip(
-        f"""
+        text=f"""
 
 {clip.created_at.date()}
 
 {clip.rolling_sum} {EMOTE}s
 """,
-        fontsize=80,
+        font="/Library/Fonts/Arial.ttf",
+        font_size=80,
         color="white",
-        font="Ubuntu-Mono-Bold",
     )
     bg = ColorClip(size=(1920, 1080), color=(0, 0, 0))
-    text = text.set_position("center")
-    return CompositeVideoClip([bg, text]).set_duration(5)
+    return CompositeVideoClip([bg, text]).with_duration(5)
 
 
 def create_video_from_batch(clip_batch: List[ClipWithTwitchData], place: int):
@@ -182,10 +171,10 @@ def create_video_from_batch(clip_batch: List[ClipWithTwitchData], place: int):
             print(overlap_time)
             if overlap_time > 0:
                 clip = VideoFileClip(f"clips/{current_clip.clip.id}.mp4")
-                video_clips.append(clip.subclip(0, -overlap_time))
+                video_clips.append(clip.subclipped(0, -overlap_time))
             else:
                 video_clips.append(
-                    VideoFileClip(f"clips/{current_clip.clip.id}.mp4").subclip(0, -0.6)
+                    VideoFileClip(f"clips/{current_clip.clip.id}.mp4").subclipped(0, -0.6)
                 )
         except Exception as e:
             print(e)
@@ -210,8 +199,8 @@ def get_overlap_seconds(
 
 
 headers = {
-    "Client-ID": "",
-    "Authorization": "Bearer ",
+    "Client-ID": os.getenv("TWITCH_CLIENT_ID") or "",
+    "Authorization": f"Bearer {os.getenv('TWITCH_OAUTH_TOKEN') or ''}",
 }
 
 
@@ -241,41 +230,19 @@ async def download_batch(
 ):
     async with asyncio.TaskGroup() as group:
         for clip in clip_batch:
-            group.create_task(download_clip(clip, session))
-
-
-async def download_clip(clip: ClipWithTwitchData, session: aiohttp.ClientSession):
-    download_url = clip.clip.thumbnail_url.replace("-preview-480x272.jpg", ".mp4")
-    max_retries = 2
-    retries = 0
-    backoff = (2, 8)
-    while retries < max_retries:
-        try:
-            async with session.get(download_url) as resp:
-                if resp.status == 200:
-                    with open(f"clips/{clip.clip.id}.mp4", "wb") as f:
-                        f.write(await resp.read())
-                        return
-                else:
-                    print(resp.status)
-                    await asyncio.sleep(backoff[retries])
-                    retries += 1
-                    continue
-        except Exception as e:
-            print(e)
-            await asyncio.sleep(backoff[retries])
-            retries += 1
-            continue
-    if retries >= max_retries:
-        print("Max retries exceeded")
+            group.create_task(download_clip(clip_id=clip.clip_id, file_path=f"clips/{clip.clip_id}.mp4"))
 
 
 async def fetch_clip_data(clip: ChatCount, session: aiohttp.ClientSession):
     clip_id = clip.clip_id
-    async with session.get(f"https://api.twitch.tv/helix/clips?id={clip_id}") as resp:
+    async with await twitch_get(url=f"https://api.twitch.tv/helix/clips?id={clip_id}", session=session) as resp:
         if resp.status == 200:
-            twitch_clip = Clip.model_validate((await resp.json())["data"][0])
-            return ClipWithTwitchData(**clip.model_dump(), clip=twitch_clip)
+            try:
+                twitch_clip = Clip.model_validate((await resp.json())["data"][0])
+                return ClipWithTwitchData(**clip.model_dump(), clip=twitch_clip)
+            except Exception as e:
+                print(f"Error parsing clip data for {clip_id}: {e}")
+                print(await resp.json())
         else:
             print(resp.status)
             print(resp.headers.get("ratelimit-reset"))
@@ -292,25 +259,28 @@ async def find_clips_and_write_to_json():
         json.dump(serialized_clips, f)
 
 
-async def find_clip_pairs() -> List[List[ClipWithTwitchData]]:
-    async with aiohttp.ClientSession(headers=headers) as session:
+async def find_clip_pairs(span: SPAN_TYPE) -> List[List[ClipWithTwitchData]]:
+    async with aiohttp.ClientSession() as session:
         async with await AsyncConnection.connect(database_url) as aconn:
-            top_clips = await get_top_clips(aconn)
+            top_clips = await get_top_clips(aconn, span=span)
+            print(f"Found {len(top_clips)} top clips, here's the first 5:")
+            for clip in top_clips[:5]:
+                print(f" - {clip.clip_id}: {clip.count}")
             intervals = make_intervals_from_rolling_sums(top_clips)
             left_shifted_clips: List[List[RollingChatCount]] = []
             for interval in intervals:
-                end, sum = interval
+                end, sum_count = interval
                 first_30 = await get_clip_between(
                     aconn,
                     end - timedelta(seconds=30),
                     end,
-                    sum,
+                    sum_count,
                 )
                 last_30 = await get_clip_between(
                     aconn,
                     end,
                     end,
-                    sum,
+                    sum_count,
                 )
                 if first_30 is None or last_30 is None:
                     continue
@@ -343,6 +313,7 @@ async def find_clips() -> List[List[ClipWithTwitchData]]:
 async def get_batched_twitch_clips(
     clips: Sequence[ChatCount], session: aiohttp.ClientSession
 ):
+    await refresh_twitch_token(session)
     async with asyncio.TaskGroup() as group:
         clip_tasks = [
             group.create_task(fetch_clip_data(clip, session)) for clip in clips
@@ -360,24 +331,21 @@ async def get_top_clips(
     emote_to_query = emote or EMOTE
     if sum_window == "second":
         sum_window = "30 seconds"
-    if sum_window == "all":
-        sum_window = "1 year"
-    if span == "day":
-        # otherwise we get clips from prior stream
-        span = "9 hours"
     async with conn.cursor(row_factory=class_row(RollingChatCount)) as cur:
         query = f"""
-            SELECT SUM({emote_to_query}) OVER (
-                    ORDER BY created_at
+            SELECT SUM(emote_counts.count) OVER (
+                    ORDER BY emote_counts.created_at
                     RANGE BETWEEN INTERVAL '{sum_window}' PRECEDING AND CURRENT ROW
-                ) as rolling_sum, {emote_to_query} as count, clip_id, created_at
-                FROM chat_counts 
-                WHERE clip_id IS NOT NULL
+                ) as rolling_sum, emote_counts.count, emote_counts.clip_id, emote_counts.created_at
+                FROM emote_counts
+                WHERE emote_counts.clip_id IS NOT NULL
+                AND emote_counts.clip_id != ''
+                AND emote_counts.emote_id = (SELECT id FROM emotes WHERE code = '{emote_to_query}')
                 AND created_at > (
-                    SELECT MAX(created_at) 
-                    FROM chat_counts
+                    SELECT MAX(created_at)
+                    FROM emote_counts
                 ) - INTERVAL '{span}'
-                AND {emote_to_query} IS NOT NULL
+                AND count IS NOT NULL
                 ORDER BY rolling_sum {order} limit 10000;
             """
         await cur.execute(query)
@@ -390,7 +358,7 @@ async def get_top_intervals(conn: AsyncConnection):
             WITH TimeBasedRollingSums AS (
                 SELECT created_at, {EMOTE}, clip_id,
                     SUM({EMOTE}) OVER (
-                        ORDER BY created_at 
+                        ORDER BY created_at
                         RANGE BETWEEN INTERVAL '{BIT_WINDOW_SECONDS} seconds' PRECEDING AND CURRENT ROW
                     ) AS rolling_sum
                 FROM chat_counts
@@ -430,7 +398,7 @@ def make_intervals_from_rolling_sums(
 ) -> List[Tuple[datetime, int]]:
     discovered_top_intervals: List[Tuple[datetime, int]] = []
     window_seconds = grouping_type_to_seconds(sum_window or "1 minute")
-    print(window_seconds)
+    print(f"Using window of {window_seconds} seconds")
 
     for count in top_windows:
         if len(discovered_top_intervals) >= limit:
@@ -487,11 +455,12 @@ async def get_clip_between(
     async with conn.cursor(row_factory=class_row(ChatCountWithThumbnail)) as cur:
         await cur.execute(
             """
-            SELECT clip_id, created_at, thumbnail, two as count FROM chat_counts
-            WHERE created_at BETWEEN %s AND %s
-            AND clip_id IS NOT NULL
-            AND clip_id != ''
-            ORDER BY created_at ASC
+            SELECT emote_counts.clip_id, emote_counts.created_at, fetched_clips.thumbnail, emote_counts.count
+            FROM emote_counts JOIN fetched_clips on emote_counts.clip_id = fetched_clips.clip_id
+            WHERE emote_counts.created_at BETWEEN %s AND %s
+            AND emote_counts.clip_id IS NOT NULL
+            AND emote_counts.clip_id != ''
+            ORDER BY emote_counts.created_at ASC
             LIMIT 1;
             """,
             (start, end),
@@ -500,3 +469,5 @@ async def get_clip_between(
         if clip is None:
             return None
         return RollingChatCountWithThumbnail(**clip.model_dump(), rolling_sum=sum)
+
+main()
